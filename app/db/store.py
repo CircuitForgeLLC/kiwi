@@ -32,7 +32,10 @@ class Store:
         # Deserialise any TEXT columns that contain JSON
         for key in ("metadata", "nutrition_data", "source_data", "items",
                     "metrics", "improvement_suggestions", "confidence_scores",
-                    "warnings"):
+                    "warnings",
+                    # recipe columns
+                    "ingredients", "ingredient_names", "directions",
+                    "keywords", "element_coverage"):
             if key in d and isinstance(d[key], str):
                 try:
                     d[key] = json.loads(d[key])
