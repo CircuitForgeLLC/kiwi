@@ -23,10 +23,17 @@ class RecipeSuggestion(BaseModel):
     is_wildcard: bool = False
 
 
+class GroceryLink(BaseModel):
+    ingredient: str
+    retailer: str
+    url: str
+
+
 class RecipeResult(BaseModel):
     suggestions: list[RecipeSuggestion]
     element_gaps: list[str]
     grocery_list: list[str] = Field(default_factory=list)
+    grocery_links: list[GroceryLink] = Field(default_factory=list)
     rate_limited: bool = False
     rate_limit_count: int = 0
 

@@ -20,8 +20,9 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from app.db.store import Store
 
-from app.models.schemas.recipe import RecipeRequest, RecipeResult, RecipeSuggestion, SwapCandidate
+from app.models.schemas.recipe import GroceryLink, RecipeRequest, RecipeResult, RecipeSuggestion, SwapCandidate
 from app.services.recipe.element_classifier import ElementClassifier
+from app.services.recipe.grocery_links import GroceryLinkBuilder
 from app.services.recipe.substitution_engine import SubstitutionEngine
 
 _LEFTOVER_DAILY_MAX_FREE = 5
@@ -163,4 +164,13 @@ class RecipeEngine:
                     grocery_list.append(item)
                     seen.add(item)
 
-        return RecipeResult(suggestions=suggestions, element_gaps=gaps, grocery_list=grocery_list)
+        # Build grocery links — affiliate deeplinks for each missing ingredient
+        link_builder = GroceryLinkBuilder(tier=req.tier, has_byok=req.has_byok)
+        grocery_links = link_builder.build_all(grocery_list)
+
+        return RecipeResult(
+            suggestions=suggestions,
+            element_gaps=gaps,
+            grocery_list=grocery_list,
+            grocery_links=grocery_links,
+        )

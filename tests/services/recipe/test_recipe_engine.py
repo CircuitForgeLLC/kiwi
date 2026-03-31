@@ -106,3 +106,16 @@ def test_hard_day_mode_filters_complex_methods(store_with_recipes):
     result = engine.suggest(req_hard)
     titles = [s.title for s in result.suggestions]
     assert "Braised Short Ribs" not in titles
+
+
+def test_grocery_links_free_tier(store_with_recipes):
+    from app.services.recipe.recipe_engine import RecipeEngine, RecipeRequest
+    engine = RecipeEngine(store_with_recipes)
+    req = RecipeRequest(pantry_items=["butter"], level=1, constraints=[], max_missing=5)
+    result = engine.suggest(req)
+    # Links may be empty if no retailer env vars set, but structure must be correct
+    assert isinstance(result.grocery_links, list)
+    for link in result.grocery_links:
+        assert hasattr(link, "ingredient")
+        assert hasattr(link, "retailer")
+        assert hasattr(link, "url")
