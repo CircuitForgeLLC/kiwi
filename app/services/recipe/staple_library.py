@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -21,7 +22,7 @@ class StapleEntry:
     base_ingredients: list[str]
     base_method: str
     base_time_minutes: int
-    yield_formats: dict[str, dict]
+    yield_formats: dict[str, Any]
     compatible_styles: list[str]
 
 
@@ -42,15 +43,18 @@ class StapleLibrary:
         return [s for s in self._staples.values() if label in s.dietary_labels]
 
     def _load(self, path: Path) -> StapleEntry:
-        data = yaml.safe_load(path.read_text())
-        return StapleEntry(
-            slug=data["slug"],
-            name=data["name"],
-            description=data.get("description", ""),
-            dietary_labels=data.get("dietary_labels", []),
-            base_ingredients=data.get("base_ingredients", []),
-            base_method=data.get("base_method", ""),
-            base_time_minutes=int(data.get("base_time_minutes", 0)),
-            yield_formats=data.get("yield_formats", {}),
-            compatible_styles=data.get("compatible_styles", []),
-        )
+        try:
+            data = yaml.safe_load(path.read_text())
+            return StapleEntry(
+                slug=data["slug"],
+                name=data["name"],
+                description=data.get("description", ""),
+                dietary_labels=data.get("dietary_labels", []),
+                base_ingredients=data.get("base_ingredients", []),
+                base_method=data.get("base_method", ""),
+                base_time_minutes=int(data.get("base_time_minutes", 0)),
+                yield_formats=data.get("yield_formats", {}),
+                compatible_styles=data.get("compatible_styles", []),
+            )
+        except (KeyError, yaml.YAMLError) as exc:
+            raise ValueError(f"Failed to load staple from {path}: {exc}") from exc
