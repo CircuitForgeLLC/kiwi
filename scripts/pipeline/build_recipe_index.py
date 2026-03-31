@@ -55,53 +55,74 @@ def compute_element_coverage(profiles: list[dict]) -> dict[str, float]:
 
 def build(db_path: Path, recipes_path: Path, batch_size: int = 10000) -> None:
     conn = sqlite3.connect(db_path)
-    conn.execute("PRAGMA journal_mode=WAL")
-    df = pd.read_parquet(recipes_path)
-    inserted = 0
-    batch = []
+    try:
+        conn.execute("PRAGMA journal_mode=WAL")
 
-    for _, row in df.iterrows():
-        raw_ingredients = row.get("RecipeIngredientParts", [])
-        if isinstance(raw_ingredients, str):
+        # Pre-load ingredient element profiles to avoid N+1 queries
+        profile_index: dict[str, list[str]] = {}
+        for row in conn.execute("SELECT name, elements FROM ingredient_profiles"):
             try:
-                raw_ingredients = json.loads(raw_ingredients)
+                profile_index[row[0]] = json.loads(row[1])
             except Exception:
-                raw_ingredients = [raw_ingredients]
-        raw_ingredients = [str(i) for i in (raw_ingredients or [])]
-        ingredient_names = extract_ingredient_names(raw_ingredients)
+                pass
 
-        profiles = []
-        for name in ingredient_names:
-            row_p = conn.execute(
-                "SELECT elements FROM ingredient_profiles WHERE name = ?", (name,)
-            ).fetchone()
-            if row_p:
-                profiles.append({"elements": json.loads(row_p[0])})
-        coverage = compute_element_coverage(profiles)
+        df = pd.read_parquet(recipes_path)
+        inserted = 0
+        batch = []
 
-        directions = row.get("RecipeInstructions", [])
-        if isinstance(directions, str):
-            try:
-                directions = json.loads(directions)
-            except Exception:
-                directions = [directions]
+        for _, row in df.iterrows():
+            raw_ingredients = row.get("RecipeIngredientParts", [])
+            if isinstance(raw_ingredients, str):
+                try:
+                    raw_ingredients = json.loads(raw_ingredients)
+                except Exception:
+                    raw_ingredients = [raw_ingredients]
+            raw_ingredients = [str(i) for i in (raw_ingredients or [])]
+            ingredient_names = extract_ingredient_names(raw_ingredients)
 
-        batch.append((
-            str(row.get("RecipeId", "")),
-            str(row.get("Name", ""))[:500],
-            json.dumps(raw_ingredients),
-            json.dumps(ingredient_names),
-            json.dumps([str(d) for d in (directions or [])]),
-            str(row.get("RecipeCategory", "") or ""),
-            json.dumps(list(row.get("Keywords", []) or [])),
-            float(row.get("Calories") or 0) or None,
-            float(row.get("FatContent") or 0) or None,
-            float(row.get("ProteinContent") or 0) or None,
-            float(row.get("SodiumContent") or 0) or None,
-            json.dumps(coverage),
-        ))
+            profiles = []
+            for name in ingredient_names:
+                if name in profile_index:
+                    profiles.append({"elements": profile_index[name]})
+            coverage = compute_element_coverage(profiles)
 
-        if len(batch) >= batch_size:
+            directions = row.get("RecipeInstructions", [])
+            if isinstance(directions, str):
+                try:
+                    directions = json.loads(directions)
+                except Exception:
+                    directions = [directions]
+
+            batch.append((
+                str(row.get("RecipeId", "")),
+                str(row.get("Name", ""))[:500],
+                json.dumps(raw_ingredients),
+                json.dumps(ingredient_names),
+                json.dumps([str(d) for d in (directions or [])]),
+                str(row.get("RecipeCategory", "") or ""),
+                json.dumps(list(row.get("Keywords", []) or [])),
+                float(row.get("Calories") or 0) or None,
+                float(row.get("FatContent") or 0) or None,
+                float(row.get("ProteinContent") or 0) or None,
+                float(row.get("SodiumContent") or 0) or None,
+                json.dumps(coverage),
+            ))
+
+            if len(batch) >= batch_size:
+                before = conn.total_changes
+                conn.executemany("""
+                    INSERT OR IGNORE INTO recipes
+                      (external_id, title, ingredients, ingredient_names, directions,
+                       category, keywords, calories, fat_g, protein_g, sodium_mg, element_coverage)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                """, batch)
+                conn.commit()
+                inserted += conn.total_changes - before
+                print(f"  {inserted} recipes inserted...")
+                batch = []
+
+        if batch:
+            before = conn.total_changes
             conn.executemany("""
                 INSERT OR IGNORE INTO recipes
                   (external_id, title, ingredients, ingredient_names, directions,
@@ -109,21 +130,11 @@ def build(db_path: Path, recipes_path: Path, batch_size: int = 10000) -> None:
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
             """, batch)
             conn.commit()
-            inserted += len(batch)
-            print(f"  {inserted} recipes inserted...")
-            batch = []
+            inserted += conn.total_changes - before
 
-    if batch:
-        conn.executemany("""
-            INSERT OR IGNORE INTO recipes
-              (external_id, title, ingredients, ingredient_names, directions,
-               category, keywords, calories, fat_g, protein_g, sodium_mg, element_coverage)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-        """, batch)
         conn.commit()
-        inserted += len(batch)
-
-    conn.close()
+    finally:
+        conn.close()
     print(f"Total: {inserted} recipes inserted")
 
 
