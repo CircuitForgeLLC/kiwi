@@ -3,7 +3,11 @@ name: Latin
 aromatics: [cumin, chili, cilantro, epazote, mexican oregano, ancho, chipotle, smoked paprika]
 depth_sources: [dried chilis, smoked peppers, chocolate, achiote]
 brightness_sources: [lime, tomatillo, brined jalapeño, orange]
-method_bias: [dry roast spices, high-heat sear, braise]
+method_bias:
+  roast: 0.30
+  braise: 0.30
+  fry: 0.25
+  grill: 0.15
 structure_forms: [wrapped in masa, pastry, stuffed, bowl]
 seasoning_bias: kosher salt
 finishing_fat: lard or neutral oil

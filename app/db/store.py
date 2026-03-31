@@ -327,6 +327,24 @@ class Store:
         self.conn.commit()
         return (True, current + 1)
 
+    # ── user settings ────────────────────────────────────────────────────
+
+    def get_setting(self, key: str) -> str | None:
+        """Return the value for a settings key, or None if not set."""
+        row = self._fetch_one(
+            "SELECT value FROM user_settings WHERE key = ?", (key,)
+        )
+        return row["value"] if row else None
+
+    def set_setting(self, key: str, value: str) -> None:
+        """Upsert a settings key-value pair."""
+        self.conn.execute(
+            "INSERT INTO user_settings (key, value) VALUES (?, ?)"
+            " ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (key, value),
+        )
+        self.conn.commit()
+
     # ── substitution feedback ─────────────────────────────────────────────
 
     def log_substitution_feedback(

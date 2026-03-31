@@ -19,6 +19,8 @@ class RecipeSuggestion(BaseModel):
     element_coverage: dict[str, float] = Field(default_factory=dict)
     swap_candidates: list[SwapCandidate] = Field(default_factory=list)
     missing_ingredients: list[str] = Field(default_factory=list)
+    directions: list[str] = Field(default_factory=list)
+    notes: str = ""
     level: int = 1
     is_wildcard: bool = False
 
@@ -49,3 +51,4 @@ class RecipeRequest(BaseModel):
     tier: str = "free"
     has_byok: bool = False
     wildcard_confirmed: bool = False
+    allergies: list[str] = Field(default_factory=list)

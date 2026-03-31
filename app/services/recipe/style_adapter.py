@@ -16,13 +16,55 @@ _STYLES_DIR = Path(__file__).parents[2] / "styles"
 class StyleTemplate:
     style_id: str
     name: str
-    aromatics: list[str]
-    depth_sources: list[str]
-    brightness_sources: list[str]
-    method_bias: list[str]
-    structure_forms: list[str]
+    aromatics: tuple[str, ...]
+    depth_sources: tuple[str, ...]
+    brightness_sources: tuple[str, ...]
+    method_bias: dict[str, float]
+    structure_forms: tuple[str, ...]
     seasoning_bias: str
-    finishing_fat: str
+    finishing_fat_str: str
+
+    def bias_aroma_selection(self, pantry_items: list[str]) -> list[str]:
+        """Return aromatics present in pantry (bidirectional substring match)."""
+        result = []
+        for aroma in self.aromatics:
+            for item in pantry_items:
+                if aroma.lower() in item.lower() or item.lower() in aroma.lower():
+                    result.append(aroma)
+                    break
+        return result
+
+    def preferred_depth_sources(self, pantry_items: list[str]) -> list[str]:
+        """Return depth_sources present in pantry."""
+        result = []
+        for src in self.depth_sources:
+            for item in pantry_items:
+                if src.lower() in item.lower() or item.lower() in src.lower():
+                    result.append(src)
+                    break
+        return result
+
+    def preferred_structure_forms(self, pantry_items: list[str]) -> list[str]:
+        """Return structure_forms present in pantry."""
+        result = []
+        for form in self.structure_forms:
+            for item in pantry_items:
+                if form.lower() in item.lower() or item.lower() in form.lower():
+                    result.append(form)
+                    break
+        return result
+
+    def method_weights(self) -> dict[str, float]:
+        """Return method bias weights."""
+        return dict(self.method_bias)
+
+    def seasoning_vector(self) -> str:
+        """Return seasoning bias."""
+        return self.seasoning_bias
+
+    def finishing_fat(self) -> str:
+        """Return finishing fat."""
+        return self.finishing_fat_str
 
 
 class StyleAdapter:
@@ -32,8 +74,12 @@ class StyleAdapter:
             try:
                 template = self._load(yaml_path)
                 self._styles[template.style_id] = template
-            except (KeyError, yaml.YAMLError) as exc:
+            except (KeyError, yaml.YAMLError, TypeError) as exc:
                 raise ValueError(f"Failed to load style from {yaml_path}: {exc}") from exc
+
+    @property
+    def styles(self) -> dict[str, StyleTemplate]:
+        return self._styles
 
     def get(self, style_id: str) -> StyleTemplate | None:
         return self._styles.get(style_id)
@@ -63,12 +109,12 @@ class StyleAdapter:
             return {}
         return {
             "aroma_candidates":       self.bias_aroma_selection(style_id, pantry_items),
-            "depth_suggestions":      template.depth_sources,
-            "brightness_suggestions": template.brightness_sources,
+            "depth_suggestions":      list(template.depth_sources),
+            "brightness_suggestions": list(template.brightness_sources),
             "method_bias":            template.method_bias,
-            "structure_forms":        template.structure_forms,
+            "structure_forms":        list(template.structure_forms),
             "seasoning_bias":         template.seasoning_bias,
-            "finishing_fat":          template.finishing_fat,
+            "finishing_fat":          template.finishing_fat_str,
         }
 
     def _load(self, path: Path) -> StyleTemplate:
@@ -76,11 +122,11 @@ class StyleAdapter:
         return StyleTemplate(
             style_id=data["style_id"],
             name=data["name"],
-            aromatics=data.get("aromatics", []),
-            depth_sources=data.get("depth_sources", []),
-            brightness_sources=data.get("brightness_sources", []),
-            method_bias=data.get("method_bias", []),
-            structure_forms=data.get("structure_forms", []),
+            aromatics=tuple(data.get("aromatics", [])),
+            depth_sources=tuple(data.get("depth_sources", [])),
+            brightness_sources=tuple(data.get("brightness_sources", [])),
+            method_bias=dict(data.get("method_bias", {})),
+            structure_forms=tuple(data.get("structure_forms", [])),
             seasoning_bias=data.get("seasoning_bias", ""),
-            finishing_fat=data.get("finishing_fat", ""),
+            finishing_fat_str=data.get("finishing_fat", ""),
         )

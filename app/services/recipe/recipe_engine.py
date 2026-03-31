@@ -73,6 +73,16 @@ class RecipeEngine:
         req: RecipeRequest,
         available_equipment: list[str] | None = None,
     ) -> RecipeResult:
+        # Load cooking equipment from user settings when hard_day_mode is active
+        if req.hard_day_mode and available_equipment is None:
+            equipment_json = self._store.get_setting("cooking_equipment")
+            if equipment_json:
+                try:
+                    available_equipment = json.loads(equipment_json)
+                except (json.JSONDecodeError, TypeError):
+                    available_equipment = []
+            else:
+                available_equipment = []
         # Rate-limit leftover mode for free tier
         if req.expiry_first and req.tier == "free":
             allowed, count = self._store.check_and_increment_rate_limit(
