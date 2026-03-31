@@ -7,15 +7,15 @@ def store_with_subs(store_with_profiles):
     store_with_profiles.conn.execute("""
         INSERT INTO substitution_pairs
           (original_name, substitute_name, constraint_label,
-           fat_delta, moisture_delta, glutamate_delta, occurrence_count)
-        VALUES (?,?,?,?,?,?,?)
-    """, ("butter", "coconut oil", "vegan", -1.0, 0.0, 0.0, 15))
+           fat_delta, moisture_delta, glutamate_delta, protein_delta, occurrence_count)
+        VALUES (?,?,?,?,?,?,?,?)
+    """, ("butter", "coconut oil", "vegan", -1.0, 0.0, 0.0, 0.0, 15))
     store_with_profiles.conn.execute("""
         INSERT INTO substitution_pairs
           (original_name, substitute_name, constraint_label,
-           fat_delta, moisture_delta, glutamate_delta, occurrence_count)
-        VALUES (?,?,?,?,?,?,?)
-    """, ("ground beef", "lentils", "vegan", -15.0, 10.0, -2.0, 45))
+           fat_delta, moisture_delta, glutamate_delta, protein_delta, occurrence_count)
+        VALUES (?,?,?,?,?,?,?,?)
+    """, ("ground beef", "lentils", "vegan", -15.0, 10.0, -2.0, 5.0, 45))
     store_with_profiles.conn.commit()
     return store_with_profiles
 
