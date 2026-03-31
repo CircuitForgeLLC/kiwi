@@ -16,3 +16,11 @@ dependencies:
     - httpx>=0.27
     - pydantic>=2.5
     - PyJWT>=2.8
+    - datasets
+    - huggingface_hub
+    - transformers
+    - sentence-transformers
+    - torch
+    - pyyaml
+    - pandas
+    - pyarrow

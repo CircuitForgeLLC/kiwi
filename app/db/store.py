@@ -32,7 +32,10 @@ class Store:
         # Deserialise any TEXT columns that contain JSON
         for key in ("metadata", "nutrition_data", "source_data", "items",
                     "metrics", "improvement_suggestions", "confidence_scores",
-                    "warnings"):
+                    "warnings",
+                    # recipe columns
+                    "ingredients", "ingredient_names", "directions",
+                    "keywords", "element_coverage"):
             if key in d and isinstance(d[key], str):
                 try:
                     d[key] = json.loads(d[key])
@@ -260,3 +263,107 @@ class Store:
         return self._fetch_one(
             "SELECT * FROM receipt_data WHERE receipt_id = ?", (receipt_id,)
         )
+
+    # ── recipes ───────────────────────────────────────────────────────────
+
+    def search_recipes_by_ingredients(
+        self,
+        ingredient_names: list[str],
+        limit: int = 20,
+        category: str | None = None,
+    ) -> list[dict]:
+        """Find recipes containing any of the given ingredient names.
+        Scores by match count and returns highest-scoring first."""
+        if not ingredient_names:
+            return []
+        like_params = [f'%"{n}"%' for n in ingredient_names]
+        like_clauses = " OR ".join(
+            "r.ingredient_names LIKE ?" for _ in ingredient_names
+        )
+        match_score = " + ".join(
+            "CASE WHEN r.ingredient_names LIKE ? THEN 1 ELSE 0 END"
+            for _ in ingredient_names
+        )
+        category_clause = ""
+        category_params: list = []
+        if category:
+            category_clause = "AND r.category = ?"
+            category_params = [category]
+        sql = f"""
+            SELECT r.*, ({match_score}) AS match_count
+            FROM recipes r
+            WHERE ({like_clauses})
+            {category_clause}
+            ORDER BY match_count DESC, r.id ASC
+            LIMIT ?
+        """
+        all_params = like_params + like_params + category_params + [limit]
+        return self._fetch_all(sql, tuple(all_params))
+
+    def get_recipe(self, recipe_id: int) -> dict | None:
+        return self._fetch_one("SELECT * FROM recipes WHERE id = ?", (recipe_id,))
+
+    # ── rate limits ───────────────────────────────────────────────────────
+
+    def check_and_increment_rate_limit(
+        self, feature: str, daily_max: int
+    ) -> tuple[bool, int]:
+        """Check daily counter for feature; only increment if under the limit.
+        Returns (allowed, current_count). Rejected calls do not consume quota."""
+        from datetime import date
+        today = date.today().isoformat()
+        row = self._fetch_one(
+            "SELECT count FROM rate_limits WHERE feature = ? AND window_date = ?",
+            (feature, today),
+        )
+        current = row["count"] if row else 0
+        if current >= daily_max:
+            return (False, current)
+        self.conn.execute("""
+            INSERT INTO rate_limits (feature, window_date, count)
+            VALUES (?, ?, 1)
+            ON CONFLICT(feature, window_date) DO UPDATE SET count = count + 1
+        """, (feature, today))
+        self.conn.commit()
+        return (True, current + 1)
+
+    # ── user settings ────────────────────────────────────────────────────
+
+    def get_setting(self, key: str) -> str | None:
+        """Return the value for a settings key, or None if not set."""
+        row = self._fetch_one(
+            "SELECT value FROM user_settings WHERE key = ?", (key,)
+        )
+        return row["value"] if row else None
+
+    def set_setting(self, key: str, value: str) -> None:
+        """Upsert a settings key-value pair."""
+        self.conn.execute(
+            "INSERT INTO user_settings (key, value) VALUES (?, ?)"
+            " ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            (key, value),
+        )
+        self.conn.commit()
+
+    # ── substitution feedback ─────────────────────────────────────────────
+
+    def log_substitution_feedback(
+        self,
+        original: str,
+        substitute: str,
+        constraint: str | None,
+        compensation_used: list[str],
+        approved: bool,
+        opted_in: bool,
+    ) -> None:
+        self.conn.execute("""
+            INSERT INTO substitution_feedback
+              (original_name, substitute_name, constraint_label,
+               compensation_used, approved, opted_in)
+            VALUES (?,?,?,?,?,?)
+        """, (
+            original, substitute, constraint,
+            self._dump(compensation_used),
+            int(approved), int(opted_in),
+        ))
+        self.conn.commit()

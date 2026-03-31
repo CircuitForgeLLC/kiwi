@@ -9,6 +9,7 @@ CREATE TABLE receipts_new (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     filename        TEXT NOT NULL,
     original_path   TEXT NOT NULL,
+    processed_path  TEXT,
     status          TEXT NOT NULL DEFAULT 'uploaded'
                         CHECK (status IN (
                             'uploaded',

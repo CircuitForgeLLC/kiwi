@@ -1,0 +1,13 @@
+style_id: italian
+name: Italian
+aromatics: [basil, oregano, garlic, onion, fennel, rosemary, thyme, sage, marjoram]
+depth_sources: [parmesan, pecorino, anchovies, canned tomato, porcini mushrooms]
+brightness_sources: [lemon, white wine, tomato, red wine vinegar]
+method_bias:
+  braise: 0.30
+  roast: 0.30
+  saute: 0.25
+  simmer: 0.15
+structure_forms: [pasta, wrapped, layered, risotto]
+seasoning_bias: sea salt
+finishing_fat: olive oil

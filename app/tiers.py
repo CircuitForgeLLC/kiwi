@@ -25,6 +25,8 @@ KIWI_FEATURES: dict[str, str] = {
     "receipt_upload":        "free",
     "expiry_alerts":         "free",
     "export_csv":            "free",
+    "leftover_mode":         "free",      # Rate-limited at API layer, not tier-gated
+    "staple_library":        "free",
 
     # Paid tier
     "receipt_ocr":           "paid",   # BYOK-unlockable
@@ -32,11 +34,11 @@ KIWI_FEATURES: dict[str, str] = {
     "expiry_llm_matching":   "paid",   # BYOK-unlockable
     "meal_planning":         "paid",
     "dietary_profiles":      "paid",
+    "style_picker":          "paid",
 
     # Premium tier
     "multi_household":       "premium",
     "background_monitoring": "premium",
-    "leftover_mode":         "premium",
 }
 
 
@@ -47,6 +49,7 @@ def can_use(feature: str, tier: str, has_byok: bool = False) -> bool:
         tier,
         has_byok=has_byok,
         _features=KIWI_FEATURES,
+        _byok_unlockable=KIWI_BYOK_UNLOCKABLE,
     )
 
 
@@ -54,7 +57,12 @@ def require_feature(feature: str, tier: str, has_byok: bool = False) -> None:
     """Raise ValueError if the tier cannot access the feature."""
     if not can_use(feature, tier, has_byok):
         from circuitforge_core.tiers.tiers import tier_label
-        needed = tier_label(feature, has_byok=has_byok, _features=KIWI_FEATURES)
+        needed = tier_label(
+            feature,
+            has_byok=has_byok,
+            _features=KIWI_FEATURES,
+            _byok_unlockable=KIWI_BYOK_UNLOCKABLE,
+        )
         raise ValueError(
             f"Feature '{feature}' requires {needed} tier. "
             f"Current tier: {tier}."

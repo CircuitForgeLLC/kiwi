@@ -1,0 +1,13 @@
+style_id: eastern_european
+name: Eastern European
+aromatics: [dill, caraway, marjoram, parsley, horseradish, bay leaf]
+depth_sources: [sour cream, smoked meats, bacon, dried mushrooms]
+brightness_sources: [sauerkraut brine, apple cider vinegar, sour cream]
+method_bias:
+  braise: 0.35
+  boil: 0.30
+  bake: 0.25
+  roast: 0.10
+structure_forms: [dumpling wrapper, bread dough, stuffed cabbage]
+seasoning_bias: kosher salt
+finishing_fat: butter or lard
