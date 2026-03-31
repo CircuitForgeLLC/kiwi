@@ -1,0 +1,9 @@
+style_id: east_asian
+name: East Asian
+aromatics: [ginger, scallion, sesame, star anise, five spice, sichuan pepper, lemongrass]
+depth_sources: [soy sauce, miso, oyster sauce, shiitake, fish sauce, bonito]
+brightness_sources: [rice vinegar, mirin, citrus zest, ponzu]
+method_bias: [steam then pan-fry, wok high heat, braise in soy]
+structure_forms: [dumpling wrapper, thin noodle, rice, bao]
+seasoning_bias: soy sauce
+finishing_fat: toasted sesame oil

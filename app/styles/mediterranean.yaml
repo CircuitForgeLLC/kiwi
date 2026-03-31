@@ -1,0 +1,9 @@
+style_id: mediterranean
+name: Mediterranean
+aromatics: [oregano, thyme, rosemary, mint, sumac, za'atar, preserved lemon]
+depth_sources: [tahini, feta, halloumi, dried olives, harissa]
+brightness_sources: [lemon, pomegranate molasses, yogurt, sumac]
+method_bias: [roast, grill, braise with tomato]
+structure_forms: [flatbread, stuffed vegetables, grain bowl, mezze plate]
+seasoning_bias: sea salt
+finishing_fat: olive oil
