@@ -17,7 +17,18 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     logger.info("Starting Kiwi API...")
     settings.ensure_dirs()
+
+    # Start LLM background task scheduler
+    from app.tasks.scheduler import get_scheduler
+    get_scheduler(settings.DB_PATH)
+    logger.info("Task scheduler started.")
+
     yield
+
+    # Graceful scheduler shutdown
+    from app.tasks.scheduler import get_scheduler, reset_scheduler
+    get_scheduler(settings.DB_PATH).shutdown(timeout=10.0)
+    reset_scheduler()
     logger.info("Kiwi API shutting down.")
 
 
