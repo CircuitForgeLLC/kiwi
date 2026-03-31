@@ -35,6 +35,7 @@ def test_classify_known_ingredient(store_with_profiles):
     assert "Richness" in profile.elements
     assert profile.fat_pct == pytest.approx(81.0)
     assert profile.name == "butter"
+    assert profile.source == "db"
 
 
 def test_classify_unknown_ingredient_uses_heuristic(store_with_profiles):
@@ -42,7 +43,7 @@ def test_classify_unknown_ingredient_uses_heuristic(store_with_profiles):
     clf = ElementClassifier(store_with_profiles)
     profile = clf.classify("ghost pepper hot sauce")
     # Heuristic should detect acid / aroma
-    assert len(profile.elements) > 0
+    assert "Aroma" in profile.elements  # "pepper" in name matches Aroma heuristic
     assert profile.name == "ghost pepper hot sauce"
 
 
