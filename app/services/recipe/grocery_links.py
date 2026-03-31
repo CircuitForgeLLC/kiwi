@@ -50,6 +50,8 @@ class GroceryLinkBuilder:
         Free tier: URL construction only.
         Paid+: would call live product search APIs (stubbed).
         """
+        if not ingredient.strip():
+            return []
         links: list[GroceryLink] = []
 
         if self._amazon_tag:
