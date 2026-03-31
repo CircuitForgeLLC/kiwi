@@ -1,0 +1,28 @@
+slug: tempeh
+name: Tempeh
+description: Fermented soybean cake. Dense, nutty, high in protein. Excellent at absorbing marinades.
+dietary_labels: [vegan, high-protein, fermented]
+base_ingredients:
+  - tempeh block (store-bought or homemade from soybeans + starter)
+base_method: steam then marinate
+base_time_minutes: 20
+yield_formats:
+  raw:
+    elements: [Structure, Depth, Richness]
+    shelf_days: 7
+    storage: refrigerated in original packaging or wrapped
+    methods: [steam, crumble, slice]
+    texture: dense, firm
+  marinated:
+    elements: [Structure, Depth, Seasoning, Aroma]
+    shelf_days: 5
+    storage: submerged in marinade, refrigerated
+    methods: [bake, pan-fry, grill]
+    texture: chewy, flavor-dense
+  crumbled:
+    elements: [Structure, Depth, Texture]
+    shelf_days: 3
+    storage: refrigerated, use quickly
+    methods: [saute as ground meat substitute, add to tacos or pasta]
+    texture: crumbly, browned bits
+compatible_styles: [latin, east_asian, mediterranean]

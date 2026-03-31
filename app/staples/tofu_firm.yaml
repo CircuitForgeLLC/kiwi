@@ -1,0 +1,34 @@
+slug: tofu-firm
+name: Firm Tofu
+description: Pressed soybean curd. Neutral flavor, excellent at absorbing surrounding flavors. Freeze-thaw cycle creates meatier texture.
+dietary_labels: [vegan, high-protein]
+base_ingredients:
+  - firm or extra-firm tofu block
+base_method: press (30 min) then prepare
+base_time_minutes: 30
+yield_formats:
+  pressed_raw:
+    elements: [Structure]
+    shelf_days: 5
+    storage: submerged in water, refrigerated, change water daily
+    methods: [cube, slice, crumble]
+    texture: dense, uniform
+  freeze_thawed:
+    elements: [Structure, Texture]
+    shelf_days: 5
+    storage: refrigerated after thawing
+    methods: [squeeze dry, saute, bake]
+    texture: chewy, porous, absorbs marinades deeply
+  baked:
+    elements: [Structure, Texture, Aroma]
+    shelf_days: 4
+    storage: refrigerated, uncovered
+    methods: [add to stir-fry, bowl, salad]
+    texture: crisp exterior, chewy interior
+  silken:
+    elements: [Richness, Structure]
+    shelf_days: 3
+    storage: refrigerated, use within days of opening
+    methods: [blend into sauces, custards, dressings]
+    texture: silky, smooth
+compatible_styles: [east_asian, mediterranean]

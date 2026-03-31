@@ -1,0 +1,38 @@
+slug: seitan
+name: Seitan (Wheat Meat)
+description: High-protein wheat gluten that mimics the texture of meat. Can be made in bulk and stored in multiple formats.
+dietary_labels: [vegan, high-protein]
+base_ingredients:
+  - vital wheat gluten
+  - nutritional yeast
+  - soy sauce
+  - garlic powder
+  - vegetable broth
+base_method: simmer
+base_time_minutes: 45
+yield_formats:
+  fresh:
+    elements: [Structure, Depth, Richness]
+    shelf_days: 5
+    storage: airtight container, refrigerated in broth
+    methods: [saute, braise, grill, stir-fry]
+    texture: chewy, meaty
+  frozen:
+    elements: [Structure, Depth]
+    shelf_days: 90
+    storage: vacuum-sealed freezer bag
+    methods: [thaw then any method]
+    texture: slightly softer after thaw
+  braised:
+    elements: [Structure, Depth, Seasoning]
+    shelf_days: 4
+    storage: covered in braising liquid, refrigerated
+    methods: [serve directly, slice for sandwiches]
+    texture: tender, falling-apart
+  grilled:
+    elements: [Structure, Aroma, Texture]
+    shelf_days: 3
+    storage: refrigerated, uncovered to maintain crust
+    methods: [slice cold, reheat in pan]
+    texture: crisp exterior, chewy interior
+compatible_styles: [italian, latin, east_asian, eastern_european]
