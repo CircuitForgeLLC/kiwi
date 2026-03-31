@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Thoth - Inventory & Receipt Manager</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .tab:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .tab.active {
+            background: white;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            margin-bottom: 20px;
+        }
+
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f7f9fc;
+        }
+
+        .upload-area:hover {
+            border-color: #764ba2;
+            background: #eef2f7;
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+
+        .upload-text {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .upload-hint {
+            font-size: 14px;
+            color: #666;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: transform 0.2s;
+            margin-right: 10px;
+        }
+
+        .button:hover {
+            transform: translateY(-2px);
+        }
+
+        .button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .button-secondary {
+            background: #6c757d;
+        }
+
+        .button-small {
+            padding: 8px 16px;
+            font-size: 14px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            display: none;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .results {
+            margin-top: 20px;
+            display: none;
+        }
+
+        .result-item {
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+
+        .result-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .result-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .result-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        /* Stats */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: #f7f9fc;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: #666;
+        }
+
+        /* Inventory List */
+        .inventory-list {
+            margin-top: 20px;
+        }
+
+        .inventory-item {
+            background: #f7f9fc;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .item-info {
+            flex: 1;
+        }
+
+        .item-name {
+            font-weight: 600;
+            font-size: 16px;
+            margin-bottom: 5px;
+        }
+
+        .item-details {
+            font-size: 14px;
+            color: #666;
+        }
+
+        .item-tags {
+            display: flex;
+            gap: 5px;
+            margin-top: 5px;
+            flex-wrap: wrap;
+        }
+
+        .tag {
+            background: #667eea;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+
+        .expiry-warning {
+            color: #ff6b6b;
+            font-weight: 600;
+        }
+
+        .expiry-soon {
+            color: #ffa500;
+            font-weight: 600;
+        }
+
+        /* Form */
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📦 Project Thoth</h1>
+            <p>Smart Inventory & Receipt Management</p>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('inventory')">🏪 Inventory</button>
+            <button class="tab" onclick="switchTab('receipts')">🧾 Receipts</button>
+        </div>
+
+        <!-- Inventory Tab -->
+        <div id="inventoryTab" class="tab-content active">
+            <!-- Stats -->
+            <div class="card">
+                <h2>📊 Inventory Overview</h2>
+                <div class="stats-grid" id="inventoryStats">
+                    <div class="stat-card">
+                        <div class="stat-value" id="totalItems">0</div>
+                        <div class="stat-label">Total Items</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="totalProducts">0</div>
+                        <div class="stat-label">Unique Products</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value expiry-soon" id="expiringSoon">0</div>
+                        <div class="stat-label">Expiring Soon</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value expiry-warning" id="expired">0</div>
+                        <div class="stat-label">Expired</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Barcode Scanner Gun -->
+            <div class="card">
+                <h2>🔫 Scanner Gun</h2>
+                <p style="color: #666; margin-bottom: 15px;">Use your barcode scanner gun below. Scan will auto-submit when Enter is pressed.</p>
+
+                <div class="form-group">
+                    <label for="scannerGunInput">Scan barcode here:</label>
+                    <input
+                        type="text"
+                        id="scannerGunInput"
+                        placeholder="Focus here and scan with barcode gun..."
+                        style="font-size: 18px; font-family: monospace; background: #f0f8ff;"
+                        autocomplete="off"
+                    >
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="scannerLocation">Location</label>
+                        <select id="scannerLocation">
+                            <option value="fridge">Fridge</option>
+                            <option value="freezer">Freezer</option>
+                            <option value="pantry" selected>Pantry</option>
+                            <option value="cabinet">Cabinet</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="scannerQuantity">Quantity</label>
+                        <input type="number" id="scannerQuantity" value="1" min="0.1" step="0.1">
+                    </div>
+                </div>
+
+                <div class="loading" id="scannerLoading">
+                    <div class="spinner"></div>
+                    <p>Processing barcode...</p>
+                </div>
+
+                <div class="results" id="scannerResults"></div>
+            </div>
+
+            <!-- Barcode Scan (Camera/Image) -->
+            <div class="card">
+                <h2>📷 Scan Barcode (Camera/Image)</h2>
+                <div class="upload-area" id="barcodeUploadArea">
+                    <div class="upload-icon">📸</div>
+                    <div class="upload-text">Click to scan barcode or drag and drop</div>
+                    <div class="upload-hint">Take a photo of a product barcode (UPC/EAN)</div>
+                </div>
+                <input type="file" id="barcodeInput" accept="image/*" capture="environment">
+
+                <div class="form-row" style="margin-top: 20px;">
+                    <div class="form-group">
+                        <label for="barcodeLocation">Location</label>
+                        <select id="barcodeLocation">
+                            <option value="fridge">Fridge</option>
+                            <option value="freezer">Freezer</option>
+                            <option value="pantry" selected>Pantry</option>
+                            <option value="cabinet">Cabinet</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="barcodeQuantity">Quantity</label>
+                        <input type="number" id="barcodeQuantity" value="1" min="0.1" step="0.1">
+                    </div>
+                </div>
+
+                <div class="loading" id="barcodeLoading">
+                    <div class="spinner"></div>
+                    <p>Scanning barcode...</p>
+                </div>
+
+                <div class="results" id="barcodeResults"></div>
+            </div>
+
+            <!-- Manual Add -->
+            <div class="card">
+                <h2>➕ Add Item Manually</h2>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="itemName">Product Name*</label>
+                        <input type="text" id="itemName" placeholder="e.g., Organic Milk" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="itemBrand">Brand</label>
+                        <input type="text" id="itemBrand" placeholder="e.g., Horizon">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="itemQuantity">Quantity*</label>
+                        <input type="number" id="itemQuantity" value="1" min="0.1" step="0.1" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="itemUnit">Unit</label>
+                        <select id="itemUnit">
+                            <option value="count">Count</option>
+                            <option value="kg">Kilograms</option>
+                            <option value="lbs">Pounds</option>
+                            <option value="oz">Ounces</option>
+                            <option value="liters">Liters</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="itemLocation">Location*</label>
+                        <select id="itemLocation" required>
+                            <option value="fridge">Fridge</option>
+                            <option value="freezer">Freezer</option>
+                            <option value="pantry" selected>Pantry</option>
+                            <option value="cabinet">Cabinet</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="itemExpiration">Expiration Date</label>
+                        <input type="date" id="itemExpiration">
+                    </div>
+                </div>
+
+                <button class="button" onclick="addManualItem()">Add to Inventory</button>
+            </div>
+
+            <!-- Inventory List -->
+            <div class="card">
+                <h2>📋 Current Inventory</h2>
+                <div class="inventory-list" id="inventoryList">
+                    <p style="text-align: center; color: #666;">No items yet. Scan a barcode or add manually!</p>
+                </div>
+            </div>
+
+            <!-- Export -->
+            <div class="card">
+                <h2>📥 Export</h2>
+                <button class="button" onclick="exportInventoryCSV()">📊 Download CSV</button>
+                <button class="button" onclick="exportInventoryExcel()">📈 Download Excel</button>
+            </div>
+        </div>
+
+        <!-- Receipts Tab -->
+        <div id="receiptsTab" class="tab-content">
+            <div class="card">
+                <h2>📸 Upload Receipt</h2>
+                <div class="upload-area" id="receiptUploadArea">
+                    <div class="upload-icon">🧾</div>
+                    <div class="upload-text">Click to upload or drag and drop</div>
+                    <div class="upload-hint">Supports JPG, PNG (max 10MB)</div>
+                </div>
+                <input type="file" id="receiptInput" accept="image/*">
+
+                <div class="loading" id="receiptLoading">
+                    <div class="spinner"></div>
+                    <p>Processing receipt...</p>
+                </div>
+
+                <div class="results" id="receiptResults"></div>
+            </div>
+
+            <div class="card">
+                <h2>📋 Recent Receipts</h2>
+                <div id="receiptStats">
+                    <p style="text-align: center; color: #666;">No receipts yet. Upload one above!</p>
+                </div>
+
+                <div style="margin-top: 20px;">
+                    <button class="button" onclick="exportReceiptCSV()">📊 Download CSV</button>
+                    <button class="button" onclick="exportReceiptExcel()">📈 Download Excel</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/v1';
+        let currentInventory = [];
+
+        // Tab switching
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+            if (tab === 'inventory') {
+                document.querySelector('.tab:nth-child(1)').classList.add('active');
+                document.getElementById('inventoryTab').classList.add('active');
+                loadInventoryData();
+
+                // Auto-focus scanner gun input for quick scanning
+                setTimeout(() => {
+                    document.getElementById('scannerGunInput').focus();
+                }, 100);
+            } else {
+                document.querySelector('.tab:nth-child(2)').classList.add('active');
+                document.getElementById('receiptsTab').classList.add('active');
+                loadReceiptData();
+            }
+        }
+
+        // Scanner gun (text input)
+        const scannerGunInput = document.getElementById('scannerGunInput');
+
+        // Auto-focus scanner gun input when inventory tab is active
+        scannerGunInput.addEventListener('keypress', async (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const barcode = scannerGunInput.value.trim();
+
+                if (!barcode) return;
+
+                await handleScannerGunInput(barcode);
+                scannerGunInput.value = ''; // Clear for next scan
+                scannerGunInput.focus(); // Re-focus for next scan
+            }
+        });
+
+        async function handleScannerGunInput(barcode) {
+            const location = document.getElementById('scannerLocation').value;
+            const quantity = parseFloat(document.getElementById('scannerQuantity').value);
+
+            showLoading('scanner', true);
+            showResults('scanner', false);
+
+            try {
+                const response = await fetch(`${API_BASE}/inventory/scan/text`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        barcode,
+                        location,
+                        quantity,
+                        auto_add_to_inventory: true
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success && data.barcodes_found > 0) {
+                    const result = data.results[0];
+                    showResult('scanner', 'success',
+                        `✓ Added: ${result.product.name}${result.product.brand ? ' (' + result.product.brand + ')' : ''} to ${location}`
+                    );
+                    loadInventoryData();
+
+                    // Beep sound (optional - browser may block)
+                    try {
+                        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                        const oscillator = audioContext.createOscillator();
+                        const gainNode = audioContext.createGain();
+                        oscillator.connect(gainNode);
+                        gainNode.connect(audioContext.destination);
+                        oscillator.frequency.value = 800;
+                        oscillator.type = 'sine';
+                        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                        oscillator.start(audioContext.currentTime);
+                        oscillator.stop(audioContext.currentTime + 0.1);
+                    } catch (e) {
+                        // Audio failed, ignore
+                    }
+                } else {
+                    showResult('scanner', 'error', data.message || 'Barcode not found');
+                }
+            } catch (error) {
+                showResult('scanner', 'error', `Error: ${error.message}`);
+            } finally {
+                showLoading('scanner', false);
+            }
+        }
+
+        // Barcode scanning (image)
+        const barcodeUploadArea = document.getElementById('barcodeUploadArea');
+        const barcodeInput = document.getElementById('barcodeInput');
+
+        barcodeUploadArea.addEventListener('click', () => barcodeInput.click());
+        barcodeInput.addEventListener('change', handleBarcodeScan);
+
+        async function handleBarcodeScan(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const location = document.getElementById('barcodeLocation').value;
+            const quantity = parseFloat(document.getElementById('barcodeQuantity').value);
+
+            showLoading('barcode', true);
+            showResults('barcode', false);
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('location', location);
+            formData.append('quantity', quantity);
+            formData.append('auto_add_to_inventory', 'true');
+
+            try {
+                const response = await fetch(`${API_BASE}/inventory/scan`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success && data.barcodes_found > 0) {
+                    const result = data.results[0];
+                    showResult('barcode', 'success',
+                        `✓ Found: ${result.product.name}${result.product.brand ? ' (' + result.product.brand + ')' : ''}`
+                    );
+                    loadInventoryData();
+                } else {
+                    showResult('barcode', 'error', 'No barcode found in image');
+                }
+            } catch (error) {
+                showResult('barcode', 'error', `Error: ${error.message}`);
+            } finally {
+                showLoading('barcode', false);
+                barcodeInput.value = '';
+            }
+        }
+
+        // Manual add
+        async function addManualItem() {
+            const name = document.getElementById('itemName').value;
+            const brand = document.getElementById('itemBrand').value;
+            const quantity = parseFloat(document.getElementById('itemQuantity').value);
+            const unit = document.getElementById('itemUnit').value;
+            const location = document.getElementById('itemLocation').value;
+            const expiration = document.getElementById('itemExpiration').value;
+
+            if (!name || !quantity || !location) {
+                alert('Please fill in required fields');
+                return;
+            }
+
+            try {
+                // First, create product
+                const productResp = await fetch(`${API_BASE}/inventory/products`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name,
+                        brand: brand || null,
+                        source: 'manual'
+                    })
+                });
+
+                const product = await productResp.json();
+
+                // Then, add to inventory
+                const itemResp = await fetch(`${API_BASE}/inventory/items`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        product_id: product.id,
+                        quantity,
+                        unit,
+                        location,
+                        expiration_date: expiration || null,
+                        source: 'manual'
+                    })
+                });
+
+                if (itemResp.ok) {
+                    alert('✓ Item added to inventory!');
+                    // Clear form
+                    document.getElementById('itemName').value = '';
+                    document.getElementById('itemBrand').value = '';
+                    document.getElementById('itemQuantity').value = '1';
+                    document.getElementById('itemExpiration').value = '';
+                    loadInventoryData();
+                } else {
+                    alert('Failed to add item');
+                }
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            }
+        }
+
+        // Load inventory data
+        async function loadInventoryData() {
+            try {
+                // Load stats
+                const statsResp = await fetch(`${API_BASE}/inventory/stats`);
+                const stats = await statsResp.json();
+
+                document.getElementById('totalItems').textContent = stats.total_items;
+                document.getElementById('totalProducts').textContent = stats.total_products;
+                document.getElementById('expiringSoon').textContent = stats.expiring_soon;
+                document.getElementById('expired').textContent = stats.expired;
+
+                // Load inventory items
+                const itemsResp = await fetch(`${API_BASE}/inventory/items?limit=100`);
+                const items = await itemsResp.json();
+                currentInventory = items;
+
+                displayInventory(items);
+            } catch (error) {
+                console.error('Failed to load inventory:', error);
+            }
+        }
+
+        function displayInventory(items) {
+            const list = document.getElementById('inventoryList');
+
+            if (items.length === 0) {
+                list.innerHTML = '<p style="text-align: center; color: #666;">No items yet. Scan a barcode or add manually!</p>';
+                return;
+            }
+
+            list.innerHTML = items.map(item => {
+                const product = item.product;
+                let expiryInfo = '';
+
+                if (item.expiration_date) {
+                    const expiry = new Date(item.expiration_date);
+                    const today = new Date();
+                    const daysUntil = Math.ceil((expiry - today) / (1000 * 60 * 60 * 24));
+
+                    if (daysUntil < 0) {
+                        expiryInfo = `<span class="expiry-warning">Expired ${Math.abs(daysUntil)} days ago</span>`;
+                    } else if (daysUntil <= 7) {
+                        expiryInfo = `<span class="expiry-soon">Expires in ${daysUntil} days</span>`;
+                    } else {
+                        expiryInfo = `Expires ${expiry.toLocaleDateString()}`;
+                    }
+                }
+
+                const tags = product.tags ? product.tags.map(tag =>
+                    `<span class="tag" style="background: ${tag.color || '#667eea'}">${tag.name}</span>`
+                ).join('') : '';
+
+                return `
+                    <div class="inventory-item">
+                        <div class="item-info">
+                            <div class="item-name">${product.name}${product.brand ? ` - ${product.brand}` : ''}</div>
+                            <div class="item-details">
+                                ${item.quantity} ${item.unit} • ${item.location}${expiryInfo ? ' • ' + expiryInfo : ''}
+                            </div>
+                            ${tags ? `<div class="item-tags">${tags}</div>` : ''}
+                        </div>
+                        <button class="button button-small" onclick="markAsConsumed('${item.id}')">✓ Consumed</button>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function markAsConsumed(itemId) {
+            if (!confirm('Mark this item as consumed?')) return;
+
+            try {
+                await fetch(`${API_BASE}/inventory/items/${itemId}/consume`, { method: 'POST' });
+                loadInventoryData();
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            }
+        }
+
+        // Receipt handling
+        const receiptUploadArea = document.getElementById('receiptUploadArea');
+        const receiptInput = document.getElementById('receiptInput');
+
+        receiptUploadArea.addEventListener('click', () => receiptInput.click());
+        receiptInput.addEventListener('change', handleReceiptUpload);
+
+        async function handleReceiptUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            showLoading('receipt', true);
+            showResults('receipt', false);
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch(`${API_BASE}/receipts/`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showResult('receipt', 'success', `Receipt uploaded! ID: ${data.id}`);
+                    showResult('receipt', 'info', 'Processing in background...');
+                    setTimeout(loadReceiptData, 3000);
+                } else {
+                    showResult('receipt', 'error', `Upload failed: ${data.detail}`);
+                }
+            } catch (error) {
+                showResult('receipt', 'error', `Error: ${error.message}`);
+            } finally {
+                showLoading('receipt', false);
+                receiptInput.value = '';
+            }
+        }
+
+        async function loadReceiptData() {
+            try {
+                const response = await fetch(`${API_BASE}/export/stats`);
+                const stats = await response.json();
+
+                const statsDiv = document.getElementById('receiptStats');
+                if (stats.total_receipts === 0) {
+                    statsDiv.innerHTML = '<p style="text-align: center; color: #666;">No receipts yet. Upload one above!</p>';
+                } else {
+                    statsDiv.innerHTML = `
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-value">${stats.total_receipts}</div>
+                                <div class="stat-label">Total Receipts</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value">${stats.average_quality_score.toFixed(1)}</div>
+                                <div class="stat-label">Avg Quality Score</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value">${stats.acceptable_quality_count}</div>
+                                <div class="stat-label">Good Quality</div>
+                            </div>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Failed to load receipt data:', error);
+            }
+        }
+
+        // Export functions
+        function exportInventoryCSV() {
+            window.open(`${API_BASE}/export/inventory/csv`, '_blank');
+        }
+
+        function exportInventoryExcel() {
+            window.open(`${API_BASE}/export/inventory/excel`, '_blank');
+        }
+
+        function exportReceiptCSV() {
+            window.open(`${API_BASE}/export/csv`, '_blank');
+        }
+
+        function exportReceiptExcel() {
+            window.open(`${API_BASE}/export/excel`, '_blank');
+        }
+
+        // Utility functions
+        function showLoading(type, show) {
+            document.getElementById(`${type}Loading`).style.display = show ? 'block' : 'none';
+        }
+
+        function showResults(type, show) {
+            const results = document.getElementById(`${type}Results`);
+            if (!show) {
+                results.innerHTML = '';
+            }
+            results.style.display = show ? 'block' : 'none';
+        }
+
+        function showResult(type, resultType, message) {
+            const results = document.getElementById(`${type}Results`);
+            results.style.display = 'block';
+
+            const div = document.createElement('div');
+            div.className = `result-item result-${resultType}`;
+            div.textContent = message;
+            results.appendChild(div);
+
+            setTimeout(() => div.remove(), 5000);
+        }
+
+        // Load initial data
+        loadInventoryData();
+        setInterval(loadInventoryData, 30000); // Refresh every 30 seconds
+    </script>
+</body>
+</html>

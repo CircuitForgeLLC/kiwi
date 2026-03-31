@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project Thoth - Receipt Upload</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 40px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            margin-bottom: 20px;
+        }
+
+        .upload-area {
+            border: 3px dashed #667eea;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            background: #f7f9fc;
+        }
+
+        .upload-area:hover {
+            border-color: #764ba2;
+            background: #eef2f7;
+        }
+
+        .upload-area.dragover {
+            border-color: #764ba2;
+            background: #e0e7ff;
+        }
+
+        .upload-icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+
+        .upload-text {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .upload-hint {
+            font-size: 14px;
+            color: #666;
+        }
+
+        #fileInput {
+            display: none;
+        }
+
+        .preview-area {
+            margin-top: 20px;
+            display: none;
+        }
+
+        .preview-image {
+            max-width: 100%;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: transform 0.2s;
+            margin-right: 10px;
+        }
+
+        .button:hover {
+            transform: translateY(-2px);
+        }
+
+        .button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .button-secondary {
+            background: #6c757d;
+        }
+
+        .results {
+            margin-top: 20px;
+            display: none;
+        }
+
+        .result-item {
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+        }
+
+        .result-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .result-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .result-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            display: none;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .receipt-list {
+            margin-top: 20px;
+        }
+
+        .receipt-card {
+            background: #f7f9fc;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .receipt-info {
+            flex: 1;
+        }
+
+        .receipt-id {
+            font-family: monospace;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .receipt-status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+
+        .status-processing {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-processed {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .quality-score {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+
+        .actions {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .export-section {
+            margin-top: 30px;
+            text-align: center;
+        }
+
+        .export-section h3 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📄 Project Thoth</h1>
+            <p>Receipt Processing System</p>
+        </div>
+
+        <div class="card">
+            <h2>Upload Receipt</h2>
+            <div class="upload-area" id="uploadArea">
+                <div class="upload-icon">📸</div>
+                <div class="upload-text">Click to upload or drag and drop</div>
+                <div class="upload-hint">Supports JPG, PNG (max 10MB)</div>
+            </div>
+            <input type="file" id="fileInput" accept="image/*">
+
+            <div class="preview-area" id="previewArea">
+                <img id="previewImage" class="preview-image">
+                <div>
+                    <button class="button" id="uploadBtn">Upload Receipt</button>
+                    <button class="button button-secondary" id="cancelBtn">Cancel</button>
+                </div>
+            </div>
+
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                <p>Processing receipt...</p>
+            </div>
+
+            <div class="results" id="results"></div>
+        </div>
+
+        <div class="card">
+            <h2>Recent Receipts</h2>
+            <div class="receipt-list" id="receiptList">
+                <p style="text-align: center; color: #666;">No receipts yet. Upload one above!</p>
+            </div>
+
+            <div class="export-section">
+                <h3>Export Data</h3>
+                <button class="button" onclick="exportCSV()">📊 Download CSV</button>
+                <button class="button" onclick="exportExcel()">📈 Download Excel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Use relative URL so it works from any host (localhost or remote IP)
+        const API_BASE = '/api/v1';
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const previewArea = document.getElementById('previewArea');
+        const previewImage = document.getElementById('previewImage');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const loading = document.getElementById('loading');
+        const results = document.getElementById('results');
+        const receiptList = document.getElementById('receiptList');
+
+        let selectedFile = null;
+        let receipts = [];
+
+        // Click to upload
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        // Drag and drop
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileSelect(files[0]);
+            }
+        });
+
+        // File input change
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFileSelect(e.target.files[0]);
+            }
+        });
+
+        function handleFileSelect(file) {
+            if (!file.type.startsWith('image/')) {
+                showResult('error', 'Please select an image file');
+                return;
+            }
+
+            selectedFile = file;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                previewImage.src = e.target.result;
+                previewArea.style.display = 'block';
+                uploadArea.style.display = 'none';
+            };
+            reader.readAsDataURL(file);
+        }
+
+        cancelBtn.addEventListener('click', () => {
+            selectedFile = null;
+            previewArea.style.display = 'none';
+            uploadArea.style.display = 'block';
+            fileInput.value = '';
+        });
+
+        uploadBtn.addEventListener('click', uploadReceipt);
+
+        async function uploadReceipt() {
+            if (!selectedFile) return;
+
+            loading.style.display = 'block';
+            results.style.display = 'none';
+            uploadBtn.disabled = true;
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            try {
+                const response = await fetch(`${API_BASE}/receipts/`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    showResult('success', `Receipt uploaded! ID: ${data.id}`);
+                    showResult('info', 'Processing in background... Refresh in a few seconds to see results.');
+
+                    // Reset form
+                    selectedFile = null;
+                    previewArea.style.display = 'none';
+                    uploadArea.style.display = 'block';
+                    fileInput.value = '';
+
+                    // Refresh list after a delay
+                    setTimeout(loadReceipts, 3000);
+                } else {
+                    showResult('error', `Upload failed: ${data.detail || 'Unknown error'}`);
+                }
+            } catch (error) {
+                showResult('error', `Network error: ${error.message}`);
+            } finally {
+                loading.style.display = 'none';
+                uploadBtn.disabled = false;
+            }
+        }
+
+        function showResult(type, message) {
+            results.style.display = 'block';
+            const div = document.createElement('div');
+            div.className = `result-item result-${type}`;
+            div.textContent = message;
+            results.appendChild(div);
+
+            // Auto-hide after 5 seconds
+            setTimeout(() => div.remove(), 5000);
+        }
+
+        async function loadReceipts() {
+            try {
+                const response = await fetch(`${API_BASE}/export/stats`);
+                const stats = await response.json();
+
+                if (stats.total_receipts === 0) {
+                    receiptList.innerHTML = '<p style="text-align: center; color: #666;">No receipts yet. Upload one above!</p>';
+                    return;
+                }
+
+                // For now, just show stats since we don't have a list endpoint
+                // In Phase 2, we'll add a proper list endpoint
+                receiptList.innerHTML = `
+                    <div class="receipt-card">
+                        <div class="receipt-info">
+                            <strong>Total Receipts:</strong> ${stats.total_receipts}<br>
+                            <strong>Average Quality:</strong> ${stats.average_quality_score}/100<br>
+                            <strong>Acceptable Quality:</strong> ${stats.acceptable_quality_count}
+                        </div>
+                    </div>
+                    <p style="text-align: center; color: #666; margin-top: 10px;">
+                        Click "Download Excel" below to see all receipts with details!
+                    </p>
+                `;
+            } catch (error) {
+                console.error('Failed to load receipts:', error);
+            }
+        }
+
+        async function exportCSV() {
+            window.open(`${API_BASE}/export/csv`, '_blank');
+        }
+
+        async function exportExcel() {
+            window.open(`${API_BASE}/export/excel`, '_blank');
+        }
+
+        // Load receipts on page load
+        loadReceipts();
+
+        // Auto-refresh every 10 seconds
+        setInterval(loadReceipts, 10000);
+    </script>
+</body>
+</html>
