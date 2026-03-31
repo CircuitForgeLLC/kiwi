@@ -1,0 +1,21 @@
+
+# Superpowers brainstorming artifacts
+.superpowers/
+
+# Git worktrees
+.worktrees/
+
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
+# Environment files (keep .env.example)
+.env
+
+# Node modules
+node_modules/
+dist/
+
+# Data directories
+data/
