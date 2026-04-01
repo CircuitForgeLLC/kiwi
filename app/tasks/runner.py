@@ -27,6 +27,9 @@ LLM_TASK_TYPES: frozenset[str] = frozenset({"expiry_llm_fallback"})
 VRAM_BUDGETS: dict[str, float] = {
     # ExpirationPredictor uses a small LLM (16 tokens out, single pass).
     "expiry_llm_fallback": 2.0,
+    # Recipe LLM (levels 3-4): full recipe generation, ~200-500 tokens out.
+    # Budget assumes a quantized 7B-class model.
+    "recipe_llm": 4.0,
 }
 
 

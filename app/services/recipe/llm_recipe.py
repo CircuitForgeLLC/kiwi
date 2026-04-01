@@ -113,8 +113,66 @@ class LLMRecipeGenerator:
 
         return "\n".join(lines)
 
+    def _acquire_vram_lease(self) -> str | None:
+        """Request a VRAM lease from the CF-core coordinator. Best-effort — returns None if unavailable."""
+        try:
+            import httpx
+            from app.core.config import settings
+            from app.tasks.runner import VRAM_BUDGETS
+
+            budget_mb = int(VRAM_BUDGETS.get("recipe_llm", 4.0) * 1024)
+            coordinator = settings.COORDINATOR_URL
+
+            nodes_resp = httpx.get(f"{coordinator}/api/nodes", timeout=2.0)
+            if nodes_resp.status_code != 200:
+                return None
+            nodes = nodes_resp.json().get("nodes", [])
+            if not nodes:
+                return None
+
+            best_node = best_gpu = best_free = None
+            for node in nodes:
+                for gpu in node.get("gpus", []):
+                    free = gpu.get("vram_free_mb", 0)
+                    if best_free is None or free > best_free:
+                        best_node = node["node_id"]
+                        best_gpu = gpu["gpu_id"]
+                        best_free = free
+            if best_node is None:
+                return None
+
+            lease_resp = httpx.post(
+                f"{coordinator}/api/leases",
+                json={
+                    "node_id": best_node,
+                    "gpu_id": best_gpu,
+                    "mb": budget_mb,
+                    "service": "kiwi",
+                    "priority": 5,
+                },
+                timeout=3.0,
+            )
+            if lease_resp.status_code == 200:
+                lease_id = lease_resp.json()["lease"]["lease_id"]
+                logger.debug("Acquired VRAM lease %s for recipe_llm (%d MB)", lease_id, budget_mb)
+                return lease_id
+        except Exception as exc:
+            logger.debug("VRAM lease acquire failed (non-fatal): %s", exc)
+        return None
+
+    def _release_vram_lease(self, lease_id: str) -> None:
+        """Release a VRAM lease. Best-effort."""
+        try:
+            import httpx
+            from app.core.config import settings
+            httpx.delete(f"{settings.COORDINATOR_URL}/api/leases/{lease_id}", timeout=3.0)
+            logger.debug("Released VRAM lease %s", lease_id)
+        except Exception as exc:
+            logger.debug("VRAM lease release failed (non-fatal): %s", exc)
+
     def _call_llm(self, prompt: str) -> str:
-        """Call the LLM router and return the response text."""
+        """Call the LLM router with a VRAM lease held for the duration."""
+        lease_id = self._acquire_vram_lease()
         try:
             from circuitforge_core.llm.router import LLMRouter
             router = LLMRouter()
@@ -122,6 +180,9 @@ class LLMRecipeGenerator:
         except Exception as exc:
             logger.error("LLM call failed: %s", exc)
             return ""
+        finally:
+            if lease_id:
+                self._release_vram_lease(lease_id)
 
     def _parse_response(self, response: str) -> dict[str, str | list[str]]:
         """Parse LLM response text into structured recipe fields."""

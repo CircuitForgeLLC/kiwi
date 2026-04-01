@@ -14,6 +14,9 @@ services:
       CLOUD_MODE: "true"
       CLOUD_DATA_ROOT: /devl/kiwi-cloud-data
       # DIRECTUS_JWT_SECRET, HEIMDALL_URL, HEIMDALL_ADMIN_TOKEN — set in .env
+      # DEV ONLY: comma-separated IPs that bypass JWT auth (LAN testing without Caddy).
+      # Production deployments must NOT set this. Leave blank or omit entirely.
+      CLOUD_AUTH_BYPASS_IPS: ${CLOUD_AUTH_BYPASS_IPS:-}
     volumes:
       - /devl/kiwi-cloud-data:/devl/kiwi-cloud-data
       # LLM config — shared with other CF products; read-only in container

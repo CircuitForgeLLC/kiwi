@@ -43,6 +43,9 @@ class Settings:
     # Quality
     MIN_QUALITY_SCORE: float = float(os.environ.get("MIN_QUALITY_SCORE", "50.0"))
 
+    # CF-core resource coordinator (VRAM lease management)
+    COORDINATOR_URL: str = os.environ.get("COORDINATOR_URL", "http://localhost:7700")
+
     # Feature flags
     ENABLE_OCR: bool = os.environ.get("ENABLE_OCR", "false").lower() in ("1", "true", "yes")
 

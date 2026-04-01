@@ -37,6 +37,43 @@ DIRECTUS_JWT_SECRET: str = os.environ.get("DIRECTUS_JWT_SECRET", "")
 HEIMDALL_URL: str = os.environ.get("HEIMDALL_URL", "https://license.circuitforge.tech")
 HEIMDALL_ADMIN_TOKEN: str = os.environ.get("HEIMDALL_ADMIN_TOKEN", "")
 
+# Dev bypass: comma-separated IPs or CIDR ranges that skip JWT auth.
+# NEVER set this in production. Intended only for LAN developer testing when
+# the request doesn't pass through Caddy (which normally injects X-CF-Session).
+# Example: CLOUD_AUTH_BYPASS_IPS=10.1.10.0/24,127.0.0.1
+import ipaddress as _ipaddress
+
+_BYPASS_RAW: list[str] = [
+    e.strip()
+    for e in os.environ.get("CLOUD_AUTH_BYPASS_IPS", "").split(",")
+    if e.strip()
+]
+
+_BYPASS_NETS: list[_ipaddress.IPv4Network | _ipaddress.IPv6Network] = []
+_BYPASS_IPS: frozenset[str] = frozenset()
+
+if _BYPASS_RAW:
+    _nets, _ips = [], set()
+    for entry in _BYPASS_RAW:
+        try:
+            _nets.append(_ipaddress.ip_network(entry, strict=False))
+        except ValueError:
+            _ips.add(entry)  # treat non-parseable entries as bare IPs
+    _BYPASS_NETS = _nets
+    _BYPASS_IPS = frozenset(_ips)
+
+
+def _is_bypass_ip(ip: str) -> bool:
+    if not ip:
+        return False
+    if ip in _BYPASS_IPS:
+        return True
+    try:
+        addr = _ipaddress.ip_address(ip)
+        return any(addr in net for net in _BYPASS_NETS)
+    except ValueError:
+        return False
+
 _LOCAL_KIWI_DB: Path = Path(os.environ.get("KIWI_DB", "data/kiwi.db"))
 
 _TIER_CACHE: dict[str, tuple[str, float]] = {}
@@ -153,11 +190,27 @@ def get_session(request: Request) -> CloudUser:
 
     Local mode: fully-privileged "local" user pointing at local DB.
     Cloud mode: validates X-CF-Session JWT, provisions license, resolves tier.
+    Dev bypass: if CLOUD_AUTH_BYPASS_IPS is set and the client IP matches,
+      returns a "local" session without JWT validation (dev/LAN use only).
     """
     has_byok = _detect_byok()
 
     if not CLOUD_MODE:
         return CloudUser(user_id="local", tier="local", db=_LOCAL_KIWI_DB, has_byok=has_byok)
+
+    # Prefer X-Real-IP (set by nginx from the actual client address) over the
+    # TCP peer address (which is nginx's container IP when behind the proxy).
+    # Prefer X-Real-IP (set by nginx from the actual client address) over the
+    # TCP peer address (which is nginx's container IP when behind the proxy).
+    client_ip = (
+        request.headers.get("x-real-ip", "")
+        or (request.client.host if request.client else "")
+    )
+    if (_BYPASS_IPS or _BYPASS_NETS) and _is_bypass_ip(client_ip):
+        log.debug("CLOUD_AUTH_BYPASS_IPS match for %s — returning local session", client_ip)
+        # Use a dev DB under CLOUD_DATA_ROOT so the container has a writable path.
+        dev_db = _user_db_path("local-dev")
+        return CloudUser(user_id="local-dev", tier="local", db=dev_db, has_byok=has_byok)
 
     raw_header = (
         request.headers.get("x-cf-session", "")

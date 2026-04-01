@@ -5,12 +5,20 @@ This module provides functionality to detect and decode barcodes
 from images (UPC, EAN, QR codes, etc.).
 """
 
+import io
+
 import cv2
 import numpy as np
 from pyzbar import pyzbar
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 import logging
+
+try:
+    from PIL import Image as _PILImage
+    _HAS_PIL = True
+except ImportError:
+    _HAS_PIL = False
 
 logger = logging.getLogger(__name__)
 
@@ -76,9 +84,7 @@ class BarcodeScanner:
             # 4. Try rotations if still no barcodes found (handles tilted/rotated barcodes)
             if not barcodes:
                 logger.info("No barcodes found in standard orientation, trying rotations...")
-                # Try incremental angles: 30°, 60°, 90° (covers 0-90° range)
-                # 0° already tried, 180° is functionally same as 0°, 90°/270° are same axis
-                for angle in [30, 60, 90]:
+                for angle in [90, 180, 270, 45, 135]:
                     rotated_gray = self._rotate_image(gray, angle)
                     rotated_color = self._rotate_image(image, angle)
                     detected = self._detect_barcodes(rotated_gray, rotated_color)
@@ -264,6 +270,26 @@ class BarcodeScanner:
 
         return list(seen.values())
 
+    def _fix_exif_orientation(self, image_bytes: bytes) -> bytes:
+        """Apply EXIF orientation correction so cv2 sees an upright image.
+
+        Phone cameras embed rotation in EXIF; cv2.imdecode ignores it,
+        so a photo taken in portrait may arrive physically sideways in memory.
+        """
+        if not _HAS_PIL:
+            return image_bytes
+        try:
+            pil = _PILImage.open(io.BytesIO(image_bytes))
+            pil = _PILImage.fromarray(np.array(pil))  # strips EXIF but applies orientation via PIL
+            # Use ImageOps.exif_transpose for proper EXIF-aware rotation
+            import PIL.ImageOps
+            pil = PIL.ImageOps.exif_transpose(pil)
+            buf = io.BytesIO()
+            pil.save(buf, format="JPEG")
+            return buf.getvalue()
+        except Exception:
+            return image_bytes
+
     def scan_from_bytes(self, image_bytes: bytes) -> List[Dict[str, Any]]:
         """
         Scan barcodes from image bytes (uploaded file).
@@ -275,6 +301,10 @@ class BarcodeScanner:
             List of detected barcodes
         """
         try:
+            # Apply EXIF orientation correction first (phone cameras embed rotation in EXIF;
+            # cv2.imdecode ignores it, causing sideways barcodes to appear rotated in memory).
+            image_bytes = self._fix_exif_orientation(image_bytes)
+
             # Convert bytes to numpy array
             nparr = np.frombuffer(image_bytes, np.uint8)
             image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
@@ -300,11 +330,12 @@ class BarcodeScanner:
                 )
                 barcodes.extend(self._detect_barcodes(thresh, image))
 
-            # 3. Try rotations if still no barcodes found
+            # 3. Try all 90° rotations + common tilt angles
+            # 90/270 catches truly sideways barcodes; 180 catches upside-down;
+            # 45/135 catches tilted barcodes on flat surfaces.
             if not barcodes:
                 logger.info("No barcodes found in uploaded image, trying rotations...")
-                # Try incremental angles: 30°, 60°, 90° (covers 0-90° range)
-                for angle in [30, 60, 90]:
+                for angle in [90, 180, 270, 45, 135]:
                     rotated_gray = self._rotate_image(gray, angle)
                     rotated_color = self._rotate_image(image, angle)
                     detected = self._detect_barcodes(rotated_gray, rotated_color)
