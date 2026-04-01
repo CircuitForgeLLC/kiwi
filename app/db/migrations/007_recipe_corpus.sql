@@ -21,4 +21,4 @@ CREATE TABLE recipes (
 
 CREATE INDEX idx_recipes_title        ON recipes (title);
 CREATE INDEX idx_recipes_category     ON recipes (category);
-CREATE INDEX idx_recipes_external_id  ON recipes (external_id);
+CREATE UNIQUE INDEX idx_recipes_external_id  ON recipes (external_id);

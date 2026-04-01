@@ -2,13 +2,13 @@
 Download recipe engine datasets from HuggingFace.
 
 Usage:
-    conda run -n job-seeker python scripts/pipeline/download_datasets.py --data-dir /path/to/data
+    conda run -n cf python scripts/pipeline/download_datasets.py --data-dir data/pipeline
 
 Downloads:
-  - AkashPS11/recipes_data_food.com  (MIT)        → data/recipes_foodcom.parquet
-  - omid5/usda-fdc-foods-cleaned     (CC0)         → data/usda_fdc_cleaned.parquet
-  - jacktol/usda-branded-food-data   (MIT)         → data/usda_branded.parquet
-  - lishuyang/recipepairs            (GPL-3.0 ⚠)  → data/recipepairs.parquet  [derive only, don't ship]
+  - corbt/all-recipes               (no license) → data/pipeline/recipes_allrecipes.parquet  [2.1M recipes]
+  - omid5/usda-fdc-foods-cleaned     (CC0)        → data/pipeline/usda_fdc_cleaned.parquet
+  - jacktol/usda-branded-food-data   (MIT)        → data/pipeline/usda_branded.parquet
+  - lishuyang/recipepairs            (GPL-3.0 ⚠)  → data/pipeline/recipepairs.parquet  [derive only, don't ship]
 """
 from __future__ import annotations
 import argparse
@@ -17,10 +17,10 @@ from datasets import load_dataset
 
 
 DATASETS = [
-    ("AkashPS11/recipes_data_food.com", "train", "recipes_foodcom.parquet"),
-    ("omid5/usda-fdc-foods-cleaned",    "train", "usda_fdc_cleaned.parquet"),
-    ("jacktol/usda-branded-food-data",  "train", "usda_branded.parquet"),
-    ("lishuyang/recipepairs",           "train", "recipepairs.parquet"),
+    ("corbt/all-recipes",            "train", "recipes_allrecipes.parquet"),
+    ("omid5/usda-fdc-foods-cleaned", "train", "usda_fdc_cleaned.parquet"),
+    ("jacktol/usda-branded-food-data","train", "usda_branded.parquet"),
+    ("lishuyang/recipepairs",         "train", "recipepairs.parquet"),
 ]
 
 
