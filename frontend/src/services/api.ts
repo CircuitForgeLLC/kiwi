@@ -404,4 +404,94 @@ export const exportAPI = {
   },
 }
 
+// ========== Recipes & Settings Types ==========
+
+export interface SwapCandidate {
+  original_name: string
+  substitute_name: string
+  constraint_label: string
+  explanation: string
+  compensation_hints: Record<string, string>[]
+}
+
+export interface RecipeSuggestion {
+  id: number
+  title: string
+  match_count: number
+  element_coverage: Record<string, number>
+  swap_candidates: SwapCandidate[]
+  missing_ingredients: string[]
+  directions: string[]
+  notes: string
+  level: number
+  is_wildcard: boolean
+}
+
+export interface GroceryLink {
+  ingredient: string
+  retailer: string
+  url: string
+}
+
+export interface RecipeResult {
+  suggestions: RecipeSuggestion[]
+  element_gaps: string[]
+  grocery_list: string[]
+  grocery_links: GroceryLink[]
+  rate_limited: boolean
+  rate_limit_count: number
+}
+
+export interface RecipeRequest {
+  pantry_items: string[]
+  level: number
+  constraints: string[]
+  allergies: string[]
+  expiry_first: boolean
+  hard_day_mode: boolean
+  max_missing: number | null
+  style_id: string | null
+  wildcard_confirmed: boolean
+}
+
+export interface Staple {
+  slug: string
+  name: string
+  category: string
+  dietary_tags: string[]
+}
+
+// ========== Recipes API ==========
+
+export const recipesAPI = {
+  async suggest(req: RecipeRequest): Promise<RecipeResult> {
+    const response = await api.post('/recipes/suggest', req)
+    return response.data
+  },
+  async getRecipe(id: number): Promise<RecipeSuggestion> {
+    const response = await api.get(`/recipes/${id}`)
+    return response.data
+  },
+  async listStaples(dietary?: string): Promise<Staple[]> {
+    const response = await api.get('/staples/', { params: dietary ? { dietary } : undefined })
+    return response.data
+  },
+}
+
+// ========== Settings API ==========
+
+export const settingsAPI = {
+  async getSetting(key: string): Promise<string | null> {
+    try {
+      const response = await api.get(`/settings/${key}`)
+      return response.data.value
+    } catch {
+      return null
+    }
+  },
+  async setSetting(key: string, value: string): Promise<void> {
+    await api.put(`/settings/${key}`, { value })
+  },
+}
+
 export default api

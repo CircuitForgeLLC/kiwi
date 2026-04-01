@@ -23,6 +23,18 @@
           >
             🧾 Receipts
           </button>
+          <button
+            :class="['tab', { active: currentTab === 'recipes' }]"
+            @click="switchTab('recipes')"
+          >
+            🍳 Recipes
+          </button>
+          <button
+            :class="['tab', { active: currentTab === 'settings' }]"
+            @click="switchTab('settings')"
+          >
+            ⚙️ Settings
+          </button>
         </div>
 
         <!-- Tab Content -->
@@ -32,6 +44,14 @@
 
         <div v-show="currentTab === 'receipts'" class="tab-content">
           <ReceiptsView />
+        </div>
+
+        <div v-show="currentTab === 'recipes'" class="tab-content">
+          <RecipesView />
+        </div>
+
+        <div v-show="currentTab === 'settings'" class="tab-content">
+          <SettingsView />
         </div>
       </div>
     </main>
@@ -48,11 +68,20 @@
 import { ref } from 'vue'
 import InventoryList from './components/InventoryList.vue'
 import ReceiptsView from './components/ReceiptsView.vue'
+import RecipesView from './components/RecipesView.vue'
+import SettingsView from './components/SettingsView.vue'
+import { useInventoryStore } from './stores/inventory'
 
-const currentTab = ref<'inventory' | 'receipts'>('inventory')
+type Tab = 'inventory' | 'receipts' | 'recipes' | 'settings'
 
-function switchTab(tab: 'inventory' | 'receipts') {
+const currentTab = ref<Tab>('inventory')
+const inventoryStore = useInventoryStore()
+
+async function switchTab(tab: Tab) {
   currentTab.value = tab
+  if (tab === 'recipes' && inventoryStore.items.length === 0) {
+    await inventoryStore.fetchItems()
+  }
 }
 </script>
 
