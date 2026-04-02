@@ -238,12 +238,16 @@ class LLMRecipeGenerator:
         raw_notes = parsed.get("notes", "")
         notes_str: str = raw_notes if isinstance(raw_notes, str) else ""
 
+        all_ingredients: list[str] = list(parsed.get("ingredients", []))
+        pantry_set = {item.lower() for item in (req.pantry_items or [])}
+        missing = [i for i in all_ingredients if i.lower() not in pantry_set]
+
         suggestion = RecipeSuggestion(
             id=0,
             title=parsed.get("title") or "LLM Recipe",
             match_count=len(req.pantry_items),
             element_coverage={},
-            missing_ingredients=list(parsed.get("ingredients", [])),
+            missing_ingredients=missing,
             directions=directions_list,
             notes=notes_str,
             level=req.level,

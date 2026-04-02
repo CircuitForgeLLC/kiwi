@@ -140,7 +140,8 @@ def test_generate_returns_result_when_llm_responds(monkeypatch):
     assert len(result.suggestions) == 1
     suggestion = result.suggestions[0]
     assert suggestion.title == "Mushroom Butter Pasta"
-    assert "butter" in suggestion.missing_ingredients
+    # All LLM ingredients (butter, mushrooms, pasta) are in the pantry, so none are missing
+    assert suggestion.missing_ingredients == []
     assert len(suggestion.directions) > 0
     assert "parmesan" in suggestion.notes.lower()
     assert result.element_gaps == ["Brightness"]
@@ -218,8 +219,11 @@ def test_recipe_gen_falls_back_without_cf_orch(monkeypatch):
     fake_router = MagicMock()
     fake_router.complete.side_effect = _fake_complete
 
-    # Patch where LLMRouter is imported inside _call_llm
-    with patch("circuitforge_core.llm.router.LLMRouter", return_value=fake_router):
+    # LLMRouter is imported locally inside _call_llm, so patch it at its source module.
+    # new_callable=MagicMock makes the class itself a MagicMock; set return_value so
+    # that LLMRouter() (instantiation) yields fake_router rather than a new MagicMock.
+    with patch("circuitforge_core.llm.router.LLMRouter", new_callable=MagicMock) as mock_router_cls:
+        mock_router_cls.return_value = fake_router
         gen._call_llm("direct path prompt")
 
     assert router_called.get("prompt") == "direct path prompt"

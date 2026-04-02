@@ -39,7 +39,7 @@ def _try_docuvision(image_path: str | Path) -> str | None:
         client = CFOrchClient(cf_orch_url)
         with client.allocate(
             service="cf-docuvision",
-            model_candidates=[],  # cf-docuvision has no model selection
+            model_candidates=["cf-docuvision"],
             ttl_s=60.0,
             caller="kiwi-ocr",
         ) as alloc:
@@ -48,8 +48,9 @@ def _try_docuvision(image_path: str | Path) -> str | None:
             doc_client = DocuvisionClient(alloc.url)
             result = doc_client.extract_text(image_path)
             return result.text if result.text else None
-    except Exception:
-        return None  # graceful degradation
+    except Exception as exc:
+        logger.debug("cf-docuvision fast-path failed, falling back: %s", exc)
+        return None
 
 
 class VisionLanguageOCR:
@@ -141,15 +142,11 @@ class VisionLanguageOCR:
         # Try docuvision fast path first (skips heavy local VLM if available)
         docuvision_text = _try_docuvision(image_path)
         if docuvision_text is not None:
-            return {
-                "raw_text": docuvision_text,
-                "merchant": {},
-                "transaction": {},
-                "items": [],
-                "totals": {},
-                "confidence": {"overall": None},
-                "warnings": [],
-            }
+            parsed = self._parse_json_from_text(docuvision_text)
+            if parsed is not None:
+                parsed["raw_text"] = docuvision_text
+                return self._validate_result(parsed)
+            # If parsing fails, fall through to local VLM
 
         self._load_model()
 
