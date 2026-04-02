@@ -76,7 +76,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
 
-  async function updateItem(itemId: string, update: InventoryItemUpdate) {
+  async function updateItem(itemId: number, update: InventoryItemUpdate) {
     loading.value = true
     error.value = null
 
@@ -99,7 +99,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     }
   }
 
-  async function deleteItem(itemId: string) {
+  async function deleteItem(itemId: number) {
     loading.value = true
     error.value = null
 

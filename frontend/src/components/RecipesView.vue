@@ -291,7 +291,7 @@ const pantryItems = computed(() => {
       if (!b.expiration_date) return -1
       return new Date(a.expiration_date).getTime() - new Date(b.expiration_date).getTime()
     })
-  return sorted.map((item) => item.product.name)
+  return sorted.map((item) => item.product_name).filter(Boolean) as string[]
 })
 
 // Grocery links relevant to a specific recipe's missing ingredients

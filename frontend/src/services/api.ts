@@ -80,9 +80,11 @@ export interface Tag {
 }
 
 export interface InventoryItem {
-  id: string
-  product_id: string
-  product: Product
+  id: number
+  product_id: number
+  product_name: string | null
+  barcode: string | null
+  category: string | null
   quantity: number
   unit: string
   location: string
@@ -109,11 +111,10 @@ export interface InventoryItemUpdate {
 
 export interface InventoryStats {
   total_items: number
-  total_products: number
+  available_items: number
   expiring_soon: number
-  expired: number
-  items_by_location: Record<string, number>
-  items_by_status: Record<string, number>
+  expired_items: number
+  locations: Record<string, number>
 }
 
 export interface Receipt {
@@ -185,7 +186,7 @@ export const inventoryAPI = {
   /**
    * Update an inventory item
    */
-  async updateItem(itemId: string, update: InventoryItemUpdate): Promise<InventoryItem> {
+  async updateItem(itemId: number, update: InventoryItemUpdate): Promise<InventoryItem> {
     const response = await api.patch(`/inventory/items/${itemId}`, update)
     return response.data
   },
@@ -193,7 +194,7 @@ export const inventoryAPI = {
   /**
    * Delete an inventory item
    */
-  async deleteItem(itemId: string): Promise<void> {
+  async deleteItem(itemId: number): Promise<void> {
     await api.delete(`/inventory/items/${itemId}`)
   },
 
@@ -234,7 +235,7 @@ export const inventoryAPI = {
   /**
    * Mark item as consumed
    */
-  async consumeItem(itemId: string): Promise<void> {
+  async consumeItem(itemId: number): Promise<void> {
     await api.post(`/inventory/items/${itemId}/consume`)
   },
 

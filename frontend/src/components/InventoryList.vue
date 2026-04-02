@@ -9,8 +9,8 @@
           <div class="stat-label">Total Items</div>
         </div>
         <div class="stat-card">
-          <div class="stat-value">{{ stats.total_products }}</div>
-          <div class="stat-label">Unique Products</div>
+          <div class="stat-value">{{ stats.available_items }}</div>
+          <div class="stat-label">Available</div>
         </div>
         <div class="stat-card expiry-soon">
           <div class="stat-value">{{ store.expiringItems.length }}</div>
@@ -263,8 +263,8 @@
             :class="getItemClass(item)"
           >
             <div class="item-header">
-              <h3 class="item-name">{{ item.product.name }}</h3>
-              <span v-if="item.product.brand" class="item-brand">{{ item.product.brand }}</span>
+              <h3 class="item-name">{{ item.product_name || 'Unknown Product' }}</h3>
+              <span v-if="item.category" class="item-brand">{{ item.category }}</span>
             </div>
 
             <div class="item-details">
@@ -485,11 +485,11 @@ async function handleSave() {
 
 async function confirmDelete(item: InventoryItem) {
   showConfirm(
-    `Are you sure you want to delete ${item.product.name}?`,
+    `Are you sure you want to delete ${item.product_name || 'item'}?`,
     async () => {
       try {
         await store.deleteItem(item.id)
-        showToast(`${item.product.name} deleted successfully`, 'success')
+        showToast(`${item.product_name || 'item'} deleted successfully`, 'success')
       } catch (err) {
         showToast('Failed to delete item', 'error')
       }
@@ -504,12 +504,12 @@ async function confirmDelete(item: InventoryItem) {
 
 async function markAsConsumed(item: InventoryItem) {
   showConfirm(
-    `Mark ${item.product.name} as consumed?`,
+    `Mark ${item.product_name || 'item'} as consumed?`,
     async () => {
       try {
         await inventoryAPI.consumeItem(item.id)
         await refreshItems()
-        showToast(`${item.product.name} marked as consumed`, 'success')
+        showToast(`${item.product_name || 'item'} marked as consumed`, 'success')
       } catch (err) {
         showToast('Failed to mark item as consumed', 'error')
       }
@@ -542,7 +542,7 @@ async function handleScannerGunInput() {
       const item = result.results[0]
       scannerResults.value.push({
         type: 'success',
-        message: `✓ Added: ${item.product.name}${item.product.brand ? ' (' + item.product.brand + ')' : ''} to ${scannerLocation.value}`,
+        message: `✓ Added: ${item.product_name || 'item'}${''} to ${scannerLocation.value}`,
       })
       await refreshItems()
     } else {
@@ -588,7 +588,7 @@ async function handleBarcodeImageSelect(e: Event) {
       const item = result.results[0]
       barcodeResults.value.push({
         type: 'success',
-        message: `✓ Found: ${item.product.name}${item.product.brand ? ' (' + item.product.brand + ')' : ''}`,
+        message: `✓ Found: ${item.product_name || 'item'}${''}`,
       })
       await refreshItems()
     } else {

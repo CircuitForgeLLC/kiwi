@@ -10,8 +10,8 @@
         <div class="form-group">
           <label>Product</label>
           <div class="product-info">
-            <strong>{{ item.product.name }}</strong>
-            <span v-if="item.product.brand" class="brand">({{ item.product.brand }})</span>
+            <strong>{{ item.product_name || 'Unknown Product' }}</strong>
+            <span v-if="item.category" class="brand">{{ item.category }}</span>
           </div>
         </div>
 
