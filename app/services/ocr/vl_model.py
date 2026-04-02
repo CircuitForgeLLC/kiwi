@@ -143,10 +143,13 @@ class VisionLanguageOCR:
         docuvision_text = _try_docuvision(image_path)
         if docuvision_text is not None:
             parsed = self._parse_json_from_text(docuvision_text)
-            if parsed is not None:
+            # Only accept the docuvision result if it yielded meaningful content;
+            # an empty-skeleton dict (no items, no merchant) means the text was
+            # garbled and we should fall through to the local VLM instead.
+            if parsed.get("items") or parsed.get("merchant"):
                 parsed["raw_text"] = docuvision_text
                 return self._validate_result(parsed)
-            # If parsing fails, fall through to local VLM
+            # Parsed result has no meaningful content — fall through to local VLM
 
         self._load_model()
 
