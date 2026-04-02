@@ -8,6 +8,7 @@ OCR with understanding of receipt structure to extract structured JSON data.
 
 import json
 import logging
+import os
 import re
 from pathlib import Path
 from typing import Dict, Any, Optional, List
@@ -26,6 +27,31 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 
+def _try_docuvision(image_path: str | Path) -> str | None:
+    """Try to extract text via cf-docuvision. Returns None if unavailable."""
+    cf_orch_url = os.environ.get("CF_ORCH_URL")
+    if not cf_orch_url:
+        return None
+    try:
+        from circuitforge_core.resources import CFOrchClient
+        from app.services.ocr.docuvision_client import DocuvisionClient
+
+        client = CFOrchClient(cf_orch_url)
+        with client.allocate(
+            service="cf-docuvision",
+            model_candidates=[],  # cf-docuvision has no model selection
+            ttl_s=60.0,
+            caller="kiwi-ocr",
+        ) as alloc:
+            if alloc is None:
+                return None
+            doc_client = DocuvisionClient(alloc.url)
+            result = doc_client.extract_text(image_path)
+            return result.text if result.text else None
+    except Exception:
+        return None  # graceful degradation
+
+
 class VisionLanguageOCR:
     """Vision-Language Model for receipt OCR and structured extraction."""
 
@@ -40,7 +66,7 @@ class VisionLanguageOCR:
         self.processor = None
         self.device = "cuda" if torch.cuda.is_available() and settings.USE_GPU else "cpu"
         self.use_quantization = use_quantization
-        self.model_name = "Qwen/Qwen2-VL-2B-Instruct"
+        self.model_name = "Qwen/Qwen2.5-VL-7B-Instruct"
 
         logger.info(f"Initializing VisionLanguageOCR with device: {self.device}")
 
@@ -112,6 +138,19 @@ class VisionLanguageOCR:
                 "warnings": [...]
             }
         """
+        # Try docuvision fast path first (skips heavy local VLM if available)
+        docuvision_text = _try_docuvision(image_path)
+        if docuvision_text is not None:
+            return {
+                "raw_text": docuvision_text,
+                "merchant": {},
+                "transaction": {},
+                "items": [],
+                "totals": {},
+                "confidence": {"overall": None},
+                "warnings": [],
+            }
+
         self._load_model()
 
         try:

@@ -2,7 +2,11 @@
 from __future__ import annotations
 
 import logging
+import os
+from contextlib import nullcontext
 from typing import TYPE_CHECKING
+
+from openai import OpenAI
 
 if TYPE_CHECKING:
     from app.db.store import Store
@@ -113,76 +117,57 @@ class LLMRecipeGenerator:
 
         return "\n".join(lines)
 
-    def _acquire_vram_lease(self) -> str | None:
-        """Request a VRAM lease from the CF-core coordinator. Best-effort — returns None if unavailable."""
-        try:
-            import httpx
-            from app.core.config import settings
-            from app.tasks.runner import VRAM_BUDGETS
+    _MODEL_CANDIDATES: list[str] = ["Ouro-2.6B-Thinking", "Ouro-1.4B"]
 
-            budget_mb = int(VRAM_BUDGETS.get("recipe_llm", 4.0) * 1024)
-            coordinator = settings.COORDINATOR_URL
+    def _get_llm_context(self):
+        """Return a sync context manager that yields an Allocation or None.
 
-            nodes_resp = httpx.get(f"{coordinator}/api/nodes", timeout=2.0)
-            if nodes_resp.status_code != 200:
-                return None
-            nodes = nodes_resp.json().get("nodes", [])
-            if not nodes:
-                return None
-
-            best_node = best_gpu = best_free = None
-            for node in nodes:
-                for gpu in node.get("gpus", []):
-                    free = gpu.get("vram_free_mb", 0)
-                    if best_free is None or free > best_free:
-                        best_node = node["node_id"]
-                        best_gpu = gpu["gpu_id"]
-                        best_free = free
-            if best_node is None:
-                return None
-
-            lease_resp = httpx.post(
-                f"{coordinator}/api/leases",
-                json={
-                    "node_id": best_node,
-                    "gpu_id": best_gpu,
-                    "mb": budget_mb,
-                    "service": "kiwi",
-                    "priority": 5,
-                },
-                timeout=3.0,
-            )
-            if lease_resp.status_code == 200:
-                lease_id = lease_resp.json()["lease"]["lease_id"]
-                logger.debug("Acquired VRAM lease %s for recipe_llm (%d MB)", lease_id, budget_mb)
-                return lease_id
-        except Exception as exc:
-            logger.debug("VRAM lease acquire failed (non-fatal): %s", exc)
-        return None
-
-    def _release_vram_lease(self, lease_id: str) -> None:
-        """Release a VRAM lease. Best-effort."""
-        try:
-            import httpx
-            from app.core.config import settings
-            httpx.delete(f"{settings.COORDINATOR_URL}/api/leases/{lease_id}", timeout=3.0)
-            logger.debug("Released VRAM lease %s", lease_id)
-        except Exception as exc:
-            logger.debug("VRAM lease release failed (non-fatal): %s", exc)
+        When CF_ORCH_URL is set, uses CFOrchClient to acquire a vLLM allocation
+        (which handles service lifecycle and VRAM). Falls back to nullcontext(None)
+        when the env var is absent or CFOrchClient raises on construction.
+        """
+        cf_orch_url = os.environ.get("CF_ORCH_URL")
+        if cf_orch_url:
+            try:
+                from circuitforge_core.resources import CFOrchClient
+                client = CFOrchClient(cf_orch_url)
+                return client.allocate(
+                    service="vllm",
+                    model_candidates=self._MODEL_CANDIDATES,
+                    ttl_s=300.0,
+                    caller="kiwi-recipe",
+                )
+            except Exception as exc:
+                logger.debug("CFOrchClient init failed, falling back to direct URL: %s", exc)
+        return nullcontext(None)
 
     def _call_llm(self, prompt: str) -> str:
-        """Call the LLM router with a VRAM lease held for the duration."""
-        lease_id = self._acquire_vram_lease()
+        """Call the LLM, using CFOrchClient allocation when CF_ORCH_URL is set.
+
+        With CF_ORCH_URL set: acquires a vLLM allocation via CFOrchClient and
+        calls the OpenAI-compatible API directly against the allocated service URL.
+        Without CF_ORCH_URL: falls back to LLMRouter using its configured backends.
+        """
         try:
-            from circuitforge_core.llm.router import LLMRouter
-            router = LLMRouter()
-            return router.complete(prompt)
+            with self._get_llm_context() as alloc:
+                if alloc is not None:
+                    base_url = alloc.url.rstrip("/") + "/v1"
+                    client = OpenAI(base_url=base_url, api_key="any")
+                    model = alloc.model or "__auto__"
+                    if model == "__auto__":
+                        model = client.models.list().data[0].id
+                    resp = client.chat.completions.create(
+                        model=model,
+                        messages=[{"role": "user", "content": prompt}],
+                    )
+                    return resp.choices[0].message.content or ""
+                else:
+                    from circuitforge_core.llm.router import LLMRouter
+                    router = LLMRouter()
+                    return router.complete(prompt)
         except Exception as exc:
             logger.error("LLM call failed: %s", exc)
             return ""
-        finally:
-            if lease_id:
-                self._release_vram_lease(lease_id)
 
     def _parse_response(self, response: str) -> dict[str, str | list[str]]:
         """Parse LLM response text into structured recipe fields."""
