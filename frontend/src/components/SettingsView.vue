@@ -1,7 +1,7 @@
 <template>
   <div class="settings-view">
     <div class="card">
-      <h2 class="text-xl font-bold mb-md">Settings</h2>
+      <h2 class="section-title text-xl mb-md">Settings</h2>
 
       <!-- Cooking Equipment -->
       <section>

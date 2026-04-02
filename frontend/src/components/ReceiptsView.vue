@@ -2,7 +2,7 @@
   <div class="receipts-view">
     <!-- Upload Section -->
     <div class="card">
-      <h2>📸 Upload Receipt</h2>
+      <h2 class="section-title mb-md">Upload Receipt</h2>
       <div
         class="upload-area"
         @click="triggerFileInput"
@@ -21,9 +21,9 @@
         @change="handleFileSelect"
       />
 
-      <div v-if="uploading" class="loading">
+      <div v-if="uploading" class="loading-inline mt-md">
         <div class="spinner"></div>
-        <p>Processing receipt...</p>
+        <span class="text-sm text-muted">Processing receipt…</span>
       </div>
 
       <div v-if="uploadResults.length > 0" class="results">
@@ -39,8 +39,8 @@
 
     <!-- Receipts List Section -->
     <div class="card">
-      <h2>📋 Recent Receipts</h2>
-      <div v-if="receipts.length === 0" style="text-align: center; color: var(--color-text-secondary)">
+      <h2 class="section-title mb-md">Recent Receipts</h2>
+      <div v-if="receipts.length === 0" class="text-center text-secondary p-lg">
         <p>No receipts yet. Upload one above!</p>
       </div>
       <div v-else>
@@ -89,9 +89,9 @@
           </div>
         </div>
 
-        <div style="margin-top: 20px">
-          <button class="button" @click="exportCSV">📊 Download CSV</button>
-          <button class="button" @click="exportExcel">📈 Download Excel</button>
+        <div class="flex gap-sm mt-md">
+          <button class="btn btn-secondary" @click="exportCSV">Download CSV</button>
+          <button class="btn btn-secondary" @click="exportExcel">Download Excel</button>
         </div>
       </div>
     </div>
@@ -225,157 +225,117 @@ onMounted(() => {
 .receipts-view {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-}
-
-.card {
-  background: var(--color-bg-card);
-  border-radius: var(--radius-xl);
-  padding: 30px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-}
-
-.card h2 {
-  margin-bottom: 20px;
-  color: var(--color-text-primary);
+  gap: var(--spacing-md);
 }
 
 .upload-area {
-  border: 3px dashed var(--color-primary);
+  border: 2px dashed var(--color-border-focus);
   border-radius: var(--radius-lg);
-  padding: 40px;
+  padding: var(--spacing-xl) var(--spacing-lg);
   text-align: center;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.2s ease;
   background: var(--color-bg-secondary);
 }
 
 .upload-area:hover {
-  border-color: var(--color-secondary);
+  border-color: var(--color-primary);
   background: var(--color-bg-elevated);
 }
 
 .upload-icon {
-  font-size: 48px;
-  margin-bottom: 20px;
+  font-size: 40px;
+  margin-bottom: var(--spacing-md);
+  line-height: 1;
 }
 
 .upload-text {
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-base);
+  font-weight: 600;
   color: var(--color-text-primary);
-  margin-bottom: 10px;
+  margin-bottom: var(--spacing-xs);
 }
 
 .upload-hint {
   font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
+  color: var(--color-text-muted);
 }
 
-.loading {
-  text-align: center;
-  padding: 20px;
-  margin-top: 20px;
-}
-
-.spinner {
-  border: 4px solid #f3f3f3;
-  border-top: 4px solid #667eea;
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  animation: spin 1s linear infinite;
-  margin: 0 auto 10px;
-}
-
-@keyframes spin {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
+.loading-inline {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) 0;
 }
 
 .results {
-  margin-top: 20px;
+  margin-top: var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
 }
 
 .result-item {
-  padding: 15px;
+  padding: var(--spacing-sm) var(--spacing-md);
   border-radius: var(--radius-md);
-  margin-bottom: 10px;
+  font-size: var(--font-size-sm);
 }
 
 .result-success {
   background: var(--color-success-bg);
-  color: var(--color-success-dark);
+  color: var(--color-success-light);
   border: 1px solid var(--color-success-border);
 }
 
 .result-error {
   background: var(--color-error-bg);
-  color: var(--color-error-dark);
+  color: var(--color-error-light);
   border: 1px solid var(--color-error-border);
 }
 
 .result-info {
   background: var(--color-info-bg);
-  color: var(--color-info-dark);
+  color: var(--color-info-light);
   border: 1px solid var(--color-info-border);
 }
 
-/* Using .grid-stats from theme.css */
-
+/* Stat cards */
 .stat-card {
   background: var(--color-bg-secondary);
-  padding: 20px;
+  padding: var(--spacing-md);
   border-radius: var(--radius-lg);
   text-align: center;
+  border: 1px solid var(--color-border);
 }
 
 .stat-value {
+  font-family: var(--font-mono);
   font-size: var(--font-size-2xl);
-  font-weight: bold;
+  font-weight: 500;
   color: var(--color-primary);
-  margin-bottom: 5px;
+  margin-bottom: var(--spacing-xs);
+  line-height: 1.1;
 }
 
 .stat-label {
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-}
-
-.button {
-  background: var(--gradient-primary);
-  color: white;
-  border: none;
-  padding: 12px 30px;
-  font-size: var(--font-size-base);
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: transform 0.2s;
-  margin-right: 10px;
-}
-
-.button:hover {
-  transform: translateY(-2px);
-}
-
-.button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .receipts-list {
-  margin-top: 20px;
+  margin-top: var(--spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
 }
 
 .receipt-item {
   background: var(--color-bg-secondary);
-  padding: 15px;
+  padding: var(--spacing-sm) var(--spacing-md);
   border-radius: var(--radius-md);
-  margin-bottom: 10px;
+  border: 1px solid var(--color-border);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -388,7 +348,7 @@ onMounted(() => {
 .receipt-merchant {
   font-weight: 600;
   font-size: var(--font-size-base);
-  margin-bottom: 5px;
+  margin-bottom: var(--spacing-xs);
   color: var(--color-text-primary);
 }
 
@@ -396,7 +356,7 @@ onMounted(() => {
   font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
   display: flex;
-  gap: 15px;
+  gap: var(--spacing-md);
   flex-wrap: wrap;
 }
 
@@ -419,20 +379,17 @@ onMounted(() => {
   color: var(--color-text-secondary);
 }
 
-/* Mobile Responsive - Handled by theme.css
-   Component-specific overrides only below */
-
+/* Mobile */
 @media (max-width: 480px) {
   .stat-card {
-    padding: 15px;
+    padding: var(--spacing-sm);
   }
 
-  /* Receipt items stack content vertically */
   .receipt-item {
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
-    padding: 12px;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
   }
 
   .receipt-info {
@@ -440,15 +397,8 @@ onMounted(() => {
   }
 
   .receipt-details {
-    gap: 10px;
+    gap: var(--spacing-sm);
     font-size: var(--font-size-xs);
-  }
-
-  /* Buttons full width on mobile */
-  .button {
-    width: 100%;
-    margin-right: 0;
-    margin-bottom: 10px;
   }
 }
 </style>

@@ -228,160 +228,183 @@ function getExpiryHint(): string {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  backdrop-filter: blur(4px);
 }
 
 .modal-content {
   background: var(--color-bg-card);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   width: 90%;
   max-width: 600px;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--shadow-xl);
+  border: 1px solid var(--color-border);
 }
 
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px;
-  border-bottom: 1px solid #eee;
+  padding: var(--spacing-lg) var(--spacing-lg) var(--spacing-md);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .modal-header h2 {
   margin: 0;
   font-size: var(--font-size-xl);
+  font-family: var(--font-display);
+  font-style: italic;
+  color: var(--color-text-primary);
 }
 
 .close-btn {
   background: none;
   border: none;
-  font-size: 32px;
-  color: #999;
+  font-size: 28px;
+  color: var(--color-text-muted);
   cursor: pointer;
   padding: 0;
   width: 32px;
   height: 32px;
   line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  transition: color 0.18s, background 0.18s;
 }
 
 .close-btn:hover {
   color: var(--color-text-primary);
+  background: var(--color-bg-elevated);
 }
 
 .edit-form {
-  padding: 20px;
+  padding: var(--spacing-lg);
 }
 
 .form-group {
-  margin-bottom: 20px;
+  margin-bottom: var(--spacing-md);
 }
 
 /* Using .form-row from theme.css */
 
 .form-group label {
   display: block;
-  margin-bottom: 8px;
+  margin-bottom: var(--spacing-xs);
   font-weight: 600;
-  color: var(--color-text-primary);
-  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .form-input {
   width: 100%;
-  padding: 10px;
+  padding: var(--spacing-sm) var(--spacing-md);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   font-size: var(--font-size-sm);
+  background: var(--color-bg-input);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  transition: border-color 0.18s, box-shadow 0.18s;
+  box-sizing: border-box;
 }
 
 .form-input:focus {
   outline: none;
-  border-color: #2196F3;
-  box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.1);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-warning-bg);
 }
 
 .form-input.expiry-expired {
-  border-color: #f44336;
+  border-color: var(--color-error);
 }
 
 .form-input.expiry-soon {
-  border-color: #ff5722;
+  border-color: var(--color-error-light);
 }
 
 .form-input.expiry-warning {
-  border-color: #ff9800;
+  border-color: var(--color-warning);
 }
 
 .form-input.expiry-good {
-  border-color: #4CAF50;
+  border-color: var(--color-success);
 }
 
 textarea.form-input {
   resize: vertical;
-  font-family: inherit;
+  font-family: var(--font-body);
 }
 
 .product-info {
-  padding: 10px;
-  background: #f5f5f5;
-  border-radius: var(--radius-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--color-bg-secondary);
+  border-radius: var(--radius-md);
   font-size: var(--font-size-sm);
+  border: 1px solid var(--color-border);
 }
 
 .product-info .brand {
   color: var(--color-text-secondary);
-  margin-left: 8px;
+  margin-left: var(--spacing-sm);
 }
 
 .expiry-hint {
   display: block;
-  margin-top: 5px;
+  margin-top: var(--spacing-xs);
   font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
 }
 
 .error-message {
-  background: #ffebee;
-  color: #c62828;
-  padding: 12px;
-  border-radius: var(--radius-sm);
-  margin-bottom: 15px;
+  background: var(--color-error-bg);
+  color: var(--color-error-light);
+  border: 1px solid var(--color-error-border);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-md);
   font-size: var(--font-size-sm);
 }
 
 .form-actions {
   display: flex;
-  gap: 10px;
+  gap: var(--spacing-sm);
   justify-content: flex-end;
-  margin-top: 25px;
-  padding-top: 20px;
-  border-top: 1px solid #eee;
+  margin-top: var(--spacing-lg);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid var(--color-border);
 }
 
 .btn-cancel,
 .btn-save {
-  padding: 10px 24px;
+  padding: var(--spacing-sm) var(--spacing-lg);
   border: none;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   font-size: var(--font-size-sm);
   font-weight: 600;
+  font-family: var(--font-body);
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.18s;
 }
 
 .btn-cancel {
-  background: #f5f5f5;
-  color: var(--color-text-primary);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
 }
 
 .btn-cancel:hover {
-  background: #e0e0e0;
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
 }
 
 .btn-save {
@@ -394,7 +417,7 @@ textarea.form-input {
 }
 
 .btn-save:disabled {
-  background: var(--color-text-muted);
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
@@ -408,7 +431,7 @@ textarea.form-input {
   }
 
   .modal-header {
-    padding: 15px;
+    padding: var(--spacing-md);
   }
 
   .modal-header h2 {
@@ -416,37 +439,30 @@ textarea.form-input {
   }
 
   .edit-form {
-    padding: 15px;
+    padding: var(--spacing-md);
   }
 
   .form-group {
-    margin-bottom: 15px;
+    margin-bottom: var(--spacing-sm);
   }
 
   /* Form actions stack on very small screens */
   .form-actions {
     flex-direction: column-reverse;
-    gap: 10px;
+    gap: var(--spacing-sm);
   }
 
   .btn-cancel,
   .btn-save {
     width: 100%;
-    padding: 12px;
+    padding: var(--spacing-md);
+    text-align: center;
   }
 }
 
 @media (min-width: 481px) and (max-width: 768px) {
   .modal-content {
     width: 92%;
-  }
-
-  .modal-header {
-    padding: 18px;
-  }
-
-  .edit-form {
-    padding: 18px;
   }
 }
 </style>

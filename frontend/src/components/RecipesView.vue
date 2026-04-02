@@ -2,7 +2,7 @@
   <div class="recipes-view">
     <!-- Controls Panel -->
     <div class="card mb-controls">
-      <h2 class="text-xl font-bold mb-md">Find Recipes</h2>
+      <h2 class="section-title text-xl mb-md">Find Recipes</h2>
 
       <!-- Level Selector -->
       <div class="form-group">
@@ -98,6 +98,62 @@
         />
       </div>
 
+      <!-- Nutrition Filters -->
+      <details class="collapsible form-group">
+        <summary class="form-label collapsible-summary nutrition-summary">
+          Nutrition Filters <span class="text-muted text-xs">(per recipe, optional)</span>
+        </summary>
+        <div class="nutrition-filters-grid mt-xs">
+          <div class="form-group">
+            <label class="form-label">Max Calories</label>
+            <input
+              type="number"
+              class="form-input"
+              min="0"
+              placeholder="e.g. 600"
+              :value="recipesStore.nutritionFilters.max_calories ?? ''"
+              @input="onNutritionInput('max_calories', $event)"
+            />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Max Sugar (g)</label>
+            <input
+              type="number"
+              class="form-input"
+              min="0"
+              placeholder="e.g. 10"
+              :value="recipesStore.nutritionFilters.max_sugar_g ?? ''"
+              @input="onNutritionInput('max_sugar_g', $event)"
+            />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Max Carbs (g)</label>
+            <input
+              type="number"
+              class="form-input"
+              min="0"
+              placeholder="e.g. 50"
+              :value="recipesStore.nutritionFilters.max_carbs_g ?? ''"
+              @input="onNutritionInput('max_carbs_g', $event)"
+            />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Max Sodium (mg)</label>
+            <input
+              type="number"
+              class="form-input"
+              min="0"
+              placeholder="e.g. 800"
+              :value="recipesStore.nutritionFilters.max_sodium_mg ?? ''"
+              @input="onNutritionInput('max_sodium_mg', $event)"
+            />
+          </div>
+        </div>
+        <p class="text-xs text-muted mt-xs">
+          Recipes without nutrition data always appear. Filters apply to food.com and estimated values.
+        </p>
+      </details>
+
       <!-- Suggest Button -->
       <button
         class="btn btn-primary btn-lg w-full"
@@ -107,7 +163,7 @@
         <span v-if="recipesStore.loading">
           <span class="spinner spinner-sm inline-spinner"></span> Finding recipes…
         </span>
-        <span v-else>🍳 Suggest Recipes</span>
+        <span v-else>Suggest Recipes</span>
       </button>
 
       <!-- Empty pantry nudge -->
@@ -165,12 +221,43 @@
             <div class="flex flex-wrap gap-xs">
               <span class="status-badge status-success">{{ recipe.match_count }} matched</span>
               <span class="status-badge status-info">Level {{ recipe.level }}</span>
-              <span v-if="recipe.is_wildcard" class="status-badge status-warning">Wildcard 🎲</span>
+              <span v-if="recipe.is_wildcard" class="status-badge status-warning">Wildcard</span>
             </div>
           </div>
 
           <!-- Notes -->
           <p v-if="recipe.notes" class="text-sm text-secondary mb-sm">{{ recipe.notes }}</p>
+
+          <!-- Nutrition chips -->
+          <div v-if="recipe.nutrition" class="nutrition-chips mb-sm">
+            <span v-if="recipe.nutrition.calories != null" class="nutrition-chip">
+              🔥 {{ Math.round(recipe.nutrition.calories) }} kcal
+            </span>
+            <span v-if="recipe.nutrition.fat_g != null" class="nutrition-chip">
+              🧈 {{ recipe.nutrition.fat_g.toFixed(1) }}g fat
+            </span>
+            <span v-if="recipe.nutrition.protein_g != null" class="nutrition-chip">
+              💪 {{ recipe.nutrition.protein_g.toFixed(1) }}g protein
+            </span>
+            <span v-if="recipe.nutrition.carbs_g != null" class="nutrition-chip">
+              🌾 {{ recipe.nutrition.carbs_g.toFixed(1) }}g carbs
+            </span>
+            <span v-if="recipe.nutrition.fiber_g != null" class="nutrition-chip">
+              🌿 {{ recipe.nutrition.fiber_g.toFixed(1) }}g fiber
+            </span>
+            <span v-if="recipe.nutrition.sugar_g != null" class="nutrition-chip nutrition-chip-sugar">
+              🍬 {{ recipe.nutrition.sugar_g.toFixed(1) }}g sugar
+            </span>
+            <span v-if="recipe.nutrition.sodium_mg != null" class="nutrition-chip">
+              🧂 {{ Math.round(recipe.nutrition.sodium_mg) }}mg sodium
+            </span>
+            <span v-if="recipe.nutrition.servings != null" class="nutrition-chip nutrition-chip-servings">
+              🍽️ {{ recipe.nutrition.servings }} serving{{ recipe.nutrition.servings !== 1 ? 's' : '' }}
+            </span>
+            <span v-if="recipe.nutrition.estimated" class="nutrition-chip nutrition-chip-estimated" title="Estimated from ingredient profiles">
+              ~ estimated
+            </span>
+          </div>
 
           <!-- Missing ingredients -->
           <div v-if="recipe.missing_ingredients.length > 0" class="mb-sm">
@@ -255,7 +342,11 @@
       v-if="!recipesStore.result && !recipesStore.loading && pantryItems.length > 0"
       class="card text-center text-muted"
     >
-      <p class="text-lg">🍳</p>
+      <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" style="width:40px;height:40px;color:var(--color-text-muted);margin-bottom:var(--spacing-sm)">
+        <path d="M12 8c0 0 4-4 12-4s12 4 12 4v8H12V8z"/>
+        <path d="M10 16h28v4l-2 20H12L10 20v-4z"/>
+        <line x1="20" y1="24" x2="28" y2="24"/>
+      </svg>
       <p class="mt-xs">Tap "Suggest Recipes" to find recipes using your pantry items.</p>
     </div>
   </div>
@@ -359,6 +450,14 @@ function onMaxMissingInput(e: Event) {
   const target = e.target as HTMLInputElement
   const val = parseInt(target.value)
   recipesStore.maxMissing = isNaN(val) ? null : val
+}
+
+// Nutrition filter inputs
+type NutritionKey = 'max_calories' | 'max_sugar_g' | 'max_carbs_g' | 'max_sodium_mg'
+function onNutritionInput(key: NutritionKey, e: Event) {
+  const target = e.target as HTMLInputElement
+  const val = parseFloat(target.value)
+  recipesStore.nutritionFilters[key] = isNaN(val) ? null : val
 }
 
 // Suggest handler
@@ -509,6 +608,48 @@ details[open] .collapsible-summary::before {
   margin-top: var(--spacing-md);
 }
 
+.nutrition-summary {
+  cursor: pointer;
+}
+
+.nutrition-filters-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-sm);
+}
+
+.nutrition-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+}
+
+.nutrition-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: var(--font-size-xs);
+  background: var(--color-bg-secondary, #f5f5f5);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.nutrition-chip-sugar {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+.nutrition-chip-servings {
+  background: var(--color-info-bg);
+  color: var(--color-info-light);
+}
+
+.nutrition-chip-estimated {
+  font-style: italic;
+  opacity: 0.7;
+}
+
 /* Mobile adjustments */
 @media (max-width: 480px) {
   .flex-between {
@@ -519,6 +660,10 @@ details[open] .collapsible-summary::before {
 
   .recipe-title {
     margin-right: 0;
+  }
+
+  .nutrition-filters-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>
