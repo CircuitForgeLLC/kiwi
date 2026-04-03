@@ -507,10 +507,12 @@ const manualLoading = ref(false)
 onMounted(async () => {
   await store.fetchItems()
   await store.fetchStats()
-  // Auto-focus scanner gun input
-  setTimeout(() => {
-    scannerGunInput.value?.focus()
-  }, 100)
+  // Auto-focus scanner gun input — desktop only (avoids popping mobile keyboard)
+  if (!('ontouchstart' in window)) {
+    setTimeout(() => {
+      scannerGunInput.value?.focus()
+    }, 100)
+  }
 })
 
 function onFilterChange() {
@@ -762,7 +764,7 @@ function getItemClass(item: InventoryItem): string {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-md);
-  padding: var(--spacing-xs) 0 var(--spacing-xl);
+  padding: var(--spacing-xs) 0 0;
 }
 
 /* ============================================
@@ -1231,6 +1233,16 @@ function getItemClass(item: InventoryItem): string {
     gap: var(--spacing-sm);
   }
 
+  /* Mode toggle fills the card width when header stacks */
+  .scan-mode-toggle {
+    width: 100%;
+  }
+
+  .scan-mode-btn {
+    flex: 1;
+    justify-content: center;
+  }
+
   .scan-meta-row {
     flex-direction: column;
   }
@@ -1256,6 +1268,18 @@ function getItemClass(item: InventoryItem): string {
 
   .inv-actions {
     gap: 1px;
+  }
+}
+
+/* Very narrow phones (360px and below): hide mode button labels, keep icons */
+@media (max-width: 360px) {
+  .scan-mode-btn span {
+    display: none;
+  }
+
+  .scan-mode-btn svg {
+    width: 16px;
+    height: 16px;
   }
 }
 
