@@ -43,7 +43,13 @@ KIWI_FEATURES: dict[str, str] = {
 
 
 def can_use(feature: str, tier: str, has_byok: bool = False) -> bool:
-    """Return True if the given tier can access the feature."""
+    """Return True if the given tier can access the feature.
+
+    The 'local' tier is assigned to dev-bypass and non-cloud sessions —
+    it has unrestricted access to all features.
+    """
+    if tier == "local":
+        return True
     return _can_use(
         feature,
         tier,

@@ -19,3 +19,6 @@ dist/
 
 # Data directories
 data/
+
+# Test artifacts (MagicMock sqlite files from pytest)
+<MagicMock*

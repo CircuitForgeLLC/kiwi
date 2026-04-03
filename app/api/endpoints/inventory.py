@@ -369,6 +369,23 @@ async def list_tags(
 
 # ── Stats ─────────────────────────────────────────────────────────────────────
 
+@router.post("/recalculate-expiry")
+async def recalculate_expiry(
+    session: CloudUser = Depends(get_session),
+    store: Store = Depends(get_store),
+) -> dict:
+    """Re-run the expiration predictor over all available inventory items.
+
+    Uses each item's stored purchase_date and current location. Safe to call
+    multiple times — idempotent per session.
+    """
+    def _run(s: Store) -> tuple[int, int]:
+        return s.recalculate_expiry(tier=session.tier, has_byok=session.has_byok)
+
+    updated, skipped = await asyncio.to_thread(_run, store)
+    return {"updated": updated, "skipped": skipped}
+
+
 @router.get("/stats", response_model=InventoryStats)
 async def get_inventory_stats(store: Store = Depends(get_store)):
     def _stats():
