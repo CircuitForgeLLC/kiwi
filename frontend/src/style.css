@@ -156,6 +156,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  overflow-x: hidden; /* prevent any element from expanding the mobile viewport */
   background-color: var(--color-bg-primary);
   color: var(--color-text-primary);
 }
