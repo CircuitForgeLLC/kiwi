@@ -219,7 +219,7 @@ def get_session(request: Request) -> CloudUser:
     if not raw_header:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    token = _extract_session_token(raw_header)
+    token = _extract_session_token(raw_header)  # gitleaks:allow — function name, not a secret
     if not token:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
