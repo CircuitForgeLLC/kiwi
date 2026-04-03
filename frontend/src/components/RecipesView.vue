@@ -154,17 +154,50 @@
         </p>
       </details>
 
+      <!-- Cuisine Style (Level 3+ only) -->
+      <div v-if="recipesStore.level >= 3" class="form-group">
+        <label class="form-label">Cuisine Style <span class="text-muted text-xs">(Level 3+)</span></label>
+        <div class="flex flex-wrap gap-xs">
+          <button
+            v-for="style in cuisineStyles"
+            :key="style.id"
+            :class="['btn', 'btn-secondary', 'btn-sm', { active: recipesStore.styleId === style.id }]"
+            @click="recipesStore.styleId = recipesStore.styleId === style.id ? null : style.id"
+          >{{ style.label }}</button>
+        </div>
+      </div>
+
+      <!-- Category Filter (Level 1–2 only) -->
+      <div v-if="recipesStore.level <= 2" class="form-group">
+        <label class="form-label">Category <span class="text-muted text-xs">(optional)</span></label>
+        <input
+          class="form-input"
+          v-model="categoryInput"
+          placeholder="e.g. Breakfast, Asian, Chicken, &lt; 30 Mins"
+          @blur="recipesStore.category = categoryInput.trim() || null"
+          @keydown.enter="recipesStore.category = categoryInput.trim() || null"
+        />
+      </div>
+
       <!-- Suggest Button -->
-      <button
-        class="btn btn-primary btn-lg w-full"
-        :disabled="recipesStore.loading || pantryItems.length === 0 || (recipesStore.level === 4 && !recipesStore.wildcardConfirmed)"
-        @click="handleSuggest"
-      >
-        <span v-if="recipesStore.loading">
-          <span class="spinner spinner-sm inline-spinner"></span> Finding recipes…
-        </span>
-        <span v-else>Suggest Recipes</span>
-      </button>
+      <div class="suggest-row">
+        <button
+          class="btn btn-primary btn-lg flex-1"
+          :disabled="recipesStore.loading || pantryItems.length === 0 || (recipesStore.level === 4 && !recipesStore.wildcardConfirmed)"
+          @click="handleSuggest"
+        >
+          <span v-if="recipesStore.loading && !isLoadingMore">
+            <span class="spinner spinner-sm inline-spinner"></span> Finding recipes…
+          </span>
+          <span v-else>Suggest Recipes</span>
+        </button>
+        <button
+          v-if="recipesStore.dismissedCount > 0"
+          class="btn btn-ghost btn-sm"
+          @click="recipesStore.clearDismissed()"
+          title="Show all dismissed recipes again"
+        >Clear dismissed ({{ recipesStore.dismissedCount }})</button>
+      </div>
 
       <!-- Empty pantry nudge -->
       <p v-if="pantryItems.length === 0 && !recipesStore.loading" class="text-sm text-muted text-center mt-xs">
@@ -218,10 +251,17 @@
           <!-- Header row -->
           <div class="flex-between mb-sm">
             <h3 class="text-lg font-bold recipe-title">{{ recipe.title }}</h3>
-            <div class="flex flex-wrap gap-xs">
+            <div class="flex flex-wrap gap-xs" style="align-items:center">
               <span class="status-badge status-success">{{ recipe.match_count }} matched</span>
               <span class="status-badge status-info">Level {{ recipe.level }}</span>
               <span v-if="recipe.is_wildcard" class="status-badge status-warning">Wildcard</span>
+              <button
+                v-if="recipe.id"
+                class="btn-dismiss"
+                @click="recipesStore.dismiss(recipe.id)"
+                title="Hide this recipe"
+                aria-label="Dismiss recipe"
+              >✕</button>
             </div>
           </div>
 
@@ -308,6 +348,16 @@
             </div>
           </details>
 
+          <!-- Prep notes -->
+          <div v-if="recipe.prep_notes && recipe.prep_notes.length > 0" class="prep-notes mb-sm">
+            <p class="text-sm font-semibold">Before you start:</p>
+            <ul class="prep-notes-list mt-xs">
+              <li v-for="note in recipe.prep_notes" :key="note" class="text-sm prep-note-item">
+                {{ note }}
+              </li>
+            </ul>
+          </div>
+
           <!-- Directions collapsible -->
           <details v-if="recipe.directions.length > 0" class="collapsible">
             <summary class="text-sm font-semibold collapsible-summary">
@@ -320,6 +370,20 @@
             </ol>
           </details>
         </div>
+      </div>
+
+      <!-- Load More -->
+      <div v-if="recipesStore.result.suggestions.length > 0" class="load-more-row">
+        <button
+          class="btn btn-secondary"
+          :disabled="recipesStore.loading"
+          @click="handleLoadMore"
+        >
+          <span v-if="recipesStore.loading && isLoadingMore">
+            <span class="spinner spinner-sm inline-spinner"></span> Loading…
+          </span>
+          <span v-else>Load more recipes</span>
+        </button>
       </div>
 
       <!-- Grocery list summary -->
@@ -364,12 +428,22 @@ const inventoryStore = useInventoryStore()
 // Local input state for tags
 const constraintInput = ref('')
 const allergyInput = ref('')
+const categoryInput = ref('')
+const isLoadingMore = ref(false)
 
 const levels = [
   { value: 1, label: '1 — From Pantry' },
   { value: 2, label: '2 — Creative Swaps' },
   { value: 3, label: '3 — AI Scaffold' },
   { value: 4, label: '4 — Wildcard 🎲' },
+]
+
+const cuisineStyles = [
+  { id: 'italian',           label: 'Italian' },
+  { id: 'mediterranean',     label: 'Mediterranean' },
+  { id: 'east_asian',        label: 'East Asian' },
+  { id: 'latin',             label: 'Latin' },
+  { id: 'eastern_european',  label: 'Eastern European' },
 ]
 
 // Pantry items sorted expiry-first (available items only)
@@ -462,7 +536,14 @@ function onNutritionInput(key: NutritionKey, e: Event) {
 
 // Suggest handler
 async function handleSuggest() {
+  isLoadingMore.value = false
   await recipesStore.suggest(pantryItems.value)
+}
+
+async function handleLoadMore() {
+  isLoadingMore.value = true
+  await recipesStore.loadMore(pantryItems.value)
+  isLoadingMore.value = false
 }
 
 onMounted(async () => {
@@ -543,6 +624,58 @@ onMounted(async () => {
   margin-right: var(--spacing-sm);
 }
 
+.btn-dismiss {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--color-text-muted);
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+
+.btn-dismiss:hover {
+  color: var(--color-error, #dc2626);
+  background: var(--color-error-bg, #fee2e2);
+  transform: none;
+}
+
+.suggest-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.btn-ghost {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  white-space: nowrap;
+}
+
+.btn-ghost:hover {
+  color: var(--color-primary);
+  background: transparent;
+  transform: none;
+}
+
+.btn-sm {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-sm);
+}
+
+.load-more-row {
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--spacing-md);
+}
+
 .collapsible {
   border-top: 1px solid var(--color-border);
   padding-top: var(--spacing-sm);
@@ -575,6 +708,17 @@ details[open] .collapsible-summary::before {
 
 .swap-row:last-child {
   border-bottom: none;
+}
+
+.prep-notes-list {
+  padding-left: var(--spacing-lg);
+  list-style-type: disc;
+}
+
+.prep-note-item {
+  margin-bottom: var(--spacing-xs);
+  line-height: 1.5;
+  color: var(--color-text-secondary);
 }
 
 .directions-list {

@@ -281,15 +281,25 @@
         <p class="text-muted text-sm" style="margin-top: var(--spacing-md)">Loading pantry…</p>
       </div>
 
-      <!-- Empty State -->
-      <div v-else-if="!loading && filteredItems.length === 0" class="empty-state">
+      <!-- Empty State: clean slate (no items at all) -->
+      <div v-else-if="!loading && filteredItems.length === 0 && store.items.length === 0" class="empty-state">
         <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" class="empty-icon">
           <rect x="6" y="10" width="36" height="6" rx="2"/>
           <rect x="6" y="21" width="36" height="6" rx="2"/>
           <rect x="6" y="32" width="36" height="6" rx="2"/>
         </svg>
-        <p class="text-secondary">No items found.</p>
-        <p class="text-muted text-sm">Scan a barcode or add manually above.</p>
+        <p class="text-secondary">Clean slate.</p>
+        <p class="text-muted text-sm">Your pantry is ready for anything — scan a barcode or add an item above.</p>
+      </div>
+
+      <!-- Empty State: filter has no matches -->
+      <div v-else-if="!loading && filteredItems.length === 0" class="empty-state">
+        <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" class="empty-icon">
+          <circle cx="20" cy="20" r="12"/>
+          <line x1="29" y1="29" x2="42" y2="42"/>
+        </svg>
+        <p class="text-secondary">Nothing matches that filter.</p>
+        <p class="text-muted text-sm">Try a different location or status.</p>
       </div>
 
       <!-- Inventory shelf list -->

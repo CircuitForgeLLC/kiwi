@@ -1,5 +1,5 @@
 /**
- * Central Theme System for Project Thoth
+ * Central Theme System for Kiwi
  *
  * This file contains all reusable, theme-aware, responsive CSS classes.
  * Components should use these classes instead of custom styles where possible.
@@ -9,24 +9,42 @@
    LAYOUT UTILITIES - RESPONSIVE GRIDS
    ============================================ */
 
-/* Responsive Grid - Automatically adjusts columns based on screen size */
 .grid-responsive {
   display: grid;
   gap: var(--spacing-md);
 }
 
-/* Mobile: 1 column, Tablet: 2 columns, Desktop: 3+ columns */
 .grid-auto {
   display: grid;
   gap: var(--spacing-md);
-  grid-template-columns: 1fr;  /* Default to single column */
+  grid-template-columns: 1fr;
 }
 
-/* Stats grid - always fills available space */
+/* Stats grid — horizontal strip of compact stats */
 .grid-stats {
   display: grid;
   gap: var(--spacing-md);
-  grid-template-columns: 1fr;  /* Default to single column */
+  grid-template-columns: 1fr;
+}
+
+.grid-stats-strip {
+  display: flex;
+  gap: 0;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+}
+
+.grid-stats-strip .stat-strip-item {
+  flex: 1;
+  text-align: center;
+  padding: var(--spacing-sm) var(--spacing-xs);
+  border-right: 1px solid var(--color-border);
+}
+
+.grid-stats-strip .stat-strip-item:last-child {
+  border-right: none;
 }
 
 /* Force specific column counts */
@@ -36,7 +54,7 @@
 .grid-4 { grid-template-columns: repeat(4, 1fr); }
 
 /* ============================================
-   FLEXBOX UTILITIES - RESPONSIVE
+   FLEXBOX UTILITIES
    ============================================ */
 
 .flex { display: flex; }
@@ -63,7 +81,6 @@
   align-items: center;
 }
 
-/* Stack on mobile, horizontal on desktop */
 .flex-responsive {
   display: flex;
   gap: var(--spacing-md);
@@ -74,14 +91,12 @@
    SPACING UTILITIES
    ============================================ */
 
-/* Gaps */
 .gap-xs { gap: var(--spacing-xs); }
 .gap-sm { gap: var(--spacing-sm); }
 .gap-md { gap: var(--spacing-md); }
 .gap-lg { gap: var(--spacing-lg); }
 .gap-xl { gap: var(--spacing-xl); }
 
-/* Padding */
 .p-0 { padding: 0; }
 .p-xs { padding: var(--spacing-xs); }
 .p-sm { padding: var(--spacing-sm); }
@@ -89,7 +104,6 @@
 .p-lg { padding: var(--spacing-lg); }
 .p-xl { padding: var(--spacing-xl); }
 
-/* Margin */
 .m-0 { margin: 0; }
 .m-xs { margin: var(--spacing-xs); }
 .m-sm { margin: var(--spacing-sm); }
@@ -97,9 +111,14 @@
 .m-lg { margin: var(--spacing-lg); }
 .m-xl { margin: var(--spacing-xl); }
 
-/* Margin/Padding specific sides */
+.mt-xs { margin-top: var(--spacing-xs); }
+.mt-sm { margin-top: var(--spacing-sm); }
 .mt-md { margin-top: var(--spacing-md); }
+.mb-xs { margin-bottom: var(--spacing-xs); }
+.mb-sm { margin-bottom: var(--spacing-sm); }
 .mb-md { margin-bottom: var(--spacing-md); }
+.mb-lg { margin-bottom: var(--spacing-lg); }
+.ml-xs { margin-left: var(--spacing-xs); }
 .ml-md { margin-left: var(--spacing-md); }
 .mr-md { margin-right: var(--spacing-md); }
 
@@ -115,8 +134,9 @@
 .card {
   background: var(--color-bg-card);
   border-radius: var(--radius-xl);
-  padding: var(--spacing-xl);
+  padding: var(--spacing-lg);
   box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-border);
   transition: box-shadow 0.2s ease;
 }
 
@@ -129,20 +149,22 @@
   border-radius: var(--radius-lg);
   padding: var(--spacing-md);
   box-shadow: var(--shadow-sm);
+  border: 1px solid var(--color-border);
 }
 
 .card-secondary {
   background: var(--color-bg-secondary);
   border-radius: var(--radius-lg);
-  padding: var(--spacing-lg);
+  padding: var(--spacing-md);
   box-shadow: var(--shadow-sm);
+  border: 1px solid var(--color-border);
 }
 
 /* Status border variants */
-.card-success { border-left: 4px solid var(--color-success); }
-.card-warning { border-left: 4px solid var(--color-warning); }
-.card-error { border-left: 4px solid var(--color-error); }
-.card-info { border-left: 4px solid var(--color-info); }
+.card-success { border-left: 3px solid var(--color-success); }
+.card-warning { border-left: 3px solid var(--color-warning); }
+.card-error { border-left: 3px solid var(--color-error); }
+.card-info { border-left: 3px solid var(--color-info); }
 
 /* ============================================
    BUTTON COMPONENTS - THEME AWARE
@@ -150,13 +172,18 @@
 
 .btn {
   padding: var(--spacing-sm) var(--spacing-md);
-  border: none;
+  border: 1px solid transparent;
   border-radius: var(--radius-md);
   font-size: var(--font-size-sm);
   font-weight: 600;
+  font-family: var(--font-body);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.18s ease;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
 }
 
 .btn:hover {
@@ -168,7 +195,7 @@
 }
 
 .btn:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
   transform: none;
 }
@@ -176,8 +203,14 @@
 /* Button variants */
 .btn-primary {
   background: var(--gradient-primary);
-  color: white;
+  color: #1e1c1a;
   border: none;
+  font-weight: 700;
+  box-shadow: var(--shadow-amber);
+}
+
+.btn-primary:hover:not(:disabled) {
+  box-shadow: 0 6px 20px rgba(232, 168, 32, 0.35);
 }
 
 .btn-success {
@@ -208,20 +241,49 @@
 }
 
 .btn-secondary {
-  background: var(--color-bg-secondary);
-  color: var(--color-text-primary);
-  border: 2px solid var(--color-border);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
 }
 
 .btn-secondary:hover:not(:disabled) {
   background: var(--color-bg-primary);
   border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
 .btn-secondary.active {
-  background: var(--gradient-primary);
-  color: white;
+  background: var(--color-primary);
+  color: #1e1c1a;
   border-color: var(--color-primary);
+  font-weight: 700;
+}
+
+/* Pill chip button — for filter chips */
+.btn-chip {
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-xs);
+  font-weight: 500;
+  font-family: var(--font-body);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+
+.btn-chip:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.btn-chip.active {
+  background: var(--color-primary);
+  color: #1e1c1a;
+  border-color: var(--color-primary);
+  font-weight: 700;
 }
 
 /* Button sizes */
@@ -232,7 +294,38 @@
 
 .btn-lg {
   padding: var(--spacing-md) var(--spacing-xl);
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-base);
+}
+
+/* Icon-only action button */
+.btn-icon {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.btn-icon:hover {
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  transform: none;
+}
+
+.btn-icon.btn-icon-danger:hover {
+  color: var(--color-error);
+}
+
+.btn-icon.btn-icon-success:hover {
+  color: var(--color-success);
 }
 
 /* ============================================
@@ -245,10 +338,13 @@
 
 .form-label {
   display: block;
-  margin-bottom: var(--spacing-sm);
+  margin-bottom: var(--spacing-xs);
   font-weight: 600;
-  color: var(--color-text-primary);
-  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-family: var(--font-body);
 }
 
 .form-input,
@@ -261,7 +357,9 @@
   background: var(--color-bg-input);
   color: var(--color-text-primary);
   font-size: var(--font-size-sm);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  font-family: var(--font-body);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+  box-sizing: border-box;
 }
 
 .form-input:focus,
@@ -269,20 +367,32 @@
 .form-textarea:focus {
   outline: none;
   border-color: var(--color-primary);
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  box-shadow: 0 0 0 3px var(--color-warning-bg);
 }
 
 .form-textarea {
   resize: vertical;
   min-height: 80px;
-  font-family: inherit;
+  font-family: var(--font-body);
 }
 
-/* Form layouts */
 .form-row {
   display: grid;
   gap: var(--spacing-md);
   grid-template-columns: 1fr;
+}
+
+/* Chip row filter bar — horizontal scroll */
+.filter-chip-row {
+  display: flex;
+  gap: var(--spacing-xs);
+  overflow-x: auto;
+  padding-bottom: var(--spacing-xs);
+  scrollbar-width: none;
+}
+
+.filter-chip-row::-webkit-scrollbar {
+  display: none;
 }
 
 /* ============================================
@@ -296,6 +406,17 @@
 .text-xl { font-size: var(--font-size-xl); }
 .text-2xl { font-size: var(--font-size-2xl); }
 
+/* Display font */
+.text-display {
+  font-family: var(--font-display);
+  font-style: italic;
+}
+
+/* Mono font */
+.text-mono {
+  font-family: var(--font-mono);
+}
+
 .text-primary { color: var(--color-text-primary); }
 .text-secondary { color: var(--color-text-secondary); }
 .text-muted { color: var(--color-text-muted); }
@@ -304,6 +425,7 @@
 .text-warning { color: var(--color-warning); }
 .text-error { color: var(--color-error); }
 .text-info { color: var(--color-info); }
+.text-amber { color: var(--color-primary); }
 
 .text-center { text-align: center; }
 .text-left { text-align: left; }
@@ -314,58 +436,75 @@
 .font-normal { font-weight: 400; }
 
 /* ============================================
+   LOCATION DOT INDICATORS
+   ============================================ */
+
+.loc-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-block;
+}
+
+.loc-dot-fridge { background: var(--color-loc-fridge); }
+.loc-dot-freezer { background: var(--color-loc-freezer); }
+.loc-dot-garage_freezer { background: var(--color-loc-garage-freezer); }
+.loc-dot-pantry { background: var(--color-loc-pantry); }
+.loc-dot-cabinet { background: var(--color-loc-cabinet); }
+
+/* Location left-border strip on inventory rows */
+.inv-row-fridge { border-left-color: var(--color-loc-fridge) !important; }
+.inv-row-freezer { border-left-color: var(--color-loc-freezer) !important; }
+.inv-row-garage_freezer { border-left-color: var(--color-loc-garage-freezer) !important; }
+.inv-row-pantry { border-left-color: var(--color-loc-pantry) !important; }
+.inv-row-cabinet { border-left-color: var(--color-loc-cabinet) !important; }
+
+/* ============================================
    RESPONSIVE UTILITIES
    ============================================ */
 
-/* Show/Hide based on screen size */
 .mobile-only { display: none; }
 .desktop-only { display: block; }
 
-/* Width utilities */
 .w-full { width: 100%; }
 .w-auto { width: auto; }
 
-/* Height utilities */
 .h-full { height: 100%; }
 .h-auto { height: auto; }
 
 /* ============================================
-   MOBILE BREAKPOINTS (≤480px)
+   MOBILE BREAKPOINTS (<=480px)
    ============================================ */
 
 @media (max-width: 480px) {
-  /* Show/Hide */
   .mobile-only { display: block; }
   .desktop-only { display: none; }
 
-  /* Grids already default to 1fr, just ensure it stays that way */
   .grid-2,
   .grid-3,
   .grid-4 {
     grid-template-columns: 1fr !important;
   }
 
-  /* Stack flex items vertically */
   .flex-responsive {
     flex-direction: column;
   }
 
-  /* Buttons take full width */
   .btn-mobile-full {
     width: 100%;
     min-width: 100%;
   }
 
-  /* Reduce card padding on mobile */
   .card {
     padding: var(--spacing-md);
+    border-radius: var(--radius-lg);
   }
 
   .card-sm {
     padding: var(--spacing-sm);
   }
 
-  /* Allow text wrapping on mobile */
   .btn {
     white-space: normal;
     text-align: center;
@@ -377,7 +516,6 @@
    ============================================ */
 
 @media (min-width: 481px) and (max-width: 768px) {
-  /* 2-column layouts on tablets */
   .grid-3,
   .grid-4 {
     grid-template-columns: repeat(2, 1fr);
@@ -402,11 +540,11 @@
 
 @media (min-width: 769px) and (max-width: 1024px) {
   .grid-auto {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .grid-stats {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
   }
 
   .grid-4 {
@@ -415,16 +553,16 @@
 }
 
 /* ============================================
-   LARGE DESKTOP (≥1025px)
+   LARGE DESKTOP (>=1025px)
    ============================================ */
 
 @media (min-width: 1025px) {
   .grid-auto {
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   }
 
   .grid-stats {
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   }
 
   .form-row {
@@ -437,34 +575,37 @@
    ============================================ */
 
 .status-badge {
-  display: inline-block;
-  padding: var(--spacing-xs) var(--spacing-sm);
-  border-radius: var(--radius-sm);
+  display: inline-flex;
+  align-items: center;
+  padding: 3px var(--spacing-sm);
+  border-radius: var(--radius-pill);
   font-size: var(--font-size-xs);
   font-weight: 600;
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
 }
 
 .status-success {
   background: var(--color-success-bg);
-  color: var(--color-success-dark);
+  color: var(--color-success-light);
   border: 1px solid var(--color-success-border);
 }
 
 .status-warning {
   background: var(--color-warning-bg);
-  color: var(--color-warning-dark);
+  color: var(--color-warning-light);
   border: 1px solid var(--color-warning-border);
 }
 
 .status-error {
   background: var(--color-error-bg);
-  color: var(--color-error-dark);
+  color: var(--color-error-light);
   border: 1px solid var(--color-error-border);
 }
 
 .status-info {
   background: var(--color-info-bg);
-  color: var(--color-info-dark);
+  color: var(--color-info-light);
   border: 1px solid var(--color-info-border);
 }
 
@@ -488,7 +629,7 @@
 @keyframes slideUp {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(16px);
   }
   to {
     opacity: 1;
@@ -496,23 +637,33 @@
   }
 }
 
+/* Urgency pulse — for items expiring very soon */
+@keyframes urgencyPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.pulse-urgent {
+  animation: urgencyPulse 1.8s ease-in-out infinite;
+}
+
 /* ============================================
    LOADING UTILITIES
    ============================================ */
 
 .spinner {
-  border: 3px solid var(--color-border);
-  border-top: 3px solid var(--color-primary);
+  border: 2px solid var(--color-border);
+  border-top: 2px solid var(--color-primary);
   border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  animation: spin 1s linear infinite;
+  width: 36px;
+  height: 36px;
+  animation: spin 0.9s linear infinite;
   margin: 0 auto;
 }
 
 .spinner-sm {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   border-width: 2px;
 }
 
@@ -533,4 +684,161 @@
 
 .divider-md {
   margin: var(--spacing-md) 0;
+}
+
+/* ============================================
+   SECTION HEADERS (display font)
+   ============================================ */
+
+.section-title {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin: 0;
+}
+
+/* ============================================
+   EASTER EGG — GRID KITCHEN NEON MODE
+   Activated via Konami code
+   ============================================ */
+
+body.neon-mode .card,
+body.neon-mode .card-sm,
+body.neon-mode .card-secondary {
+  box-shadow:
+    0 0 0 1px rgba(255, 0, 110, 0.35),
+    0 0 12px rgba(255, 0, 110, 0.18),
+    0 2px 20px rgba(131, 56, 236, 0.15);
+}
+
+body.neon-mode .btn-primary {
+  box-shadow: 0 0 18px rgba(255, 0, 110, 0.55), 0 0 36px rgba(131, 56, 236, 0.25);
+  color: #fff;
+}
+
+body.neon-mode .wordmark-kiwi {
+  text-shadow: 0 0 10px rgba(255, 0, 110, 0.7), 0 0 24px rgba(131, 56, 236, 0.5);
+}
+
+body.neon-mode .sidebar,
+body.neon-mode .bottom-nav {
+  border-color: rgba(255, 0, 110, 0.3);
+  box-shadow: 4px 0 20px rgba(255, 0, 110, 0.12);
+}
+
+body.neon-mode .sidebar-item.active,
+body.neon-mode .nav-item.active {
+  text-shadow: 0 0 8px currentColor;
+}
+
+/* Scanline overlay */
+body.neon-mode::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(0, 0, 0, 0.08) 3px,
+    rgba(0, 0, 0, 0.08) 4px
+  );
+  pointer-events: none;
+  z-index: 9998;
+  animation: scanlineScroll 8s linear infinite;
+}
+
+@keyframes scanlineScroll {
+  0%   { background-position: 0 0; }
+  100% { background-position: 0 80px; }
+}
+
+/* CRT flicker on wordmark */
+body.neon-mode .wordmark-kiwi {
+  animation: crtFlicker 6s ease-in-out infinite;
+}
+
+@keyframes crtFlicker {
+  0%, 94%, 100% { opacity: 1; }
+  95%           { opacity: 0.88; }
+  97%           { opacity: 0.95; }
+  98%           { opacity: 0.82; }
+}
+
+/* ============================================
+   EASTER EGG — KIWI BIRD SPRITE
+   ============================================ */
+
+.kiwi-bird-stage {
+  position: fixed;
+  bottom: 72px; /* above bottom nav */
+  left: 0;
+  right: 0;
+  height: 72px;
+  pointer-events: none;
+  z-index: 9999;
+  overflow: hidden;
+}
+
+@media (min-width: 769px) {
+  .kiwi-bird-stage {
+    bottom: 0;
+    left: 200px; /* clear the sidebar */
+  }
+}
+
+.kiwi-bird {
+  position: absolute;
+  bottom: 8px;
+  width: 64px;
+  height: 64px;
+  will-change: transform;
+}
+
+/* Enters from right, walks left */
+.kiwi-bird.rtl {
+  animation: kiwiWalkRtl 5.5s ease-in-out forwards;
+}
+.kiwi-bird.rtl .kiwi-svg {
+  transform: scaleX(1); /* faces left */
+}
+
+/* Enters from left, walks right */
+.kiwi-bird.ltr {
+  animation: kiwiWalkLtr 5.5s ease-in-out forwards;
+}
+.kiwi-bird.ltr .kiwi-svg {
+  transform: scaleX(-1); /* faces right */
+}
+
+/* Bob on each step */
+.kiwi-svg {
+  display: block;
+  animation: kiwiBob 0.38s steps(1) infinite;
+}
+
+@keyframes kiwiWalkRtl {
+  0%   { right: -80px; }
+  15%  { right: 35%; }     /* enter and slow */
+  40%  { right: 35%; }     /* pause — sniffing */
+  55%  { right: 38%; }     /* tiny shuffle */
+  60%  { right: 35%; }
+  85%  { right: 35%; }
+  100% { right: calc(100% + 80px); } /* exit left */
+}
+
+@keyframes kiwiWalkLtr {
+  0%   { left: -80px; }
+  15%  { left: 35%; }
+  40%  { left: 35%; }
+  55%  { left: 38%; }
+  60%  { left: 35%; }
+  85%  { left: 35%; }
+  100% { left: calc(100% + 80px); }
+}
+
+@keyframes kiwiBob {
+  0%  { transform: translateY(0) scaleX(var(--bird-flip, 1)); }
+  50% { transform: translateY(-4px) scaleX(var(--bird-flip, 1)); }
 }

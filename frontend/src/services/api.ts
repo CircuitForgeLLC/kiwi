@@ -415,6 +415,18 @@ export interface SwapCandidate {
   compensation_hints: Record<string, string>[]
 }
 
+export interface NutritionPanel {
+  calories: number | null
+  fat_g: number | null
+  protein_g: number | null
+  carbs_g: number | null
+  fiber_g: number | null
+  sugar_g: number | null
+  sodium_mg: number | null
+  servings: number | null
+  estimated: boolean
+}
+
 export interface RecipeSuggestion {
   id: number
   title: string
@@ -423,9 +435,18 @@ export interface RecipeSuggestion {
   swap_candidates: SwapCandidate[]
   missing_ingredients: string[]
   directions: string[]
+  prep_notes: string[]
   notes: string
   level: number
   is_wildcard: boolean
+  nutrition: NutritionPanel | null
+}
+
+export interface NutritionFilters {
+  max_calories: number | null
+  max_sugar_g: number | null
+  max_carbs_g: number | null
+  max_sodium_mg: number | null
 }
 
 export interface GroceryLink {
@@ -452,7 +473,10 @@ export interface RecipeRequest {
   hard_day_mode: boolean
   max_missing: number | null
   style_id: string | null
+  category: string | null
   wildcard_confirmed: boolean
+  nutrition_filters: NutritionFilters
+  excluded_ids: number[]
 }
 
 export interface Staple {

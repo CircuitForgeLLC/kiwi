@@ -1,9 +1,14 @@
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  /* Typography */
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-mono: 'DM Mono', 'Courier New', monospace;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+
+  font-family: var(--font-body);
   line-height: 1.5;
   font-weight: 400;
 
-  color-scheme: light dark;
+  color-scheme: dark;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -11,66 +16,79 @@
   -moz-osx-font-smoothing: grayscale;
 
   /* Theme Colors - Dark Mode (Default) */
-  --color-text-primary: rgba(255, 255, 255, 0.87);
-  --color-text-secondary: rgba(255, 255, 255, 0.6);
-  --color-text-muted: rgba(255, 255, 255, 0.4);
+  --color-text-primary: rgba(255, 248, 235, 0.92);
+  --color-text-secondary: rgba(255, 248, 235, 0.60);
+  --color-text-muted: rgba(255, 248, 235, 0.38);
 
-  --color-bg-primary: #242424;
-  --color-bg-secondary: #1a1a1a;
-  --color-bg-elevated: #2d2d2d;
-  --color-bg-card: #2d2d2d;
-  --color-bg-input: #1a1a1a;
+  --color-bg-primary: #1e1c1a;
+  --color-bg-secondary: #161412;
+  --color-bg-elevated: #2a2724;
+  --color-bg-card: #2a2724;
+  --color-bg-input: #161412;
 
-  --color-border: rgba(255, 255, 255, 0.1);
-  --color-border-focus: rgba(255, 255, 255, 0.2);
+  --color-border: rgba(232, 168, 32, 0.12);
+  --color-border-focus: rgba(232, 168, 32, 0.35);
 
-  /* Brand Colors */
-  --color-primary: #667eea;
-  --color-primary-dark: #5568d3;
-  --color-primary-light: #7d8ff0;
-  --color-secondary: #764ba2;
+  /* Brand Colors — Saffron amber + forest green */
+  --color-primary: #e8a820;
+  --color-primary-dark: #c88c10;
+  --color-primary-light: #f0bc48;
+  --color-secondary: #2d5a27;
+  --color-secondary-light: #3d7a35;
+  --color-secondary-dark: #1e3d1a;
 
   /* Status Colors */
-  --color-success: #4CAF50;
-  --color-success-dark: #45a049;
-  --color-success-light: #66bb6a;
-  --color-success-bg: rgba(76, 175, 80, 0.1);
-  --color-success-border: rgba(76, 175, 80, 0.3);
+  --color-success: #4a8c40;
+  --color-success-dark: #3a7030;
+  --color-success-light: #6aac60;
+  --color-success-bg: rgba(74, 140, 64, 0.12);
+  --color-success-border: rgba(74, 140, 64, 0.30);
 
-  --color-warning: #ff9800;
-  --color-warning-dark: #f57c00;
-  --color-warning-light: #ffb74d;
-  --color-warning-bg: rgba(255, 152, 0, 0.1);
-  --color-warning-border: rgba(255, 152, 0, 0.3);
+  --color-warning: #e8a820;
+  --color-warning-dark: #c88c10;
+  --color-warning-light: #f0bc48;
+  --color-warning-bg: rgba(232, 168, 32, 0.12);
+  --color-warning-border: rgba(232, 168, 32, 0.30);
 
-  --color-error: #f44336;
-  --color-error-dark: #d32f2f;
-  --color-error-light: #ff6b6b;
-  --color-error-bg: rgba(244, 67, 54, 0.1);
-  --color-error-border: rgba(244, 67, 54, 0.3);
+  --color-error: #c0392b;
+  --color-error-dark: #96281b;
+  --color-error-light: #e74c3c;
+  --color-error-bg: rgba(192, 57, 43, 0.12);
+  --color-error-border: rgba(192, 57, 43, 0.30);
 
-  --color-info: #2196F3;
-  --color-info-dark: #1976D2;
-  --color-info-light: #64b5f6;
-  --color-info-bg: rgba(33, 150, 243, 0.1);
-  --color-info-border: rgba(33, 150, 243, 0.3);
+  --color-info: #2980b9;
+  --color-info-dark: #1a5f8a;
+  --color-info-light: #5dade2;
+  --color-info-bg: rgba(41, 128, 185, 0.12);
+  --color-info-border: rgba(41, 128, 185, 0.30);
+
+  /* Location dot colors */
+  --color-loc-fridge: #5dade2;
+  --color-loc-freezer: #48d1cc;
+  --color-loc-garage-freezer: #7fb3d3;
+  --color-loc-pantry: #e8a820;
+  --color-loc-cabinet: #a0855b;
 
   /* Gradient */
-  --gradient-primary: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+  --gradient-primary: linear-gradient(135deg, var(--color-primary) 0%, #c88c10 100%);
+  --gradient-secondary: linear-gradient(135deg, var(--color-secondary) 0%, var(--color-secondary-light) 100%);
+  --gradient-header: linear-gradient(160deg, #2a2724 0%, #1e1c1a 100%);
 
   /* Shadows */
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.4);
-  --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 24px rgba(0, 0, 0, 0.5);
+  --shadow-xl: 0 20px 48px rgba(0, 0, 0, 0.6);
+  --shadow-amber: 0 4px 16px rgba(232, 168, 32, 0.20);
 
-  /* Typography */
-  --font-size-xs: 12px;
-  --font-size-sm: 14px;
-  --font-size-base: 16px;
-  --font-size-lg: 18px;
-  --font-size-xl: 24px;
-  --font-size-2xl: 32px;
+  /* Typography Scale */
+  --font-size-xs: 11px;
+  --font-size-sm: 13px;
+  --font-size-base: 15px;
+  --font-size-lg: 17px;
+  --font-size-xl: 22px;
+  --font-size-2xl: 30px;
+  --font-size-display: 28px;
 
   /* Spacing */
   --spacing-xs: 4px;
@@ -80,176 +98,154 @@
   --spacing-xl: 32px;
 
   /* Border Radius */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 12px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-pill: 999px;
 
   color: var(--color-text-primary);
   background-color: var(--color-bg-primary);
 }
 
+/* Light mode overrides */
+@media (prefers-color-scheme: light) {
+  :root {
+    --color-text-primary: #2c1a06;
+    --color-text-secondary: #6b4c1e;
+    --color-text-muted: #a0845a;
+
+    --color-bg-primary: #fdf8f0;
+    --color-bg-secondary: #ffffff;
+    --color-bg-elevated: #fff9ed;
+    --color-bg-card: #ffffff;
+    --color-bg-input: #fef9ef;
+
+    --color-border: rgba(168, 100, 20, 0.15);
+    --color-border-focus: rgba(168, 100, 20, 0.40);
+
+    --color-success-bg: #e8f5e2;
+    --color-success-border: #c3e0bb;
+    --color-warning-bg: #fff8e1;
+    --color-warning-border: #ffe08a;
+    --color-error-bg: #fdecea;
+    --color-error-border: #f5c6c2;
+    --color-info-bg: #e3f2fd;
+    --color-info-border: #b3d8f5;
+
+    --gradient-header: linear-gradient(160deg, #fff9ed 0%, #fdf8f0 100%);
+
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
+    --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.10);
+    --shadow-lg: 0 10px 24px rgba(0, 0, 0, 0.12);
+    --shadow-xl: 0 20px 48px rgba(0, 0, 0, 0.16);
+    --shadow-amber: 0 4px 16px rgba(168, 100, 20, 0.15);
+  }
+}
+
 a {
   font-weight: 500;
-  color: #646cff;
+  color: var(--color-primary);
   text-decoration: inherit;
 }
 a:hover {
-  color: #535bf2;
+  color: var(--color-primary-light);
 }
 
 body {
   margin: 0;
-  display: flex;
-  place-items: center;
   min-width: 320px;
   min-height: 100vh;
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+h1, h2, h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: 1.2;
 }
 
 button {
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
+  padding: 0.5em 1.1em;
+  font-size: var(--font-size-sm);
   font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
+  font-family: var(--font-body);
+  background-color: var(--color-bg-elevated);
+  color: var(--color-text-primary);
   cursor: pointer;
-  transition: border-color 0.25s;
+  transition: all 0.2s ease;
 }
 button:hover {
-  border-color: #646cff;
+  border-color: var(--color-primary);
 }
 button:focus,
 button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
 .card {
-  padding: 2em;
+  padding: var(--spacing-lg);
 }
 
 #app {
   max-width: 1280px;
   margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    /* Theme Colors - Light Mode */
-    --color-text-primary: #213547;
-    --color-text-secondary: #666;
-    --color-text-muted: #999;
-
-    --color-bg-primary: #f5f5f5;
-    --color-bg-secondary: #ffffff;
-    --color-bg-elevated: #ffffff;
-    --color-bg-card: #ffffff;
-    --color-bg-input: #ffffff;
-
-    --color-border: #ddd;
-    --color-border-focus: #ccc;
-
-    /* Status colors stay the same in light mode */
-    /* But we adjust backgrounds for better contrast */
-    --color-success-bg: #d4edda;
-    --color-success-border: #c3e6cb;
-
-    --color-warning-bg: #fff3cd;
-    --color-warning-border: #ffeaa7;
-
-    --color-error-bg: #f8d7da;
-    --color-error-border: #f5c6cb;
-
-    --color-info-bg: #d1ecf1;
-    --color-info-border: #bee5eb;
-
-    /* Shadows for light mode (lighter) */
-    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
-    --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
-    --shadow-lg: 0 10px 20px rgba(0, 0, 0, 0.15);
-    --shadow-xl: 0 20px 40px rgba(0, 0, 0, 0.2);
-
-    color: var(--color-text-primary);
-    background-color: var(--color-bg-primary);
-  }
-
-  a:hover {
-    color: #747bff;
-  }
-
-  button {
-    background-color: #f9f9f9;
-  }
+  text-align: left;
 }
 
 /* Mobile Responsive Typography and Spacing */
 @media (max-width: 480px) {
   :root {
-    /* Reduce font sizes for mobile */
     --font-size-xs: 11px;
-    --font-size-sm: 13px;
+    --font-size-sm: 12px;
     --font-size-base: 14px;
     --font-size-lg: 16px;
-    --font-size-xl: 20px;
+    --font-size-xl: 19px;
     --font-size-2xl: 24px;
+    --font-size-display: 22px;
 
-    /* Reduce spacing for mobile */
     --spacing-xs: 4px;
     --spacing-sm: 6px;
     --spacing-md: 12px;
     --spacing-lg: 16px;
     --spacing-xl: 20px;
 
-    /* Reduce shadows for mobile */
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
-    --shadow-md: 0 2px 4px rgba(0, 0, 0, 0.2);
-    --shadow-lg: 0 4px 8px rgba(0, 0, 0, 0.3);
-    --shadow-xl: 0 8px 16px rgba(0, 0, 0, 0.4);
-  }
-
-  h1 {
-    font-size: 2em;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 2px 6px rgba(0, 0, 0, 0.35);
+    --shadow-lg: 0 6px 12px rgba(0, 0, 0, 0.40);
+    --shadow-xl: 0 12px 24px rgba(0, 0, 0, 0.50);
   }
 
   .card {
-    padding: 1em;
+    padding: var(--spacing-md);
   }
 
   #app {
-    padding: 1rem;
+    padding: 0;
   }
 }
 
 @media (min-width: 481px) and (max-width: 768px) {
   :root {
-    /* Slightly reduced sizes for tablets */
-    --font-size-base: 15px;
-    --font-size-lg: 17px;
-    --font-size-xl: 22px;
-    --font-size-2xl: 28px;
+    --font-size-base: 14px;
+    --font-size-lg: 16px;
+    --font-size-xl: 20px;
+    --font-size-2xl: 26px;
 
     --spacing-md: 14px;
     --spacing-lg: 20px;
     --spacing-xl: 28px;
   }
 
-  h1 {
-    font-size: 2.5em;
-  }
-
   .card {
-    padding: 1.5em;
+    padding: var(--spacing-md) var(--spacing-lg);
   }
 
   #app {
-    padding: 1.5rem;
+    padding: 0;
   }
 }
