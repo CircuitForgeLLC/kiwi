@@ -14,3 +14,25 @@ CREATE VIRTUAL TABLE IF NOT EXISTS recipes_fts USING fts5(
 );
 
 INSERT INTO recipes_fts(recipes_fts) VALUES('rebuild');
+
+-- Triggers to keep the FTS index in sync with the recipes table.
+-- Without these, rows inserted after the initial rebuild are invisible to FTS queries.
+CREATE TRIGGER IF NOT EXISTS recipes_fts_ai
+  AFTER INSERT ON recipes BEGIN
+    INSERT INTO recipes_fts(rowid, ingredient_names)
+    VALUES (new.id, new.ingredient_names);
+END;
+
+CREATE TRIGGER IF NOT EXISTS recipes_fts_ad
+  AFTER DELETE ON recipes BEGIN
+    INSERT INTO recipes_fts(recipes_fts, rowid, ingredient_names)
+    VALUES ('delete', old.id, old.ingredient_names);
+END;
+
+CREATE TRIGGER IF NOT EXISTS recipes_fts_au
+  AFTER UPDATE ON recipes BEGIN
+    INSERT INTO recipes_fts(recipes_fts, rowid, ingredient_names)
+    VALUES ('delete', old.id, old.ingredient_names);
+    INSERT INTO recipes_fts(rowid, ingredient_names)
+    VALUES (new.id, new.ingredient_names);
+END;
