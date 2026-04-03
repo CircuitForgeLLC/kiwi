@@ -1,0 +1,24 @@
+# compose.override.yml — local dev additions (auto-merged by docker compose)
+# Not used in cloud or demo stacks (those use compose.cloud.yml / compose.demo.yml directly).
+
+services:
+  # cf-orch agent sidecar: registers kiwi as a GPU node with the coordinator.
+  # The API scheduler uses COORDINATOR_URL to lease VRAM cooperatively; this
+  # agent makes kiwi's VRAM usage visible on the orchestrator dashboard.
+  cf-orch-agent:
+    image: kiwi-api  # reuse local api image — cf-core already installed there
+    network_mode: host
+    env_file: .env
+    environment:
+      # Override coordinator URL here or via .env
+      COORDINATOR_URL: ${COORDINATOR_URL:-http://10.1.10.71:7700}
+    command: >
+      conda run -n kiwi cf-orch agent
+      --coordinator ${COORDINATOR_URL:-http://10.1.10.71:7700}
+      --node-id kiwi
+      --host 0.0.0.0
+      --port 7702
+      --advertise-host ${CF_ORCH_ADVERTISE_HOST:-10.1.10.71}
+    restart: unless-stopped
+    depends_on:
+      - api

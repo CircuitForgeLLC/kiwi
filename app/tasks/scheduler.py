@@ -10,6 +10,7 @@ from circuitforge_core.tasks.scheduler import (
     reset_scheduler,  # re-export for tests
 )
 
+from app.core.config import settings
 from app.tasks.runner import LLM_TASK_TYPES, VRAM_BUDGETS, run_task
 
 
@@ -20,4 +21,6 @@ def get_scheduler(db_path: Path) -> TaskScheduler:
         run_task_fn=run_task,
         task_types=LLM_TASK_TYPES,
         vram_budgets=VRAM_BUDGETS,
+        coordinator_url=settings.COORDINATOR_URL,
+        service_name="kiwi",
     )
