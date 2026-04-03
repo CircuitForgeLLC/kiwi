@@ -12,11 +12,10 @@ from pathlib import Path
 from typing import Literal
 
 import requests
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.core.config import settings
-from app.db.store import get_db
 
 router = APIRouter()
 
@@ -118,7 +117,13 @@ class FeedbackResponse(BaseModel):
     issue_url: str
 
 
-# ── Route ──────────────────────────────────────────────────────────────────────
+# ── Routes ─────────────────────────────────────────────────────────────────────
+
+@router.get("/status")
+def feedback_status() -> dict:
+    """Return whether feedback submission is configured on this instance."""
+    return {"enabled": bool(os.environ.get("FORGEJO_API_TOKEN")) and not settings.DEMO_MODE}
+
 
 @router.post("", response_model=FeedbackResponse)
 def submit_feedback(payload: FeedbackRequest) -> FeedbackResponse:

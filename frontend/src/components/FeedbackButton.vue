@@ -136,12 +136,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 
 const props = defineProps<{ currentTab?: string }>()
 
-// Check if feedback is enabled (token configured) — we try once and cache
-const enabled = ref(true)  // optimistic; 503 from API will hide on next attempt
+// Probe once on mount — hidden until confirmed enabled so button never flashes
+const enabled = ref(false)
+onMounted(async () => {
+  try {
+    const res = await fetch('/api/v1/feedback/status')
+    if (res.ok) {
+      const data = await res.json()
+      enabled.value = data.enabled === true
+    }
+  } catch { /* network error — stay hidden */ }
+})
 
 const open = ref(false)
 const step = ref(1)
@@ -208,11 +217,6 @@ async function submit() {
         submitter: form.value.submitter.trim(),
       }),
     })
-    if (res.status === 503) {
-      enabled.value = false   // token not configured — hide the button
-      close()
-      return
-    }
     if (!res.ok) {
       const err = await res.json().catch(() => ({ detail: res.statusText }))
       submitError.value = err.detail ?? 'Submission failed.'
