@@ -28,6 +28,30 @@ _TRAILING_QUALIFIER = re.compile(
 _QUOTED = re.compile(r'"([^"]*)"')
 
 
+def _float_or_none(val: object) -> float | None:
+    """Return float > 0, or None for missing / zero values."""
+    try:
+        v = float(val)  # type: ignore[arg-type]
+        return v if v > 0 else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _safe_list(val: object) -> list:
+    """Convert a value to a list, handling NaN/float/None gracefully."""
+    if val is None:
+        return []
+    try:
+        import math
+        if isinstance(val, float) and math.isnan(val):
+            return []
+    except Exception:
+        pass
+    if isinstance(val, list):
+        return val
+    return []
+
+
 def _parse_r_vector(s: str) -> list[str]:
     """Parse R character vector format: c("a", "b") -> ["a", "b"]."""
     return _QUOTED.findall(s)
@@ -93,14 +117,14 @@ def _row_to_fields(row: pd.Series) -> tuple[str, str, list[str], list[str]]:
         if isinstance(raw_parts, str):
             parsed = _parse_r_vector(raw_parts)
             raw_parts = parsed if parsed else [raw_parts]
-        raw_ingredients = [str(i) for i in (raw_parts or [])]
+        raw_ingredients = [str(i) for i in (_safe_list(raw_parts))]
 
         raw_dirs = row.get("RecipeInstructions", [])
         if isinstance(raw_dirs, str):
             parsed_dirs = _parse_r_vector(raw_dirs)
             directions = parsed_dirs if parsed_dirs else [raw_dirs]
         else:
-            directions = [str(d) for d in (raw_dirs or [])]
+            directions = [str(d) for d in (_safe_list(raw_dirs))]
 
         title = str(row.get("Name", ""))[:500]
         external_id = str(row.get("RecipeId", ""))
@@ -144,12 +168,18 @@ def build(db_path: Path, recipes_path: Path, batch_size: int = 10000) -> None:
                 json.dumps(ingredient_names),
                 json.dumps(directions),
                 str(row.get("RecipeCategory", "") or ""),
-                json.dumps(list(row.get("Keywords", []) or [])),
-                float(row.get("Calories") or 0) or None,
-                float(row.get("FatContent") or 0) or None,
-                float(row.get("ProteinContent") or 0) or None,
-                float(row.get("SodiumContent") or 0) or None,
+                json.dumps(_safe_list(row.get("Keywords"))),
+                _float_or_none(row.get("Calories")),
+                _float_or_none(row.get("FatContent")),
+                _float_or_none(row.get("ProteinContent")),
+                _float_or_none(row.get("SodiumContent")),
                 json.dumps(coverage),
+                # New macro columns (migration 014)
+                _float_or_none(row.get("SugarContent")),
+                _float_or_none(row.get("CarbohydrateContent")),
+                _float_or_none(row.get("FiberContent")),
+                _float_or_none(row.get("RecipeServings")),
+                0,  # nutrition_estimated — food.com direct data is authoritative
             ))
 
             if len(batch) >= batch_size:
@@ -157,8 +187,10 @@ def build(db_path: Path, recipes_path: Path, batch_size: int = 10000) -> None:
                 conn.executemany("""
                     INSERT OR REPLACE INTO recipes
                       (external_id, title, ingredients, ingredient_names, directions,
-                       category, keywords, calories, fat_g, protein_g, sodium_mg, element_coverage)
-                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                       category, keywords, calories, fat_g, protein_g, sodium_mg,
+                       element_coverage,
+                       sugar_g, carbs_g, fiber_g, servings, nutrition_estimated)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                 """, batch)
                 conn.commit()
                 inserted += conn.total_changes - before
@@ -170,8 +202,10 @@ def build(db_path: Path, recipes_path: Path, batch_size: int = 10000) -> None:
             conn.executemany("""
                 INSERT OR REPLACE INTO recipes
                   (external_id, title, ingredients, ingredient_names, directions,
-                   category, keywords, calories, fat_g, protein_g, sodium_mg, element_coverage)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                   category, keywords, calories, fat_g, protein_g, sodium_mg,
+                   element_coverage,
+                   sugar_g, carbs_g, fiber_g, servings, nutrition_estimated)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """, batch)
             conn.commit()
             inserted += conn.total_changes - before

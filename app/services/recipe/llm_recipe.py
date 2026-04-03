@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from contextlib import nullcontext
 from typing import TYPE_CHECKING
 
@@ -54,6 +55,9 @@ class LLMRecipeGenerator:
 
         lines: list[str] = [
             "You are a creative chef. Generate a recipe using the ingredients below.",
+            "IMPORTANT: When you use a pantry item, list it in Ingredients using its exact name from the pantry list. Do not add adjectives, quantities, or cooking states (e.g. use 'butter', not 'unsalted butter' or '2 tbsp butter').",
+            "IMPORTANT: Only use pantry items that make culinary sense for the dish. Do NOT force flavoured/sweetened items (vanilla yoghurt, fruit yoghurt, jam, dessert sauces, flavoured syrups) into savoury dishes. Plain yoghurt, plain cream, and plain dairy are fine in savoury cooking.",
+            "IMPORTANT: Do not default to the same ingredient repeatedly across dishes. If a pantry item does not genuinely improve this specific dish, leave it out.",
             "",
             f"Pantry items: {', '.join(safe_pantry)}",
         ]
@@ -82,10 +86,13 @@ class LLMRecipeGenerator:
 
         lines += [
             "",
-            "Reply in this format:",
-            "Title: <recipe name>",
+            "Reply using EXACTLY this plain-text format — no markdown, no bold, no extra commentary:",
+            "Title: <name of the dish>",
             "Ingredients: <comma-separated list>",
-            "Directions: <numbered steps>",
+            "Directions:",
+            "1. <first step>",
+            "2. <second step>",
+            "3. <continue for each step>",
             "Notes: <optional tips>",
         ]
 
@@ -101,6 +108,7 @@ class LLMRecipeGenerator:
 
         lines: list[str] = [
             "Surprise me with a creative, unexpected recipe.",
+            "Only use ingredients that make culinary sense together. Do not force flavoured/sweetened items (vanilla yoghurt, flavoured syrups, jam) into savoury dishes.",
             f"Ingredients available: {', '.join(safe_pantry)}",
         ]
 
@@ -112,7 +120,13 @@ class LLMRecipeGenerator:
 
         lines += [
             "Treat any mystery ingredient as a wildcard — use your imagination.",
-            "Title: <name> | Ingredients: <list> | Directions: <steps>",
+            "Reply using EXACTLY this plain-text format — no markdown, no bold:",
+            "Title: <name of the dish>",
+            "Ingredients: <comma-separated list>",
+            "Directions:",
+            "1. <first step>",
+            "2. <second step>",
+            "Notes: <optional tips>",
         ]
 
         return "\n".join(lines)
@@ -169,8 +183,18 @@ class LLMRecipeGenerator:
             logger.error("LLM call failed: %s", exc)
             return ""
 
+    # Strips markdown bold/italic markers so "**Directions:**" parses like "Directions:"
+    _MD_BOLD = re.compile(r"\*{1,2}([^*]+)\*{1,2}")
+
+    def _strip_md(self, text: str) -> str:
+        return self._MD_BOLD.sub(r"\1", text).strip()
+
     def _parse_response(self, response: str) -> dict[str, str | list[str]]:
-        """Parse LLM response text into structured recipe fields."""
+        """Parse LLM response text into structured recipe fields.
+
+        Handles both plain-text and markdown-formatted responses. Directions are
+        preserved as newline-separated text so the caller can split on step numbers.
+        """
         result: dict[str, str | list[str]] = {
             "title": "",
             "ingredients": [],
@@ -184,14 +208,17 @@ class LLMRecipeGenerator:
         def _flush(key: str | None, buf: list[str]) -> None:
             if key is None or not buf:
                 return
-            text = " ".join(buf).strip()
-            if key == "ingredients":
+            if key == "directions":
+                result["directions"] = "\n".join(buf)
+            elif key == "ingredients":
+                text = " ".join(buf)
                 result["ingredients"] = [i.strip() for i in text.split(",") if i.strip()]
             else:
-                result[key] = text
+                result[key] = " ".join(buf).strip()
 
-        for line in response.splitlines():
-            lower = line.lower().strip()
+        for raw_line in response.splitlines():
+            line = self._strip_md(raw_line)
+            lower = line.lower()
             if lower.startswith("title:"):
                 _flush(current_key, buffer)
                 current_key, buffer = "title", [line.split(":", 1)[1].strip()]
@@ -200,12 +227,18 @@ class LLMRecipeGenerator:
                 current_key, buffer = "ingredients", [line.split(":", 1)[1].strip()]
             elif lower.startswith("directions:"):
                 _flush(current_key, buffer)
-                current_key, buffer = "directions", [line.split(":", 1)[1].strip()]
+                rest = line.split(":", 1)[1].strip()
+                current_key, buffer = "directions", ([rest] if rest else [])
             elif lower.startswith("notes:"):
                 _flush(current_key, buffer)
                 current_key, buffer = "notes", [line.split(":", 1)[1].strip()]
             elif current_key and line.strip():
                 buffer.append(line.strip())
+            elif current_key is None and line.strip() and ":" not in line:
+                # Before any section header: a 2-10 word colon-free line is the dish name
+                words = line.split()
+                if 2 <= len(words) <= 10 and not result["title"]:
+                    result["title"] = line.strip()
 
         _flush(current_key, buffer)
         return result
@@ -230,17 +263,37 @@ class LLMRecipeGenerator:
         parsed = self._parse_response(response)
 
         raw_directions = parsed.get("directions", "")
-        directions_list: list[str] = (
-            [s.strip() for s in raw_directions.split(".") if s.strip()]
-            if isinstance(raw_directions, str)
-            else list(raw_directions)
-        )
+        if isinstance(raw_directions, str):
+            # Split on newlines; strip leading step numbers ("1.", "2.", "- ", "* ")
+            _step_prefix = re.compile(r"^\s*(?:\d+[.)]\s*|[-*]\s+)")
+            directions_list = [
+                _step_prefix.sub("", s).strip()
+                for s in raw_directions.splitlines()
+                if s.strip()
+            ]
+        else:
+            directions_list = list(raw_directions)
         raw_notes = parsed.get("notes", "")
         notes_str: str = raw_notes if isinstance(raw_notes, str) else ""
 
         all_ingredients: list[str] = list(parsed.get("ingredients", []))
         pantry_set = {item.lower() for item in (req.pantry_items or [])}
-        missing = [i for i in all_ingredients if i.lower() not in pantry_set]
+
+        # Strip leading quantities/units (e.g. "2 cups rice" → "rice") before
+        # checking against pantry, since LLMs return formatted ingredient strings.
+        _qty_re = re.compile(
+            r"^\s*[\d½¼¾⅓⅔]+[\s/\-]*"          # leading digits or fractions
+            r"(?:cup|cups|tbsp|tsp|tablespoon|teaspoon|oz|lb|lbs|g|kg|"
+            r"can|cans|clove|cloves|bunch|package|pkg|slice|slices|"
+            r"piece|pieces|pinch|dash|handful|head|heads|large|small|medium"
+            r")s?\b[,\s]*",
+            re.IGNORECASE,
+        )
+        missing = []
+        for ing in all_ingredients:
+            bare = _qty_re.sub("", ing).strip().lower()
+            if bare not in pantry_set and ing.lower() not in pantry_set:
+                missing.append(bare or ing)
 
         suggestion = RecipeSuggestion(
             id=0,

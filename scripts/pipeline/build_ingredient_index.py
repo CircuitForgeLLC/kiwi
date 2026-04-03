@@ -83,8 +83,29 @@ def build(db_path: Path, usda_fdc_path: Path, usda_branded_path: Path) -> None:
         "Fiber, total dietary": "fiber_pct",
         "Sodium, Na": "sodium_mg_per_100g",
         "Water": "moisture_pct",
+        "Energy": "calories_per_100g",
     }
     df = df_fdc.rename(columns={k: v for k, v in fdc_col_map.items() if k in df_fdc.columns})
+
+    # Build a sugar lookup from the branded parquet (keyed by normalized name).
+    # usda_branded has SUGARS, TOTAL (G) for processed/packaged foods.
+    branded_col_map = {
+        "FOOD_NAME": "name",
+        "SUGARS, TOTAL (G)": "sugar_g_per_100g",
+    }
+    df_branded_slim = df_branded.rename(
+        columns={k: v for k, v in branded_col_map.items() if k in df_branded.columns}
+    )[list(set(branded_col_map.values()) & set(df_branded.rename(columns=branded_col_map).columns))]
+    sugar_lookup: dict[str, float] = {}
+    for _, brow in df_branded_slim.iterrows():
+        bname = normalize_name(str(brow.get("name", "")))
+        val = brow.get("sugar_g_per_100g")
+        try:
+            fval = float(val)  # type: ignore[arg-type]
+            if fval > 0 and bname not in sugar_lookup:
+                sugar_lookup[bname] = fval
+        except (TypeError, ValueError):
+            pass
 
     inserted = 0
     for _, row in df.iterrows():
@@ -98,25 +119,40 @@ def build(db_path: Path, usda_fdc_path: Path, usda_branded_path: Path) -> None:
             "moisture_pct": float(row.get("moisture_pct") or 0),
             "sodium_mg_per_100g": float(row.get("sodium_mg_per_100g") or 0),
             "starch_pct": 0.0,
+            "carbs_g_per_100g": float(row.get("carb_pct") or 0),
+            "fiber_g_per_100g": float(row.get("fiber_pct") or 0),
+            "calories_per_100g": float(row.get("calories_per_100g") or 0),
+            "sugar_g_per_100g": sugar_lookup.get(name, 0.0),
         }
         r["binding_score"] = derive_binding_score(r)
         r["elements"] = derive_elements(r)
         r["is_fermented"] = int(any(k in name for k in _FERMENTED_KEYWORDS))
 
         try:
+            # Insert new profile or update macro columns on existing one.
             conn.execute("""
-                INSERT OR IGNORE INTO ingredient_profiles
+                INSERT INTO ingredient_profiles
                   (name, elements, fat_pct, fat_saturated_pct, moisture_pct,
                    protein_pct, starch_pct, binding_score, sodium_mg_per_100g,
-                   is_fermented, source)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?)
+                   is_fermented,
+                   carbs_g_per_100g, fiber_g_per_100g, calories_per_100g, sugar_g_per_100g,
+                   source)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ON CONFLICT(name) DO UPDATE SET
+                  carbs_g_per_100g  = excluded.carbs_g_per_100g,
+                  fiber_g_per_100g  = excluded.fiber_g_per_100g,
+                  calories_per_100g = excluded.calories_per_100g,
+                  sugar_g_per_100g  = excluded.sugar_g_per_100g
             """, (
                 r["name"], json.dumps(r["elements"]),
                 r["fat_pct"], 0.0, r["moisture_pct"],
                 r["protein_pct"], r["starch_pct"], r["binding_score"],
-                r["sodium_mg_per_100g"], r["is_fermented"], "usda_fdc",
+                r["sodium_mg_per_100g"], r["is_fermented"],
+                r["carbs_g_per_100g"], r["fiber_g_per_100g"],
+                r["calories_per_100g"], r["sugar_g_per_100g"],
+                "usda_fdc",
             ))
-            inserted += conn.execute("SELECT changes()").fetchone()[0]
+            inserted += 1
         except Exception:
             continue
 

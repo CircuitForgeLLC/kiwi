@@ -232,6 +232,72 @@ class Store:
             (str(days),),
         )
 
+    def recalculate_expiry(
+        self,
+        tier: str = "local",
+        has_byok: bool = False,
+    ) -> tuple[int, int]:
+        """Re-run the expiration predictor over all available inventory items.
+
+        Uses each item's existing purchase_date (falls back to today if NULL)
+        and its current location. Skips items that have an explicit
+        expiration_date from a source other than auto-prediction (i.e. items
+        whose expiry was found on a receipt or entered by the user) cannot be
+        distinguished — all available items are recalculated.
+
+        Returns (updated_count, skipped_count).
+        """
+        from datetime import date
+        from app.services.expiration_predictor import ExpirationPredictor
+
+        predictor = ExpirationPredictor()
+        rows = self._fetch_all(
+            """SELECT i.id, i.location, i.purchase_date,
+                      p.name AS product_name, p.category AS product_category
+               FROM inventory_items i
+               JOIN products p ON p.id = i.product_id
+               WHERE i.status = 'available'""",
+            (),
+        )
+
+        updated = skipped = 0
+        for row in rows:
+            cat = predictor.get_category_from_product(
+                row["product_name"] or "",
+                product_category=row.get("product_category"),
+                location=row.get("location"),
+            )
+            purchase_date_raw = row.get("purchase_date")
+            try:
+                purchase_date = (
+                    date.fromisoformat(purchase_date_raw)
+                    if purchase_date_raw
+                    else date.today()
+                )
+            except (ValueError, TypeError):
+                purchase_date = date.today()
+
+            exp = predictor.predict_expiration(
+                cat,
+                row["location"] or "pantry",
+                purchase_date=purchase_date,
+                product_name=row["product_name"],
+                tier=tier,
+                has_byok=has_byok,
+            )
+            if exp is None:
+                skipped += 1
+                continue
+
+            self.conn.execute(
+                "UPDATE inventory_items SET expiration_date = ?, updated_at = datetime('now') WHERE id = ?",
+                (str(exp), row["id"]),
+            )
+            updated += 1
+
+        self.conn.commit()
+        return updated, skipped
+
     # ── receipt_data ──────────────────────────────────────────────────────
 
     def upsert_receipt_data(self, receipt_id: int, data: dict) -> dict[str, Any]:
@@ -266,16 +332,323 @@ class Store:
 
     # ── recipes ───────────────────────────────────────────────────────────
 
+    def _fts_ready(self) -> bool:
+        """Return True if the recipes_fts virtual table exists."""
+        row = self._fetch_one(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='recipes_fts'"
+        )
+        return row is not None
+
+    # Words that carry no recipe-ingredient signal and should be filtered
+    # out when tokenising multi-word product names for FTS expansion.
+    _FTS_TOKEN_STOPWORDS: frozenset[str] = frozenset({
+        # Common English stopwords
+        "a", "an", "the", "of", "in", "for", "with", "and", "or", "to",
+        "from", "at", "by", "as", "on", "into",
+        # Brand / marketing words that appear in product names
+        "lean", "cuisine", "healthy", "choice", "stouffer", "original",
+        "classic", "deluxe", "homestyle", "family", "style", "grade",
+        "premium", "select", "natural", "organic", "fresh", "lite",
+        "ready", "quick", "easy", "instant", "microwave", "frozen",
+        "brand", "size", "large", "small", "medium", "extra",
+        # Plant-based / alt-meat brand names
+        "daring", "gardein", "morningstar", "lightlife", "tofurky",
+        "quorn", "omni", "nuggs", "simulate", "simulate",
+        # Preparation states — "cut up chicken" is still chicken
+        "cut", "diced", "sliced", "chopped", "minced", "shredded",
+        "cooked", "raw", "whole", "boneless", "skinless", "trimmed",
+        "pre", "prepared", "marinated", "seasoned", "breaded", "battered",
+        "grilled", "roasted", "smoked", "canned", "dried", "dehydrated",
+        "pieces", "piece", "strips", "strip", "chunks", "chunk",
+        "fillets", "fillet", "cutlets", "cutlet", "tenders", "nuggets",
+        # Units / packaging
+        "oz", "lb", "lbs", "pkg", "pack", "box", "can", "bag", "jar",
+    })
+
+    # Maps substrings found in product-label names to canonical recipe-corpus
+    # ingredient terms.  Checked as substring matches against the lower-cased
+    # full product name, then against each individual token.
+    _FTS_SYNONYMS: dict[str, str] = {
+        # Ground / minced beef
+        "burger patt":  "hamburger",
+        "beef patt":    "hamburger",
+        "ground beef":  "hamburger",
+        "ground chuck": "hamburger",
+        "ground round": "hamburger",
+        "mince":        "hamburger",
+        "veggie burger":   "hamburger",
+        "beyond burger":   "hamburger",
+        "impossible burger": "hamburger",
+        "plant burger":    "hamburger",
+        "chicken patt":    "hamburger",  # FTS match only — recipe scoring still works
+        # Sausages
+        "kielbasa":     "sausage",
+        "bratwurst":    "sausage",
+        "brat ":        "sausage",
+        "frankfurter":  "hotdog",
+        "wiener":       "hotdog",
+        # Chicken cuts + plant-based chicken → generic chicken for broader matching
+        "chicken breast":   "chicken",
+        "chicken thigh":    "chicken",
+        "chicken drumstick": "chicken",
+        "chicken wing":     "chicken",
+        "rotisserie chicken": "chicken",
+        "chicken tender":   "chicken",
+        "chicken strip":    "chicken",
+        "chicken piece":    "chicken",
+        "fake chicken":     "chicken",
+        "plant chicken":    "chicken",
+        "vegan chicken":    "chicken",
+        "daring":           "chicken",   # Daring Foods brand
+        "gardein chick":    "chicken",
+        "quorn chick":      "chicken",
+        "chick'n":          "chicken",
+        "chikn":            "chicken",
+        "not-chicken":      "chicken",
+        "no-chicken":       "chicken",
+        # Plant-based beef subs — map to broad "beef" not "hamburger"
+        # (texture varies: strips ≠ ground; let corpus handle the specific form)
+        "not-beef":         "beef",
+        "no-beef":          "beef",
+        "plant beef":       "beef",
+        "vegan beef":       "beef",
+        # Plant-based pork subs
+        "not-pork":         "pork",
+        "no-pork":          "pork",
+        "plant pork":       "pork",
+        "vegan pork":       "pork",
+        "omnipork":         "pork",
+        "omni pork":        "pork",
+        # Generic alt-meat catch-alls → broad "beef" (safer than hamburger)
+        "fake meat":        "beef",
+        "plant meat":       "beef",
+        "vegan meat":       "beef",
+        "meat-free":        "beef",
+        "meatless":         "beef",
+        # Pork cuts
+        "pork chop":    "pork",
+        "pork loin":    "pork",
+        "pork tenderloin": "pork",
+        # Tomato-based sauces
+        "marinara":     "tomato sauce",
+        "pasta sauce":  "tomato sauce",
+        "spaghetti sauce": "tomato sauce",
+        "pizza sauce":  "tomato sauce",
+        # Pasta shapes — map to generic "pasta" so FTS finds any pasta recipe
+        "macaroni":     "pasta",
+        "noodles":      "pasta",
+        "spaghetti":    "pasta",
+        "penne":        "pasta",
+        "fettuccine":   "pasta",
+        "rigatoni":     "pasta",
+        "linguine":     "pasta",
+        "rotini":       "pasta",
+        "farfalle":     "pasta",
+        # Cheese variants → "cheese" for broad matching
+        "shredded cheese":  "cheese",
+        "sliced cheese":    "cheese",
+        "american cheese":  "cheese",
+        "cheddar":      "cheese",
+        "mozzarella":   "cheese",
+        # Cream variants
+        "heavy cream":  "cream",
+        "whipping cream": "cream",
+        "half and half": "cream",
+        # Buns / rolls
+        "burger bun":   "buns",
+        "hamburger bun": "buns",
+        "hot dog bun":  "buns",
+        "bread roll":   "buns",
+        "dinner roll":  "buns",
+        # Tortillas / wraps
+        "flour tortilla": "tortillas",
+        "corn tortilla":  "tortillas",
+        "tortilla wrap":  "tortillas",
+        "soft taco shell": "tortillas",
+        "taco shell":     "taco shells",
+        "pita bread":     "pita",
+        "flatbread":      "flatbread",
+        # Canned beans
+        "black bean":     "beans",
+        "pinto bean":     "beans",
+        "kidney bean":    "beans",
+        "refried bean":   "beans",
+        "chickpea":       "beans",
+        "garbanzo":       "beans",
+        # Rice variants
+        "white rice":     "rice",
+        "brown rice":     "rice",
+        "jasmine rice":   "rice",
+        "basmati rice":   "rice",
+        "instant rice":   "rice",
+        "microwavable rice": "rice",
+        # Salsa / hot sauce
+        "hot sauce":      "salsa",
+        "taco sauce":     "salsa",
+        "enchilada sauce": "salsa",
+        # Sour cream substitute
+        "greek yogurt":   "sour cream",
+        # Prepackaged meals
+        "lean cuisine":   "casserole",
+        "stouffer":       "casserole",
+        "healthy choice": "casserole",
+        "marie callender": "casserole",
+    }
+
+    @staticmethod
+    def _normalize_for_fts(name: str) -> list[str]:
+        """Expand one pantry item to all FTS search terms it should contribute.
+
+        Returns the original name plus:
+        - Any synonym-map canonical terms (handles product-label → corpus name)
+        - Individual significant tokens from multi-word product names
+          (handles packaged meals like "Lean Cuisine Chicken Alfredo" → also
+           searches for "chicken" and "alfredo" independently)
+        """
+        lower = name.lower().strip()
+        if not lower:
+            return []
+
+        terms: list[str] = [lower]
+
+        # Substring synonym check on full name
+        for pattern, canonical in Store._FTS_SYNONYMS.items():
+            if pattern in lower:
+                terms.append(canonical)
+
+        # For multi-word product names, also add individual significant tokens
+        if " " in lower:
+            for token in lower.split():
+                if len(token) <= 3 or token in Store._FTS_TOKEN_STOPWORDS:
+                    continue
+                if token not in terms:
+                    terms.append(token)
+                # Synonym-expand individual tokens too
+                if token in Store._FTS_SYNONYMS:
+                    canonical = Store._FTS_SYNONYMS[token]
+                    if canonical not in terms:
+                        terms.append(canonical)
+
+        return terms
+
+    @staticmethod
+    def _build_fts_query(ingredient_names: list[str]) -> str:
+        """Build an FTS5 MATCH expression ORing all ingredient terms.
+
+        Each pantry item is expanded via _normalize_for_fts so that
+        product-label names (e.g. "burger patties") also search for their
+        recipe-corpus equivalents (e.g. "hamburger"), and multi-word packaged
+        product names contribute their individual ingredient tokens.
+        """
+        parts: list[str] = []
+        seen: set[str] = set()
+        for name in ingredient_names:
+            for term in Store._normalize_for_fts(name):
+                # Strip characters that break FTS5 query syntax
+                clean = term.replace('"', "").replace("'", "")
+                if not clean or clean in seen:
+                    continue
+                seen.add(clean)
+                parts.append(f'"{clean}"')
+        return " OR ".join(parts)
+
     def search_recipes_by_ingredients(
         self,
         ingredient_names: list[str],
         limit: int = 20,
         category: str | None = None,
+        max_calories: float | None = None,
+        max_sugar_g: float | None = None,
+        max_carbs_g: float | None = None,
+        max_sodium_mg: float | None = None,
+        excluded_ids: list[int] | None = None,
     ) -> list[dict]:
         """Find recipes containing any of the given ingredient names.
-        Scores by match count and returns highest-scoring first."""
+        Scores by match count and returns highest-scoring first.
+
+        Uses FTS5 index (migration 015) when available — O(log N) per query.
+        Falls back to LIKE scans on older databases.
+
+        Nutrition filters use NULL-passthrough: rows without nutrition data
+        always pass (they may be estimated or absent entirely).
+        """
         if not ingredient_names:
             return []
+
+        extra_clauses: list[str] = []
+        extra_params: list = []
+        if category:
+            extra_clauses.append("r.category = ?")
+            extra_params.append(category)
+        if max_calories is not None:
+            extra_clauses.append("(r.calories IS NULL OR r.calories <= ?)")
+            extra_params.append(max_calories)
+        if max_sugar_g is not None:
+            extra_clauses.append("(r.sugar_g IS NULL OR r.sugar_g <= ?)")
+            extra_params.append(max_sugar_g)
+        if max_carbs_g is not None:
+            extra_clauses.append("(r.carbs_g IS NULL OR r.carbs_g <= ?)")
+            extra_params.append(max_carbs_g)
+        if max_sodium_mg is not None:
+            extra_clauses.append("(r.sodium_mg IS NULL OR r.sodium_mg <= ?)")
+            extra_params.append(max_sodium_mg)
+        if excluded_ids:
+            placeholders = ",".join("?" * len(excluded_ids))
+            extra_clauses.append(f"r.id NOT IN ({placeholders})")
+            extra_params.extend(excluded_ids)
+        where_extra = (" AND " + " AND ".join(extra_clauses)) if extra_clauses else ""
+
+        if self._fts_ready():
+            return self._search_recipes_fts(
+                ingredient_names, limit, where_extra, extra_params
+            )
+        return self._search_recipes_like(
+            ingredient_names, limit, where_extra, extra_params
+        )
+
+    def _search_recipes_fts(
+        self,
+        ingredient_names: list[str],
+        limit: int,
+        where_extra: str,
+        extra_params: list,
+    ) -> list[dict]:
+        """FTS5-backed ingredient search. Candidates fetched via inverted index;
+        match_count computed in Python over the small candidate set."""
+        fts_query = self._build_fts_query(ingredient_names)
+        if not fts_query:
+            return []
+
+        # Pull up to 10× limit candidates so ranking has enough headroom.
+        sql = f"""
+            SELECT r.*
+            FROM recipes_fts
+            JOIN recipes r ON r.id = recipes_fts.rowid
+            WHERE recipes_fts MATCH ?
+            {where_extra}
+            LIMIT ?
+        """
+        rows = self._fetch_all(sql, (fts_query, *extra_params, limit * 10))
+
+        pantry_set = {n.lower().strip() for n in ingredient_names}
+        scored: list[dict] = []
+        for row in rows:
+            raw = row.get("ingredient_names") or []
+            names: list[str] = raw if isinstance(raw, list) else json.loads(raw or "[]")
+            match_count = sum(1 for n in names if n.lower() in pantry_set)
+            scored.append({**row, "match_count": match_count})
+
+        scored.sort(key=lambda r: (-r["match_count"], r["id"]))
+        return scored[:limit]
+
+    def _search_recipes_like(
+        self,
+        ingredient_names: list[str],
+        limit: int,
+        where_extra: str,
+        extra_params: list,
+    ) -> list[dict]:
+        """Legacy LIKE-based ingredient search (O(N×rows) — slow on large corpora)."""
         like_params = [f'%"{n}"%' for n in ingredient_names]
         like_clauses = " OR ".join(
             "r.ingredient_names LIKE ?" for _ in ingredient_names
@@ -284,20 +657,15 @@ class Store:
             "CASE WHEN r.ingredient_names LIKE ? THEN 1 ELSE 0 END"
             for _ in ingredient_names
         )
-        category_clause = ""
-        category_params: list = []
-        if category:
-            category_clause = "AND r.category = ?"
-            category_params = [category]
         sql = f"""
             SELECT r.*, ({match_score}) AS match_count
             FROM recipes r
             WHERE ({like_clauses})
-            {category_clause}
+            {where_extra}
             ORDER BY match_count DESC, r.id ASC
             LIMIT ?
         """
-        all_params = like_params + like_params + category_params + [limit]
+        all_params = like_params + like_params + extra_params + [limit]
         return self._fetch_all(sql, tuple(all_params))
 
     def get_recipe(self, recipe_id: int) -> dict | None:
