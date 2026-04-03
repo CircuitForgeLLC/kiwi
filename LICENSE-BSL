@@ -1,0 +1,28 @@
+Business Source License 1.1
+
+Licensor:             Circuit Forge LLC
+Licensed Work:        Kiwi — Pantry tracking and leftover recipe suggestions
+                      Copyright (c) 2026 Circuit Forge LLC
+Additional Use Grant: You may use the Licensed Work for personal,
+                      non-commercial pantry tracking and recipe suggestion
+                      purposes only.
+Change Date:          2030-01-01
+Change License:       MIT License
+
+For the full Business Source License 1.1 text, see:
+https://mariadb.com/bsl11/
+
+---
+
+This license applies to the following components of Kiwi:
+
+- app/services/recipe/recipe_engine.py
+- app/services/recipe/assembly_recipes.py
+- app/services/recipe/llm_recipe.py
+- app/services/expiration_predictor.py
+- app/tasks/scheduler.py
+- app/tasks/runner.py
+- app/tiers.py
+- app/cloud_session.py
+- frontend/src/components/RecipesView.vue
+- frontend/src/stores/recipes.ts
