@@ -46,6 +46,10 @@ class Settings:
     # CF-core resource coordinator (VRAM lease management)
     COORDINATOR_URL: str = os.environ.get("COORDINATOR_URL", "http://localhost:7700")
 
+    # Hosted cf-orch coordinator — bearer token for managed cloud GPU inference (Paid+)
+    # CFOrchClient reads CF_LICENSE_KEY automatically; exposed here for startup validation.
+    CF_LICENSE_KEY: str | None = os.environ.get("CF_LICENSE_KEY")
+
     # Feature flags
     ENABLE_OCR: bool = os.environ.get("ENABLE_OCR", "false").lower() in ("1", "true", "yes")
 
