@@ -389,6 +389,8 @@
   overflow-x: auto;
   padding-bottom: var(--spacing-xs);
   scrollbar-width: none;
+  min-width: 0;    /* allow flex item to shrink below content; lets overflow-x scroll internally */
+  width: 100%;
 }
 
 .filter-chip-row::-webkit-scrollbar {

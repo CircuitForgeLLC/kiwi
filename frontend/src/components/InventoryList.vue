@@ -765,6 +765,7 @@ function getItemClass(item: InventoryItem): string {
   flex-direction: column;
   gap: var(--spacing-md);
   padding: var(--spacing-xs) 0 0;
+  overflow-x: hidden;  /* prevent item rows from expanding page width on mobile */
 }
 
 /* ============================================
@@ -1268,6 +1269,19 @@ function getItemClass(item: InventoryItem): string {
 
   .inv-actions {
     gap: 1px;
+  }
+
+  /* Prevent right section from blowing out row width on narrow screens */
+  .inv-row-right {
+    flex-shrink: 1;
+    min-width: 0;
+    gap: var(--spacing-xs);
+  }
+
+  /* Shrink action buttons slightly on mobile */
+  .inv-row-right .btn-icon {
+    width: 28px;
+    height: 28px;
   }
 }
 
