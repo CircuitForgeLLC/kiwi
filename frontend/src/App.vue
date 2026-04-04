@@ -113,6 +113,9 @@
       </button>
     </nav>
 
+    <!-- Feedback FAB — hidden when FORGEJO_API_TOKEN not configured -->
+    <FeedbackButton :current-tab="currentTab" />
+
     <!-- Easter egg: Kiwi bird sprite — triggered by typing "kiwi" -->
     <Transition name="kiwi-fade">
       <div v-if="kiwiVisible" class="kiwi-bird-stage" aria-hidden="true">
@@ -153,6 +156,7 @@ import InventoryList from './components/InventoryList.vue'
 import ReceiptsView from './components/ReceiptsView.vue'
 import RecipesView from './components/RecipesView.vue'
 import SettingsView from './components/SettingsView.vue'
+import FeedbackButton from './components/FeedbackButton.vue'
 import { useInventoryStore } from './stores/inventory'
 import { useEasterEggs } from './composables/useEasterEggs'
 
@@ -220,7 +224,6 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  padding-bottom: 68px; /* bottom nav clearance */
 }
 
 .sidebar { display: none; }
@@ -247,6 +250,8 @@ body {
 .app-main {
   flex: 1;
   padding: var(--spacing-md) 0 var(--spacing-xl);
+  /* Clear fixed bottom nav — env() gives extra room for iPhone home bar */
+  padding-bottom: calc(68px + env(safe-area-inset-bottom, 0px));
 }
 
 .container {
@@ -324,7 +329,10 @@ body {
 
 @media (max-width: 480px) {
   .container { padding: 0 var(--spacing-sm); }
-  .app-main { padding: var(--spacing-sm) 0 var(--spacing-lg); }
+  .app-main {
+    padding: var(--spacing-sm) 0 var(--spacing-lg);
+    padding-bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 /* ============================================

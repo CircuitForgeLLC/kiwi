@@ -19,10 +19,11 @@ dependencies = [
     "numpy>=1.25",
     "pyzbar>=0.1.9",
     "Pillow>=10.0",
-    # HTTP client
+    # HTTP clients
     "httpx>=0.27",
+    "requests>=2.31",
     # CircuitForge shared scaffold
-    "circuitforge-core",
+    "circuitforge-core>=0.6.0",
 ]
 
 [tool.setuptools.packages.find]

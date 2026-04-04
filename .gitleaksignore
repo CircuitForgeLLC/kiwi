@@ -1,0 +1,7 @@
+# Findings suppressed here are historical false positives or already-rotated secrets.
+# .env was accidentally included in the initial commit; it is now gitignored.
+# Rotate DIRECTUS_JWT_SECRET if it has not been changed since 2026-03-30.
+
+# c166e5216 (chore: initial commit) — .env included by mistake
+c166e5216af532a08112ef87e8542cd51c184115:.env:generic-api-key:25
+c166e5216af532a08112ef87e8542cd51c184115:.env:cf-generic-env-token:25
