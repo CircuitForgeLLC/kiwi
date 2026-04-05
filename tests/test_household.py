@@ -86,8 +86,13 @@ def test_invite_generates_token():
     app.dependency_overrides.clear()
 
 
-def test_accept_invalid_token_returns_404():
+def test_accept_invalid_token_returns_404(tmp_path, monkeypatch):
     """Accepting a non-existent token returns 404."""
+    import app.api.endpoints.household as hh_ep
+    import app.cloud_session as cs
+    monkeypatch.setattr(hh_ep, "CLOUD_DATA_ROOT", tmp_path)
+    monkeypatch.setattr(cs, "CLOUD_DATA_ROOT", tmp_path)
+
     from app.main import app
     from app.cloud_session import get_session
     import tempfile, pathlib

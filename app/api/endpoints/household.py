@@ -6,6 +6,8 @@ import os
 import secrets
 from datetime import datetime, timedelta, timezone
 
+import sqlite3
+
 import requests
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -42,11 +44,14 @@ def _require_household_owner(session: CloudUser = Depends(_require_premium)) -> 
 
 
 def _household_store(household_id: str) -> Store:
-    """Open the household DB directly (used during invite acceptance)."""
-    from pathlib import Path
+    """Open the household DB directly (used during invite acceptance).
+    Sets row_factory so dict-style column access works on raw conn queries.
+    """
     db_path = CLOUD_DATA_ROOT / f"household_{household_id}" / "kiwi.db"
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    return Store(db_path)
+    store = Store(db_path)
+    store.conn.row_factory = sqlite3.Row
+    return store
 
 
 def _heimdall_post(path: str, body: dict) -> dict:
@@ -74,7 +79,13 @@ async def create_household(session: CloudUser = Depends(_require_premium)):
     if session.household_id:
         raise HTTPException(status_code=409, detail="You are already in a household.")
     data = _heimdall_post("/admin/household/create", {"owner_user_id": session.user_id})
-    household_id = data.get("household_id", "local-household")
+    household_id = data.get("household_id")
+    if not household_id:
+        # Heimdall returned OK but without a household_id — treat as server error.
+        # Fall back to a local stub only when HEIMDALL_ADMIN_TOKEN is unset (dev mode).
+        if HEIMDALL_ADMIN_TOKEN:
+            raise HTTPException(status_code=500, detail="Heimdall did not return a household_id.")
+        household_id = "local-household"
     return HouseholdCreateResponse(
         household_id=household_id,
         message="Household created. Share an invite link to add members.",

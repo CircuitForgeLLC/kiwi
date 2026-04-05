@@ -13,6 +13,7 @@ services:
     environment:
       CLOUD_MODE: "true"
       CLOUD_DATA_ROOT: /devl/kiwi-cloud-data
+      KIWI_BASE_URL: https://menagerie.circuitforge.tech/kiwi
       # DIRECTUS_JWT_SECRET, HEIMDALL_URL, HEIMDALL_ADMIN_TOKEN — set in .env
       # DEV ONLY: comma-separated IPs that bypass JWT auth (LAN testing without Caddy).
       # Production deployments must NOT set this. Leave blank or omit entirely.
