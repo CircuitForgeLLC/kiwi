@@ -143,7 +143,7 @@ class LLMRecipeGenerator:
         cf_orch_url = os.environ.get("CF_ORCH_URL")
         if cf_orch_url:
             try:
-                from circuitforge_core.resources import CFOrchClient
+                from circuitforge_orch.client import CFOrchClient
                 client = CFOrchClient(cf_orch_url)
                 return client.allocate(
                     service="vllm",
