@@ -1,8 +1,7 @@
 """Pydantic schemas for household management endpoints."""
 from __future__ import annotations
 
-from typing import Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class HouseholdCreateResponse(BaseModel):
@@ -18,9 +17,9 @@ class HouseholdMember(BaseModel):
 
 class HouseholdStatusResponse(BaseModel):
     in_household: bool
-    household_id: Optional[str] = None
+    household_id: str | None = None
     is_owner: bool = False
-    members: list[HouseholdMember] = []
+    members: list[HouseholdMember] = Field(default_factory=list)
     max_seats: int = 4
 
 
