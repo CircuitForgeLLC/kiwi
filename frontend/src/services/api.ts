@@ -267,6 +267,20 @@ export const inventoryAPI = {
   },
 
   /**
+   * Bulk-add items by ingredient name (no barcode required).
+   * Idempotent: re-adding an existing product just creates a new inventory entry.
+   */
+  async bulkAddByName(items: Array<{
+    name: string
+    quantity?: number
+    unit?: string
+    location?: string
+  }>): Promise<{ added: number; failed: number; results: Array<{ name: string; ok: boolean; item_id?: number; error?: string }> }> {
+    const response = await api.post('/inventory/items/bulk-add-by-name', { items })
+    return response.data
+  },
+
+  /**
    * Scan barcode from image
    */
   async scanBarcodeImage(
@@ -433,6 +447,7 @@ export interface RecipeSuggestion {
   match_count: number
   element_coverage: Record<string, number>
   swap_candidates: SwapCandidate[]
+  matched_ingredients: string[]
   missing_ingredients: string[]
   directions: string[]
   prep_notes: string[]
@@ -440,6 +455,7 @@ export interface RecipeSuggestion {
   level: number
   is_wildcard: boolean
   nutrition: NutritionPanel | null
+  source_url: string | null
 }
 
 export interface NutritionFilters {
@@ -477,6 +493,7 @@ export interface RecipeRequest {
   wildcard_confirmed: boolean
   nutrition_filters: NutritionFilters
   excluded_ids: number[]
+  shopping_mode: boolean
 }
 
 export interface Staple {
@@ -516,6 +533,57 @@ export const settingsAPI = {
   },
   async setSetting(key: string, value: string): Promise<void> {
     await api.put(`/settings/${key}`, { value })
+  },
+}
+
+// ========== Household Types ==========
+
+export interface HouseholdMember {
+  user_id: string
+  joined_at: string
+  is_owner: boolean
+}
+
+export interface HouseholdStatus {
+  in_household: boolean
+  household_id: string | null
+  is_owner: boolean
+  members: HouseholdMember[]
+  max_seats: number
+}
+
+export interface HouseholdInvite {
+  invite_url: string
+  token: string
+  expires_at: string
+}
+
+// ========== Household API ==========
+
+export const householdAPI = {
+  async create(): Promise<{ household_id: string; message: string }> {
+    const response = await api.post('/household/create')
+    return response.data
+  },
+  async status(): Promise<HouseholdStatus> {
+    const response = await api.get('/household/status')
+    return response.data
+  },
+  async invite(): Promise<HouseholdInvite> {
+    const response = await api.post('/household/invite')
+    return response.data
+  },
+  async accept(householdId: string, token: string): Promise<{ message: string; household_id: string }> {
+    const response = await api.post('/household/accept', { household_id: householdId, token })
+    return response.data
+  },
+  async leave(): Promise<{ message: string }> {
+    const response = await api.post('/household/leave')
+    return response.data
+  },
+  async removeMember(userId: string): Promise<{ message: string }> {
+    const response = await api.post('/household/remove-member', { user_id: userId })
+    return response.data
   },
 }
 
