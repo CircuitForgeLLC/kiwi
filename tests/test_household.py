@@ -6,10 +6,10 @@ import pytest
 
 os.environ.setdefault("CLOUD_MODE", "false")
 
+import app.cloud_session as cs
 from app.cloud_session import (
     CloudUser,
     _user_db_path,
-    CLOUD_DATA_ROOT,
 )
 
 
@@ -28,11 +28,13 @@ def test_clouduser_household_defaults_none():
     assert u.is_household_owner is False
 
 
-def test_user_db_path_personal():
-    path = _user_db_path("abc123", household_id=None)
-    assert path == CLOUD_DATA_ROOT / "abc123" / "kiwi.db"
+def test_user_db_path_personal(tmp_path, monkeypatch):
+    monkeypatch.setattr(cs, "CLOUD_DATA_ROOT", tmp_path)
+    result = cs._user_db_path("abc123")
+    assert result == tmp_path / "abc123" / "kiwi.db"
 
 
-def test_user_db_path_household():
-    path = _user_db_path("abc123", household_id="hh-xyz")
-    assert path == CLOUD_DATA_ROOT / "household_hh-xyz" / "kiwi.db"
+def test_user_db_path_household(tmp_path, monkeypatch):
+    monkeypatch.setattr(cs, "CLOUD_DATA_ROOT", tmp_path)
+    result = cs._user_db_path("abc123", household_id="hh-xyz")
+    assert result == tmp_path / "household_hh-xyz" / "kiwi.db"

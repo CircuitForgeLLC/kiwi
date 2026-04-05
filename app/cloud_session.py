@@ -210,8 +210,6 @@ def get_session(request: Request) -> CloudUser:
 
     # Prefer X-Real-IP (set by nginx from the actual client address) over the
     # TCP peer address (which is nginx's container IP when behind the proxy).
-    # Prefer X-Real-IP (set by nginx from the actual client address) over the
-    # TCP peer address (which is nginx's container IP when behind the proxy).
     client_ip = (
         request.headers.get("x-real-ip", "")
         or (request.client.host if request.client else "")
