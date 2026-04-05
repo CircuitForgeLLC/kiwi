@@ -19,6 +19,7 @@ from app.models.schemas.household import (
     HouseholdMember,
     HouseholdRemoveMemberRequest,
     HouseholdStatusResponse,
+    MessageResponse,
 )
 
 log = logging.getLogger(__name__)
@@ -170,8 +171,8 @@ async def accept_invite(
     )
 
 
-@router.post("/leave")
-async def leave_household(session: CloudUser = Depends(_require_premium)):
+@router.post("/leave", response_model=MessageResponse)
+async def leave_household(session: CloudUser = Depends(_require_premium)) -> MessageResponse:
     """Leave the current household (non-owners only)."""
     if not session.household_id:
         raise HTTPException(status_code=400, detail="You are not in a household.")
@@ -181,14 +182,14 @@ async def leave_household(session: CloudUser = Depends(_require_premium)):
         "household_id": session.household_id,
         "user_id": session.user_id,
     })
-    return {"message": "You have left the household. Reload the app to return to your personal pantry."}
+    return MessageResponse(message="You have left the household. Reload the app to return to your personal pantry.")
 
 
-@router.post("/remove-member")
+@router.post("/remove-member", response_model=MessageResponse)
 async def remove_member(
     body: HouseholdRemoveMemberRequest,
     session: CloudUser = Depends(_require_household_owner),
-):
+) -> MessageResponse:
     """Remove a member from the household (owner only)."""
     if body.user_id == session.user_id:
         raise HTTPException(status_code=400, detail="Use /leave to remove yourself.")
@@ -196,4 +197,4 @@ async def remove_member(
         "household_id": session.household_id,
         "user_id": body.user_id,
     })
-    return {"message": f"Member {body.user_id} removed from household."}
+    return MessageResponse(message=f"Member {body.user_id} removed from household.")

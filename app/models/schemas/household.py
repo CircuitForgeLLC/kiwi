@@ -41,3 +41,7 @@ class HouseholdAcceptResponse(BaseModel):
 
 class HouseholdRemoveMemberRequest(BaseModel):
     user_id: str
+
+
+class MessageResponse(BaseModel):
+    message: str
