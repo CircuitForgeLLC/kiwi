@@ -40,23 +40,26 @@
 
       <!-- Level Selector -->
       <div class="form-group">
-        <label class="form-label">Creativity Level</label>
+        <label class="form-label">How far should we stretch?</label>
         <div class="flex flex-wrap gap-sm">
           <button
             v-for="lvl in levels"
             :key="lvl.value"
             :class="['btn', 'btn-secondary', { active: recipesStore.level === lvl.value }]"
             @click="recipesStore.level = lvl.value"
+            :title="lvl.description"
           >
             {{ lvl.label }}
           </button>
         </div>
+        <p v-if="activeLevel" class="level-description text-sm text-secondary mt-xs">
+          {{ activeLevel.description }}
+        </p>
       </div>
 
-      <!-- Wildcard warning -->
+      <!-- Surprise Me confirmation -->
       <div v-if="recipesStore.level === 4" class="status-badge status-warning wildcard-warning">
-        Wildcard mode uses LLM to generate creative recipes with whatever you have. Results may be
-        unusual.
+        The AI will freestyle recipes from whatever you have. Results can be unusual — that's part of the fun.
         <label class="flex-start gap-sm mt-xs">
           <input type="checkbox" v-model="recipesStore.wildcardConfirmed" />
           <span>I understand, go for it</span>
@@ -644,11 +647,13 @@ function onCooked(recipe: RecipeSuggestion) {
 }
 
 const levels = [
-  { value: 1, label: '1 — From Pantry' },
-  { value: 2, label: '2 — Creative Swaps' },
-  { value: 3, label: '3 — AI Scaffold' },
-  { value: 4, label: '4 — Wildcard 🎲' },
+  { value: 1, label: 'Use What I Have',  description: 'Finds recipes you can make right now using exactly what\'s in your pantry.' },
+  { value: 2, label: 'Allow Swaps',      description: 'Same as above, plus recipes where one or two ingredients can be substituted.' },
+  { value: 3, label: 'Get Creative',     description: 'AI builds recipes in your chosen cuisine style from what you have. Requires paid tier.' },
+  { value: 4, label: 'Surprise Me 🎲',   description: 'Fully AI-generated — open-ended and occasionally unexpected. Requires paid tier.' },
 ]
+
+const activeLevel = computed(() => levels.find(l => l.value === recipesStore.level))
 
 const cuisineStyles = [
   { id: 'italian',           label: 'Italian' },
@@ -794,6 +799,11 @@ onMounted(async () => {
 
 .ml-xs {
   margin-left: var(--spacing-xs);
+}
+
+.level-description {
+  font-style: italic;
+  line-height: 1.4;
 }
 
 .wildcard-warning {
