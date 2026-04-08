@@ -587,4 +587,108 @@ export const householdAPI = {
   },
 }
 
+// ========== Saved Recipes Types ==========
+
+export interface SavedRecipe {
+  id: number
+  recipe_id: number
+  title: string
+  saved_at: string
+  notes: string | null
+  rating: number | null
+  style_tags: string[]
+  collection_ids: number[]
+}
+
+export interface RecipeCollection {
+  id: number
+  name: string
+  description: string | null
+  member_count: number
+  created_at: string
+}
+
+// ========== Saved Recipes API ==========
+
+export const savedRecipesAPI = {
+  async save(recipe_id: number, notes?: string, rating?: number): Promise<SavedRecipe> {
+    const response = await api.post('/recipes/saved', { recipe_id, notes, rating })
+    return response.data
+  },
+  async unsave(recipe_id: number): Promise<void> {
+    await api.delete(`/recipes/saved/${recipe_id}`)
+  },
+  async update(recipe_id: number, data: { notes?: string | null; rating?: number | null; style_tags?: string[] }): Promise<SavedRecipe> {
+    const response = await api.patch(`/recipes/saved/${recipe_id}`, data)
+    return response.data
+  },
+  async list(params?: { sort_by?: string; collection_id?: number }): Promise<SavedRecipe[]> {
+    const response = await api.get('/recipes/saved', { params })
+    return response.data
+  },
+  async listCollections(): Promise<RecipeCollection[]> {
+    const response = await api.get('/recipes/saved/collections')
+    return response.data
+  },
+  async createCollection(name: string, description?: string): Promise<RecipeCollection> {
+    const response = await api.post('/recipes/saved/collections', { name, description })
+    return response.data
+  },
+  async deleteCollection(id: number): Promise<void> {
+    await api.delete(`/recipes/saved/collections/${id}`)
+  },
+  async addToCollection(collection_id: number, saved_recipe_id: number): Promise<void> {
+    await api.post(`/recipes/saved/collections/${collection_id}/members`, { saved_recipe_id })
+  },
+  async removeFromCollection(collection_id: number, saved_recipe_id: number): Promise<void> {
+    await api.delete(`/recipes/saved/collections/${collection_id}/members/${saved_recipe_id}`)
+  },
+}
+
+// ========== Browser Types ==========
+
+export interface BrowserDomain {
+  id: string
+  label: string
+}
+
+export interface BrowserCategory {
+  category: string
+  recipe_count: number
+}
+
+export interface BrowserRecipe {
+  id: number
+  title: string
+  category: string | null
+  match_pct: number | null
+}
+
+export interface BrowserResult {
+  recipes: BrowserRecipe[]
+  total: number
+  page: number
+}
+
+// ========== Browser API ==========
+
+export const browserAPI = {
+  async listDomains(): Promise<BrowserDomain[]> {
+    const response = await api.get('/recipes/browse/domains')
+    return response.data
+  },
+  async listCategories(domain: string): Promise<BrowserCategory[]> {
+    const response = await api.get(`/recipes/browse/${domain}`)
+    return response.data
+  },
+  async browse(domain: string, category: string, params?: {
+    page?: number
+    page_size?: number
+    pantry_items?: string
+  }): Promise<BrowserResult> {
+    const response = await api.get(`/recipes/browse/${domain}/${encodeURIComponent(category)}`, { params })
+    return response.data
+  },
+}
+
 export default api

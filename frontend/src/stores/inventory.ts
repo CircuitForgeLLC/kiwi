@@ -143,6 +143,13 @@ export const useInventoryStore = defineStore('inventory', () => {
     locationFilter.value = location
   }
 
+  async function consumeItem(itemId: number) {
+    await inventoryAPI.consumeItem(itemId)
+    items.value = items.value.map((item) =>
+      item.id === itemId ? { ...item, status: 'consumed' } : item
+    )
+  }
+
   function setStatusFilter(status: string) {
     statusFilter.value = status
   }
@@ -166,6 +173,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     fetchStats,
     updateItem,
     deleteItem,
+    consumeItem,
     scanBarcode,
     setLocationFilter,
     setStatusFilter,

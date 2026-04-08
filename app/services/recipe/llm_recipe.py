@@ -160,28 +160,41 @@ class LLMRecipeGenerator:
 
         With CF_ORCH_URL set: acquires a vLLM allocation via CFOrchClient and
         calls the OpenAI-compatible API directly against the allocated service URL.
-        Without CF_ORCH_URL: falls back to LLMRouter using its configured backends.
+        Allocation failure falls through to LLMRouter rather than silently returning "".
+        Without CF_ORCH_URL: uses LLMRouter directly.
         """
+        ctx = self._get_llm_context()
+        alloc = None
         try:
-            with self._get_llm_context() as alloc:
-                if alloc is not None:
-                    base_url = alloc.url.rstrip("/") + "/v1"
-                    client = OpenAI(base_url=base_url, api_key="any")
-                    model = alloc.model or "__auto__"
-                    if model == "__auto__":
-                        model = client.models.list().data[0].id
-                    resp = client.chat.completions.create(
-                        model=model,
-                        messages=[{"role": "user", "content": prompt}],
-                    )
-                    return resp.choices[0].message.content or ""
-                else:
-                    from circuitforge_core.llm.router import LLMRouter
-                    router = LLMRouter()
-                    return router.complete(prompt)
+            alloc = ctx.__enter__()
+        except Exception as exc:
+            logger.debug("cf-orch allocation failed, falling back to LLMRouter: %s", exc)
+            ctx = None  # __enter__ raised — do not call __exit__
+
+        try:
+            if alloc is not None:
+                base_url = alloc.url.rstrip("/") + "/v1"
+                client = OpenAI(base_url=base_url, api_key="any")
+                model = alloc.model or "__auto__"
+                if model == "__auto__":
+                    model = client.models.list().data[0].id
+                resp = client.chat.completions.create(
+                    model=model,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                return resp.choices[0].message.content or ""
+            else:
+                from circuitforge_core.llm.router import LLMRouter
+                return LLMRouter().complete(prompt)
         except Exception as exc:
             logger.error("LLM call failed: %s", exc)
             return ""
+        finally:
+            if ctx is not None:
+                try:
+                    ctx.__exit__(None, None, None)
+                except Exception:
+                    pass
 
     # Strips markdown bold/italic markers so "**Directions:**" parses like "Directions:"
     _MD_BOLD = re.compile(r"\*{1,2}([^*]+)\*{1,2}")

@@ -6,7 +6,9 @@
 
 Scan barcodes, photograph receipts, and get recipe ideas based on what you already have — before it expires.
 
-**Status:** Pre-alpha · CircuitForge LLC
+**LLM support is optional.** Inventory tracking, barcode scanning, expiry alerts, CSV export, and receipt upload all work without any LLM configured. AI features (receipt OCR, recipe suggestions, meal planning) activate when a backend is available and are BYOK-unlockable at any tier.
+
+**Status:** Beta · CircuitForge LLC
 
 ---
 
@@ -14,9 +16,14 @@ Scan barcodes, photograph receipts, and get recipe ideas based on what you alrea
 
 - **Inventory tracking** — add items by barcode scan, receipt upload, or manually
 - **Expiry alerts** — know what's about to go bad
-- **Receipt OCR** — extract line items from receipt photos automatically (Paid tier)
-- **Recipe suggestions** — LLM-powered ideas based on what's expiring (Paid tier, BYOK-unlockable)
+- **Recipe browser** — browse the full recipe corpus by cuisine, meal type, dietary preference, or main ingredient; pantry match percentage shown inline (Free)
+- **Saved recipes** — bookmark any recipe with notes, a 0–5 star rating, and free-text style tags (Free); organize into named collections (Paid)
+- **Receipt OCR** — extract line items from receipt photos automatically (Paid tier, BYOK-unlockable)
+- **Recipe suggestions** — four levels from pantry-match to full LLM generation (Paid tier, BYOK-unlockable)
+- **Style auto-classifier** — LLM suggests style tags (comforting, hands-off, quick, etc.) for saved recipes (Paid tier, BYOK-unlockable)
 - **Leftover mode** — prioritize nearly-expired items in recipe ranking (Premium tier)
+- **LLM backend config** — configure inference via `circuitforge-core` env-var system; BYOK unlocks Paid AI features at any tier
+- **Feedback FAB** — in-app feedback button; status probed on load, hidden if CF feedback endpoint unreachable
 
 ## Stack
 
@@ -52,8 +59,13 @@ cp .env.example .env
 | Receipt upload | ✓ | ✓ | ✓ |
 | Expiry alerts | ✓ | ✓ | ✓ |
 | CSV export | ✓ | ✓ | ✓ |
+| Recipe browser (domain/category) | ✓ | ✓ | ✓ |
+| Save recipes + notes + star rating | ✓ | ✓ | ✓ |
+| Style tags (manual, free-text) | ✓ | ✓ | ✓ |
 | Receipt OCR | BYOK | ✓ | ✓ |
-| Recipe suggestions | BYOK | ✓ | ✓ |
+| Recipe suggestions (L1–L4) | BYOK | ✓ | ✓ |
+| Named recipe collections | — | ✓ | ✓ |
+| LLM style auto-classifier | — | BYOK | ✓ |
 | Meal planning | — | ✓ | ✓ |
 | Multi-household | — | — | ✓ |
 | Leftover mode | — | — | ✓ |

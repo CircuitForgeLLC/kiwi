@@ -35,7 +35,9 @@ class Store:
                     "warnings",
                     # recipe columns
                     "ingredients", "ingredient_names", "directions",
-                    "keywords", "element_coverage"):
+                    "keywords", "element_coverage",
+                    # saved recipe columns
+                    "style_tags"):
             if key in d and isinstance(d[key], str):
                 try:
                     d[key] = json.loads(d[key])
@@ -734,4 +736,266 @@ class Store:
             self._dump(compensation_used),
             int(approved), int(opted_in),
         ))
+        self.conn.commit()
+
+    # ── saved recipes ─────────────────────────────────────────────────────
+
+    def save_recipe(
+        self,
+        recipe_id: int,
+        notes: str | None,
+        rating: int | None,
+    ) -> dict:
+        return self._insert_returning(
+            """
+            INSERT INTO saved_recipes (recipe_id, notes, rating)
+            VALUES (?, ?, ?)
+            ON CONFLICT(recipe_id) DO UPDATE SET
+                notes  = excluded.notes,
+                rating = excluded.rating
+            RETURNING *
+            """,
+            (recipe_id, notes, rating),
+        )
+
+    def unsave_recipe(self, recipe_id: int) -> None:
+        self.conn.execute(
+            "DELETE FROM saved_recipes WHERE recipe_id = ?", (recipe_id,)
+        )
+        self.conn.commit()
+
+    def is_recipe_saved(self, recipe_id: int) -> bool:
+        row = self._fetch_one(
+            "SELECT id FROM saved_recipes WHERE recipe_id = ?", (recipe_id,)
+        )
+        return row is not None
+
+    def update_saved_recipe(
+        self,
+        recipe_id: int,
+        notes: str | None,
+        rating: int | None,
+        style_tags: list[str],
+    ) -> dict:
+        self.conn.execute(
+            """
+            UPDATE saved_recipes
+            SET notes = ?, rating = ?, style_tags = ?
+            WHERE recipe_id = ?
+            """,
+            (notes, rating, self._dump(style_tags), recipe_id),
+        )
+        self.conn.commit()
+        row = self._fetch_one(
+            "SELECT * FROM saved_recipes WHERE recipe_id = ?", (recipe_id,)
+        )
+        return row  # type: ignore[return-value]
+
+    def get_saved_recipes(
+        self,
+        sort_by: str = "saved_at",
+        collection_id: int | None = None,
+    ) -> list[dict]:
+        order = {
+            "saved_at": "sr.saved_at DESC",
+            "rating":   "sr.rating DESC",
+            "title":    "r.title ASC",
+        }.get(sort_by, "sr.saved_at DESC")
+
+        if collection_id is not None:
+            return self._fetch_all(
+                f"""
+                SELECT sr.*, r.title
+                FROM saved_recipes sr
+                JOIN recipes r ON r.id = sr.recipe_id
+                JOIN recipe_collection_members rcm ON rcm.saved_recipe_id = sr.id
+                WHERE rcm.collection_id = ?
+                ORDER BY {order}
+                """,
+                (collection_id,),
+            )
+        return self._fetch_all(
+            f"""
+            SELECT sr.*, r.title
+            FROM saved_recipes sr
+            JOIN recipes r ON r.id = sr.recipe_id
+            ORDER BY {order}
+            """,
+        )
+
+    def get_saved_recipe_collection_ids(self, saved_recipe_id: int) -> list[int]:
+        rows = self._fetch_all(
+            "SELECT collection_id FROM recipe_collection_members WHERE saved_recipe_id = ?",
+            (saved_recipe_id,),
+        )
+        return [r["collection_id"] for r in rows]
+
+    # ── recipe collections ────────────────────────────────────────────────
+
+    def create_collection(self, name: str, description: str | None) -> dict:
+        return self._insert_returning(
+            "INSERT INTO recipe_collections (name, description) VALUES (?, ?) RETURNING *",
+            (name, description),
+        )
+
+    def delete_collection(self, collection_id: int) -> None:
+        self.conn.execute(
+            "DELETE FROM recipe_collections WHERE id = ?", (collection_id,)
+        )
+        self.conn.commit()
+
+    def rename_collection(
+        self, collection_id: int, name: str, description: str | None
+    ) -> dict:
+        self.conn.execute(
+            """
+            UPDATE recipe_collections
+            SET name = ?, description = ?, updated_at = datetime('now')
+            WHERE id = ?
+            """,
+            (name, description, collection_id),
+        )
+        self.conn.commit()
+        row = self._fetch_one(
+            "SELECT * FROM recipe_collections WHERE id = ?", (collection_id,)
+        )
+        return row  # type: ignore[return-value]
+
+    def get_collections(self) -> list[dict]:
+        return self._fetch_all(
+            """
+            SELECT rc.*,
+                   COUNT(rcm.saved_recipe_id) AS member_count
+            FROM recipe_collections rc
+            LEFT JOIN recipe_collection_members rcm ON rcm.collection_id = rc.id
+            GROUP BY rc.id
+            ORDER BY rc.created_at ASC
+            """
+        )
+
+    def add_to_collection(self, collection_id: int, saved_recipe_id: int) -> None:
+        self.conn.execute(
+            """
+            INSERT OR IGNORE INTO recipe_collection_members (collection_id, saved_recipe_id)
+            VALUES (?, ?)
+            """,
+            (collection_id, saved_recipe_id),
+        )
+        self.conn.commit()
+
+    def remove_from_collection(
+        self, collection_id: int, saved_recipe_id: int
+    ) -> None:
+        self.conn.execute(
+            """
+            DELETE FROM recipe_collection_members
+            WHERE collection_id = ? AND saved_recipe_id = ?
+            """,
+            (collection_id, saved_recipe_id),
+        )
+        self.conn.commit()
+
+    # ── recipe browser ────────────────────────────────────────────────────
+
+    def get_browser_categories(
+        self, domain: str, keywords_by_category: dict[str, list[str]]
+    ) -> list[dict]:
+        """Return [{category, recipe_count}] for each category in the domain.
+
+        keywords_by_category maps category name to the keyword list used to
+        match against recipes.category and recipes.keywords.
+        """
+        results = []
+        for category, keywords in keywords_by_category.items():
+            count = self._count_recipes_for_keywords(keywords)
+            results.append({"category": category, "recipe_count": count})
+        return results
+
+    def _count_recipes_for_keywords(self, keywords: list[str]) -> int:
+        if not keywords:
+            return 0
+        conditions = " OR ".join(
+            ["lower(category) LIKE ?"] * len(keywords)
+            + ["lower(keywords) LIKE ?"] * len(keywords)
+        )
+        params = tuple(f"%{kw.lower()}%" for kw in keywords) * 2
+        row = self.conn.execute(
+            f"SELECT count(*) AS n FROM recipes WHERE {conditions}", params
+        ).fetchone()
+        return row[0] if row else 0
+
+    def browse_recipes(
+        self,
+        keywords: list[str],
+        page: int,
+        page_size: int,
+        pantry_items: list[str] | None = None,
+    ) -> dict:
+        """Return a page of recipes matching the keyword set.
+
+        Each recipe row includes match_pct (float | None) when pantry_items
+        is provided. match_pct is the fraction of ingredient_names covered by
+        the pantry set — computed deterministically, no LLM needed.
+        """
+        if not keywords:
+            return {"recipes": [], "total": 0, "page": page}
+
+        conditions = " OR ".join(
+            ["lower(category) LIKE ?"] * len(keywords)
+            + ["lower(keywords) LIKE ?"] * len(keywords)
+        )
+        like_params = tuple(f"%{kw.lower()}%" for kw in keywords) * 2
+        offset = (page - 1) * page_size
+
+        total_row = self.conn.execute(
+            f"SELECT count(*) AS n FROM recipes WHERE {conditions}", like_params
+        ).fetchone()
+        total = total_row[0] if total_row else 0
+
+        rows = self._fetch_all(
+            f"""
+            SELECT id, title, category, keywords, ingredient_names,
+                   calories, fat_g, protein_g, sodium_mg, source_url
+            FROM recipes
+            WHERE {conditions}
+            ORDER BY title ASC
+            LIMIT ? OFFSET ?
+            """,
+            like_params + (page_size, offset),
+        )
+
+        pantry_set = {p.lower() for p in pantry_items} if pantry_items else None
+        recipes = []
+        for r in rows:
+            entry = {
+                "id":         r["id"],
+                "title":      r["title"],
+                "category":   r["category"],
+                "match_pct":  None,
+            }
+            if pantry_set:
+                names = r.get("ingredient_names") or []
+                if names:
+                    matched = sum(
+                        1 for n in names if n.lower() in pantry_set
+                    )
+                    entry["match_pct"] = round(matched / len(names), 3)
+            recipes.append(entry)
+
+        return {"recipes": recipes, "total": total, "page": page}
+
+    def log_browser_telemetry(
+        self,
+        domain: str,
+        category: str,
+        page: int,
+        result_count: int,
+    ) -> None:
+        self.conn.execute(
+            """
+            INSERT INTO browser_telemetry (domain, category, page, result_count)
+            VALUES (?, ?, ?, ?)
+            """,
+            (domain, category, page, result_count),
+        )
         self.conn.commit()

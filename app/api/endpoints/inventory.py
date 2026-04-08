@@ -16,6 +16,9 @@ from app.db.session import get_store
 from app.db.store import Store
 from app.models.schemas.inventory import (
     BarcodeScanResponse,
+    BulkAddByNameRequest,
+    BulkAddByNameResponse,
+    BulkAddItemResult,
     InventoryItemCreate,
     InventoryItemResponse,
     InventoryItemUpdate,
@@ -128,6 +131,34 @@ async def create_inventory_item(body: InventoryItemCreate, store: Store = Depend
         source=body.source,
     )
     return InventoryItemResponse.model_validate(item)
+
+
+@router.post("/items/bulk-add-by-name", response_model=BulkAddByNameResponse)
+async def bulk_add_items_by_name(body: BulkAddByNameRequest, store: Store = Depends(get_store)):
+    """Create pantry items from a list of ingredient names (no barcode required).
+
+    Uses get_or_create_product so re-adding an existing product is idempotent.
+    """
+    results: list[BulkAddItemResult] = []
+    for entry in body.items:
+        try:
+            product, _ = await asyncio.to_thread(
+                store.get_or_create_product, entry.name, None, source="shopping"
+            )
+            item = await asyncio.to_thread(
+                store.add_inventory_item,
+                product["id"],
+                entry.location,
+                quantity=entry.quantity,
+                unit=entry.unit,
+                source="shopping",
+            )
+            results.append(BulkAddItemResult(name=entry.name, ok=True, item_id=item["id"]))
+        except Exception as exc:
+            results.append(BulkAddItemResult(name=entry.name, ok=False, error=str(exc)))
+
+    added = sum(1 for r in results if r.ok)
+    return BulkAddByNameResponse(added=added, failed=len(results) - added, results=results)
 
 
 @router.get("/items", response_model=List[InventoryItemResponse])
