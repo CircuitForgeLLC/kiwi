@@ -1,5 +1,39 @@
 <template>
   <div class="recipes-view">
+
+    <!-- Tab bar: Find / Browse / Saved -->
+    <div role="tablist" aria-label="Recipe sections" class="tab-bar flex gap-xs mb-md">
+      <button
+        v-for="tab in tabs"
+        :key="tab.id"
+        :id="`tab-${tab.id}`"
+        role="tab"
+        :aria-selected="activeTab === tab.id"
+        :tabindex="activeTab === tab.id ? 0 : -1"
+        :class="['btn', 'tab-btn', activeTab === tab.id ? 'btn-primary' : 'btn-secondary']"
+        @click="activeTab = tab.id"
+        @keydown="onTabKeydown"
+      >{{ tab.label }}</button>
+    </div>
+
+    <!-- Browse tab -->
+    <RecipeBrowserPanel
+      v-if="activeTab === 'browse'"
+      role="tabpanel"
+      aria-labelledby="tab-browse"
+      @open-recipe="openRecipeById"
+    />
+
+    <!-- Saved tab -->
+    <SavedRecipesPanel
+      v-else-if="activeTab === 'saved'"
+      role="tabpanel"
+      aria-labelledby="tab-saved"
+      @open-recipe="openRecipeById"
+    />
+
+    <!-- Find tab (existing search UI) -->
+    <div v-else role="tabpanel" aria-labelledby="tab-find">
     <!-- Controls Panel -->
     <div class="card mb-controls">
       <h2 class="section-title text-xl mb-md">Find Recipes</h2>
@@ -39,7 +73,7 @@
             class="tag-chip status-badge status-info"
           >
             {{ tag }}
-            <button class="chip-remove" @click="removeConstraint(tag)" aria-label="Remove">×</button>
+            <button class="chip-remove" @click="removeConstraint(tag)" :aria-label="'Remove constraint: ' + tag">×</button>
           </span>
         </div>
         <input
@@ -61,7 +95,7 @@
             class="tag-chip status-badge status-error"
           >
             {{ tag }}
-            <button class="chip-remove" @click="removeAllergy(tag)" aria-label="Remove">×</button>
+            <button class="chip-remove" @click="removeAllergy(tag)" :aria-label="'Remove allergy: ' + tag">×</button>
           </span>
         </div>
         <input
@@ -84,8 +118,19 @@
         </p>
       </div>
 
-      <!-- Max Missing -->
+      <!-- Shopping Mode -->
       <div class="form-group">
+        <label class="flex-start gap-sm shopping-toggle">
+          <input type="checkbox" v-model="recipesStore.shoppingMode" />
+          <span class="form-label" style="margin-bottom: 0;">Open to buying missing ingredients</span>
+        </label>
+        <p v-if="recipesStore.shoppingMode" class="text-sm text-secondary mt-xs">
+          All recipes shown regardless of missing ingredients. Affiliate links appear for anything you'd need to buy.
+        </p>
+      </div>
+
+      <!-- Max Missing — hidden in shopping mode (it's lifted automatically) -->
+      <div v-if="!recipesStore.shoppingMode" class="form-group">
         <label class="form-label">Max Missing Ingredients (optional)</label>
         <input
           type="number"
@@ -210,6 +255,13 @@
       {{ recipesStore.error }}
     </div>
 
+    <!-- Screen reader announcement when results load -->
+    <div aria-live="polite" aria-atomic="true" class="sr-only">
+      <span v-if="recipesStore.result && !recipesStore.loading">
+        {{ filteredSuggestions.length }} recipe{{ filteredSuggestions.length !== 1 ? 's' : '' }} found
+      </span>
+    </div>
+
     <!-- Results -->
     <div v-if="recipesStore.result" class="results-section fade-in">
       <!-- Rate limit warning -->
@@ -233,18 +285,55 @@
         </div>
       </div>
 
+      <!-- Filter bar -->
+      <div v-if="recipesStore.result.suggestions.length > 0" class="filter-bar mb-md">
+        <input
+          class="form-input filter-search"
+          v-model="filterText"
+          placeholder="Search recipes or ingredients…"
+          aria-label="Filter recipes"
+        />
+        <div class="filter-chips">
+          <template v-if="availableLevels.length > 1">
+            <button
+              v-for="lvl in availableLevels"
+              :key="lvl"
+              :class="['filter-chip', { active: filterLevel === lvl }]"
+              @click="filterLevel = filterLevel === lvl ? null : lvl"
+            >Lv{{ lvl }}</button>
+          </template>
+          <button
+            :class="['filter-chip', { active: filterMissing === 0 }]"
+            @click="filterMissing = filterMissing === 0 ? null : 0"
+          >Can make now</button>
+          <button
+            :class="['filter-chip', { active: filterMissing === 2 }]"
+            @click="filterMissing = filterMissing === 2 ? null : 2"
+          >≤2 missing</button>
+          <button
+            v-if="hasActiveFilters"
+            class="filter-chip filter-chip-clear"
+            @click="clearFilters"
+          >✕ Clear</button>
+        </div>
+      </div>
+
       <!-- No suggestions -->
       <div
-        v-if="recipesStore.result.suggestions.length === 0"
+        v-if="filteredSuggestions.length === 0"
         class="card text-center text-muted"
       >
-        <p>No recipes found for your current pantry and settings. Try lowering the creativity level or adding more items.</p>
+        <template v-if="hasActiveFilters">
+          <p>No recipes match your filters.</p>
+          <button class="btn btn-ghost btn-sm mt-xs" @click="clearFilters">Clear filters</button>
+        </template>
+        <p v-else>No recipes found for your current pantry and settings. Try lowering the creativity level or adding more items.</p>
       </div>
 
       <!-- Recipe Cards -->
       <div class="grid-auto mb-md">
         <div
-          v-for="recipe in recipesStore.result.suggestions"
+          v-for="recipe in filteredSuggestions"
           :key="recipe.id"
           class="card slide-up"
         >
@@ -257,16 +346,33 @@
               <span v-if="recipe.is_wildcard" class="status-badge status-warning">Wildcard</span>
               <button
                 v-if="recipe.id"
+                :class="['btn-bookmark', { active: recipesStore.isBookmarked(recipe.id) }]"
+                @click="recipesStore.toggleBookmark(recipe)"
+                :aria-label="recipesStore.isBookmarked(recipe.id) ? 'Remove bookmark: ' + recipe.title : 'Bookmark: ' + recipe.title"
+              >{{ recipesStore.isBookmarked(recipe.id) ? '★' : '☆' }}</button>
+              <button
+                v-if="recipe.id"
                 class="btn-dismiss"
                 @click="recipesStore.dismiss(recipe.id)"
-                title="Hide this recipe"
-                aria-label="Dismiss recipe"
+                :aria-label="'Hide recipe: ' + recipe.title"
               >✕</button>
             </div>
           </div>
 
           <!-- Notes -->
           <p v-if="recipe.notes" class="text-sm text-secondary mb-sm">{{ recipe.notes }}</p>
+
+          <!-- Matched ingredients (what you already have) -->
+          <div v-if="recipe.matched_ingredients?.length > 0" class="ingredient-section mb-sm">
+            <p class="text-sm font-semibold ingredient-label ingredient-label-have">From your pantry:</p>
+            <div class="flex flex-wrap gap-xs mt-xs">
+              <span
+                v-for="ing in recipe.matched_ingredients"
+                :key="ing"
+                class="ingredient-chip ingredient-chip-have"
+              >{{ ing }}</span>
+            </div>
+          </div>
 
           <!-- Nutrition chips -->
           <div v-if="recipe.nutrition" class="nutrition-chips mb-sm">
@@ -358,17 +464,22 @@
             </ul>
           </div>
 
-          <!-- Directions collapsible -->
-          <details v-if="recipe.directions.length > 0" class="collapsible">
-            <summary class="text-sm font-semibold collapsible-summary">
-              Directions ({{ recipe.directions.length }} steps)
-            </summary>
+          <!-- Directions — always visible; this is the content people came for -->
+          <div v-if="recipe.directions.length > 0" class="directions-section">
+            <p class="text-sm font-semibold directions-label">Steps</p>
             <ol class="directions-list mt-xs">
               <li v-for="(step, idx) in recipe.directions" :key="idx" class="text-sm direction-step">
                 {{ step }}
               </li>
             </ol>
-          </details>
+          </div>
+
+          <!-- Primary action: open detail panel -->
+          <div class="card-actions">
+            <button class="btn btn-primary btn-make" @click="openRecipe(recipe)">
+              Make this
+            </button>
+          </div>
         </div>
       </div>
 
@@ -386,20 +497,16 @@
         </button>
       </div>
 
-      <!-- Grocery list summary -->
-      <div v-if="recipesStore.result.grocery_list.length > 0" class="card card-info">
-        <h3 class="text-lg font-bold mb-sm">Shopping List</h3>
-        <ul class="grocery-list">
-          <li
-            v-for="item in recipesStore.result.grocery_list"
-            :key="item"
-            class="text-sm grocery-item"
-          >
-            {{ item }}
-          </li>
-        </ul>
-      </div>
     </div>
+
+    <!-- Recipe detail panel — mounts as a full-screen overlay -->
+    <RecipeDetailPanel
+      v-if="selectedRecipe"
+      :recipe="selectedRecipe"
+      :grocery-links="selectedGroceryLinks"
+      @close="selectedRecipe = null"
+      @cooked="(recipe) => { onCooked(recipe); selectedRecipe = null }"
+    />
 
     <!-- Empty state when no results yet and pantry has items -->
     <div
@@ -413,6 +520,17 @@
       </svg>
       <p class="mt-xs">Tap "Suggest Recipes" to find recipes using your pantry items.</p>
     </div>
+
+    </div><!-- end Find tab -->
+
+    <!-- Detail panel for browser/saved recipe lookups -->
+    <RecipeDetailPanel
+      v-if="browserSelectedRecipe"
+      :recipe="browserSelectedRecipe"
+      :grocery-links="[]"
+      @close="browserSelectedRecipe = null"
+      @cooked="browserSelectedRecipe = null"
+    />
   </div>
 </template>
 
@@ -420,16 +538,110 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRecipesStore } from '../stores/recipes'
 import { useInventoryStore } from '../stores/inventory'
+import RecipeDetailPanel from './RecipeDetailPanel.vue'
+import RecipeBrowserPanel from './RecipeBrowserPanel.vue'
+import SavedRecipesPanel from './SavedRecipesPanel.vue'
 import type { RecipeSuggestion, GroceryLink } from '../services/api'
+import { recipesAPI } from '../services/api'
 
 const recipesStore = useRecipesStore()
 const inventoryStore = useInventoryStore()
+
+// Tab state
+type TabId = 'find' | 'browse' | 'saved'
+const tabs: Array<{ id: TabId; label: string }> = [
+  { id: 'find',   label: 'Find' },
+  { id: 'browse', label: 'Browse' },
+  { id: 'saved',  label: 'Saved' },
+]
+const activeTab = ref<TabId>('find')
+
+function onTabKeydown(e: KeyboardEvent) {
+  const tabIds: TabId[] = ['find', 'browse', 'saved']
+  const current = tabIds.indexOf(activeTab.value)
+  if (e.key === 'ArrowRight') {
+    e.preventDefault()
+    activeTab.value = tabIds[(current + 1) % tabIds.length]!
+  } else if (e.key === 'ArrowLeft') {
+    e.preventDefault()
+    activeTab.value = tabIds[(current - 1 + tabIds.length) % tabIds.length]!
+  }
+}
+
+// Browser/saved tab recipe detail panel (fetches full recipe from API)
+const browserSelectedRecipe = ref<RecipeSuggestion | null>(null)
+
+async function openRecipeById(recipeId: number) {
+  try {
+    browserSelectedRecipe.value = await recipesAPI.getRecipe(recipeId)
+  } catch {
+    // silently ignore — recipe may not exist
+  }
+}
 
 // Local input state for tags
 const constraintInput = ref('')
 const allergyInput = ref('')
 const categoryInput = ref('')
 const isLoadingMore = ref(false)
+
+// Recipe detail panel (Find tab)
+const selectedRecipe = ref<RecipeSuggestion | null>(null)
+
+// Filter state (#21)
+const filterText = ref('')
+const filterLevel = ref<number | null>(null)
+const filterMissing = ref<number | null>(null)
+
+const availableLevels = computed(() => {
+  if (!recipesStore.result) return []
+  return [...new Set(recipesStore.result.suggestions.map((r) => r.level))].sort()
+})
+
+const filteredSuggestions = computed(() => {
+  if (!recipesStore.result) return []
+  let items = recipesStore.result.suggestions
+  const q = filterText.value.trim().toLowerCase()
+  if (q) {
+    items = items.filter((r) =>
+      r.title.toLowerCase().includes(q) ||
+      r.matched_ingredients.some((i) => i.toLowerCase().includes(q)) ||
+      r.missing_ingredients.some((i) => i.toLowerCase().includes(q))
+    )
+  }
+  if (filterLevel.value !== null) {
+    items = items.filter((r) => r.level === filterLevel.value)
+  }
+  if (filterMissing.value !== null) {
+    items = items.filter((r) => r.missing_ingredients.length <= filterMissing.value!)
+  }
+  return items
+})
+
+const hasActiveFilters = computed(
+  () => filterText.value.trim() !== '' || filterLevel.value !== null || filterMissing.value !== null
+)
+
+function clearFilters() {
+  filterText.value = ''
+  filterLevel.value = null
+  filterMissing.value = null
+}
+
+const selectedGroceryLinks = computed<GroceryLink[]>(() => {
+  if (!selectedRecipe.value || !recipesStore.result) return []
+  const missing = new Set(selectedRecipe.value.missing_ingredients.map((s) => s.toLowerCase()))
+  return recipesStore.result.grocery_links.filter((l) => missing.has(l.ingredient.toLowerCase()))
+})
+
+function openRecipe(recipe: RecipeSuggestion) {
+  selectedRecipe.value = recipe
+}
+
+function onCooked(recipe: RecipeSuggestion) {
+  recipesStore.logCook(recipe.id, recipe.title)
+  recipesStore.dismiss(recipe.id)
+}
 
 const levels = [
   { value: 1, label: '1 — From Pantry' },
@@ -554,6 +766,16 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.tab-bar {
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: var(--spacing-sm);
+}
+
+.tab-btn {
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  border-bottom: none;
+}
+
 .mb-controls {
   margin-bottom: var(--spacing-md);
 }
@@ -581,6 +803,11 @@ onMounted(async () => {
 }
 
 .hard-day-toggle {
+  cursor: pointer;
+  user-select: none;
+}
+
+.shopping-toggle {
   cursor: pointer;
   user-select: none;
 }
@@ -641,6 +868,116 @@ onMounted(async () => {
   color: var(--color-error, #dc2626);
   background: var(--color-error-bg, #fee2e2);
   transform: none;
+}
+
+.btn-bookmark {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 2px 6px;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--color-text-muted);
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+
+.btn-bookmark:hover,
+.btn-bookmark.active {
+  color: var(--color-warning, #ca8a04);
+  background: var(--color-warning-bg, #fef9c3);
+  transform: none;
+}
+
+/* Saved recipes section */
+.saved-header {
+  user-select: none;
+}
+
+.saved-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.saved-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.saved-row:last-child {
+  border-bottom: none;
+}
+
+.saved-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-primary);
+}
+
+.saved-title:hover {
+  text-decoration: underline;
+}
+
+/* Filter bar */
+.filter-bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.filter-search {
+  width: 100%;
+}
+
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+}
+
+.filter-chip {
+  background: var(--color-bg-secondary, #f5f5f5);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  padding: 2px 10px;
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.filter-chip:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+  background: var(--color-bg-secondary);
+  transform: none;
+}
+
+.filter-chip.active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+.filter-chip-clear {
+  border-color: var(--color-error, #dc2626);
+  color: var(--color-error, #dc2626);
+}
+
+.filter-chip-clear:hover {
+  background: var(--color-error-bg, #fee2e2);
+  border-color: var(--color-error, #dc2626);
+  color: var(--color-error, #dc2626);
 }
 
 .suggest-row {
@@ -721,13 +1058,54 @@ details[open] .collapsible-summary::before {
   color: var(--color-text-secondary);
 }
 
+.ingredient-section {
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--spacing-sm);
+}
+
+.ingredient-label {
+  margin-bottom: 0;
+}
+
+.ingredient-label-have {
+  color: var(--color-success, #16a34a);
+}
+
+.ingredient-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+}
+
+.ingredient-chip-have {
+  background: var(--color-success-bg, #dcfce7);
+  color: var(--color-success, #16a34a);
+}
+
+.directions-section {
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--spacing-sm);
+  margin-top: var(--spacing-xs);
+}
+
+.directions-label {
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.05em;
+  margin-bottom: var(--spacing-xs);
+}
+
 .directions-list {
   padding-left: var(--spacing-lg);
 }
 
 .direction-step {
-  margin-bottom: var(--spacing-xs);
-  line-height: 1.5;
+  margin-bottom: var(--spacing-sm);
+  line-height: 1.6;
 }
 
 .grocery-link {
@@ -740,12 +1118,17 @@ details[open] .collapsible-summary::before {
   opacity: 0.8;
 }
 
-.grocery-list {
-  padding-left: var(--spacing-lg);
+.card-actions {
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--spacing-sm);
+  margin-top: var(--spacing-sm);
+  display: flex;
+  justify-content: flex-end;
 }
 
-.grocery-item {
-  margin-bottom: var(--spacing-xs);
+.btn-make {
+  font-size: var(--font-size-sm);
+  padding: var(--spacing-xs) var(--spacing-md);
 }
 
 .results-section {

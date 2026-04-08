@@ -105,9 +105,9 @@
           <div class="form-group scan-qty-group">
             <label class="form-label">Qty</label>
             <div class="quantity-control">
-              <button class="btn-qty" @click="scannerQuantity = Math.max(0.1, scannerQuantity - 1)" type="button">−</button>
-              <input v-model.number="scannerQuantity" type="number" min="0.1" step="0.1" class="qty-input" />
-              <button class="btn-qty" @click="scannerQuantity += 1" type="button">+</button>
+              <button class="btn-qty" @click="scannerQuantity = Math.max(0.1, scannerQuantity - 1)" type="button" aria-label="Decrease quantity">−</button>
+              <input v-model.number="scannerQuantity" type="number" min="0.1" step="0.1" class="qty-input" aria-label="Quantity" />
+              <button class="btn-qty" @click="scannerQuantity += 1" type="button" aria-label="Increase quantity">+</button>
             </div>
           </div>
         </div>
@@ -160,9 +160,9 @@
           <div class="form-group scan-qty-group">
             <label class="form-label">Qty</label>
             <div class="quantity-control">
-              <button class="btn-qty" @click="barcodeQuantity = Math.max(0.1, barcodeQuantity - 1)" type="button">−</button>
-              <input v-model.number="barcodeQuantity" type="number" min="0.1" step="0.1" class="qty-input" />
-              <button class="btn-qty" @click="barcodeQuantity += 1" type="button">+</button>
+              <button class="btn-qty" @click="barcodeQuantity = Math.max(0.1, barcodeQuantity - 1)" type="button" aria-label="Decrease quantity">−</button>
+              <input v-model.number="barcodeQuantity" type="number" min="0.1" step="0.1" class="qty-input" aria-label="Quantity" />
+              <button class="btn-qty" @click="barcodeQuantity += 1" type="button" aria-label="Increase quantity">+</button>
             </div>
           </div>
         </div>
@@ -209,9 +209,9 @@
           <div class="form-group scan-qty-group">
             <label class="form-label">Qty</label>
             <div class="quantity-control">
-              <button class="btn-qty" @click="manualForm.quantity = Math.max(0.1, manualForm.quantity - 1)" type="button">−</button>
-              <input v-model.number="manualForm.quantity" type="number" min="0.1" step="0.1" required class="qty-input" />
-              <button class="btn-qty" @click="manualForm.quantity += 1" type="button">+</button>
+              <button class="btn-qty" @click="manualForm.quantity = Math.max(0.1, manualForm.quantity - 1)" type="button" aria-label="Decrease quantity">−</button>
+              <input v-model.number="manualForm.quantity" type="number" min="0.1" step="0.1" required class="qty-input" aria-label="Quantity" />
+              <button class="btn-qty" @click="manualForm.quantity += 1" type="button" aria-label="Increase quantity">+</button>
             </div>
           </div>
         </div>
@@ -765,7 +765,8 @@ function getItemClass(item: InventoryItem): string {
   flex-direction: column;
   gap: var(--spacing-md);
   padding: var(--spacing-xs) 0 0;
-  overflow-x: hidden;  /* prevent item rows from expanding page width on mobile */
+  overflow-x: hidden;
+  width: 100%;        /* Firefox: explicit width stops flex column from auto-sizing to content */
 }
 
 /* ============================================
@@ -989,6 +990,9 @@ function getItemClass(item: InventoryItem): string {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-sm);
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .inventory-header {
@@ -1016,6 +1020,8 @@ function getItemClass(item: InventoryItem): string {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   overflow: hidden;
+  width: 100%;
+  max-width: 100%;
 }
 
 .inv-row {
@@ -1024,6 +1030,8 @@ function getItemClass(item: InventoryItem): string {
   gap: var(--spacing-sm);
   padding: var(--spacing-sm) var(--spacing-md);
   border-left: 3px solid var(--color-border);
+  max-width: 100%;
+  box-sizing: border-box;
   background: var(--color-bg-card);
   transition: background 0.15s ease;
   min-height: 52px;
