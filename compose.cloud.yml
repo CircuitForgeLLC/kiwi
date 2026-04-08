@@ -13,10 +13,15 @@ services:
     environment:
       CLOUD_MODE: "true"
       CLOUD_DATA_ROOT: /devl/kiwi-cloud-data
+      KIWI_BASE_URL: https://menagerie.circuitforge.tech/kiwi
       # DIRECTUS_JWT_SECRET, HEIMDALL_URL, HEIMDALL_ADMIN_TOKEN — set in .env
       # DEV ONLY: comma-separated IPs that bypass JWT auth (LAN testing without Caddy).
       # Production deployments must NOT set this. Leave blank or omit entirely.
       CLOUD_AUTH_BYPASS_IPS: ${CLOUD_AUTH_BYPASS_IPS:-}
+      # cf-orch: route LLM calls through the coordinator for managed GPU inference
+      CF_ORCH_URL: http://host.docker.internal:7700
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - /devl/kiwi-cloud-data:/devl/kiwi-cloud-data
       # LLM config — shared with other CF products; read-only in container

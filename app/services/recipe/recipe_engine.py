@@ -367,6 +367,163 @@ def _pantry_creative_swap(required: str, pantry_items: set[str]) -> str | None:
     return best
 
 
+# ---------------------------------------------------------------------------
+# Functional-category swap table (Level 2 only)
+# ---------------------------------------------------------------------------
+# Maps cleaned ingredient names → functional category label.  Used as a
+# fallback when _pantry_creative_swap returns None (which always happens for
+# single-token ingredients, because that function requires ≥2 shared tokens).
+# A pantry item that belongs to the same category is offered as a substitute.
+_FUNCTIONAL_SWAP_CATEGORIES: dict[str, str] = {
+    # Solid fats
+    "butter": "solid_fat",
+    "margarine": "solid_fat",
+    "shortening": "solid_fat",
+    "lard": "solid_fat",
+    "ghee": "solid_fat",
+    # Liquid/neutral cooking oils
+    "oil": "liquid_fat",
+    "vegetable oil": "liquid_fat",
+    "olive oil": "liquid_fat",
+    "canola oil": "liquid_fat",
+    "sunflower oil": "liquid_fat",
+    "avocado oil": "liquid_fat",
+    # Sweeteners
+    "sugar": "sweetener",
+    "brown sugar": "sweetener",
+    "honey": "sweetener",
+    "maple syrup": "sweetener",
+    "agave": "sweetener",
+    "molasses": "sweetener",
+    "stevia": "sweetener",
+    "powdered sugar": "sweetener",
+    # All-purpose flours and baking bases
+    "flour": "flour",
+    "all-purpose flour": "flour",
+    "whole wheat flour": "flour",
+    "bread flour": "flour",
+    "self-rising flour": "flour",
+    "cake flour": "flour",
+    # Dairy and non-dairy milk
+    "milk": "dairy_milk",
+    "whole milk": "dairy_milk",
+    "skim milk": "dairy_milk",
+    "2% milk": "dairy_milk",
+    "oat milk": "dairy_milk",
+    "almond milk": "dairy_milk",
+    "soy milk": "dairy_milk",
+    "rice milk": "dairy_milk",
+    # Heavy/whipping creams
+    "cream": "heavy_cream",
+    "heavy cream": "heavy_cream",
+    "whipping cream": "heavy_cream",
+    "double cream": "heavy_cream",
+    "coconut cream": "heavy_cream",
+    # Cultured dairy (acid + thick)
+    "sour cream": "cultured_dairy",
+    "greek yogurt": "cultured_dairy",
+    "yogurt": "cultured_dairy",
+    "buttermilk": "cultured_dairy",
+    # Starch thickeners
+    "cornstarch": "thickener",
+    "arrowroot": "thickener",
+    "tapioca starch": "thickener",
+    "potato starch": "thickener",
+    "rice flour": "thickener",
+    # Egg binders
+    "egg": "egg_binder",
+    "eggs": "egg_binder",
+    # Acids
+    "vinegar": "acid",
+    "apple cider vinegar": "acid",
+    "white vinegar": "acid",
+    "red wine vinegar": "acid",
+    "lemon juice": "acid",
+    "lime juice": "acid",
+    # Stocks and broths
+    "broth": "stock",
+    "stock": "stock",
+    "chicken broth": "stock",
+    "beef broth": "stock",
+    "vegetable broth": "stock",
+    "chicken stock": "stock",
+    "beef stock": "stock",
+    "bouillon": "stock",
+    # Hard cheeses (grating / melting interchangeable)
+    "parmesan": "hard_cheese",
+    "romano": "hard_cheese",
+    "pecorino": "hard_cheese",
+    "asiago": "hard_cheese",
+    # Melting cheeses
+    "cheddar": "melting_cheese",
+    "mozzarella": "melting_cheese",
+    "swiss": "melting_cheese",
+    "gouda": "melting_cheese",
+    "monterey jack": "melting_cheese",
+    "colby": "melting_cheese",
+    "provolone": "melting_cheese",
+    # Canned tomato products
+    "tomato sauce": "canned_tomato",
+    "tomato paste": "canned_tomato",
+    "crushed tomatoes": "canned_tomato",
+    "diced tomatoes": "canned_tomato",
+    "marinara": "canned_tomato",
+}
+
+
+def _category_swap(ingredient: str, pantry_items: set[str]) -> str | None:
+    """Level-2 fallback: find a same-category pantry substitute for a single-token ingredient.
+
+    _pantry_creative_swap requires ≥2 shared content tokens, so it always returns
+    None for single-word ingredients like 'butter' or 'flour'.  This function looks
+    up the ingredient's functional category and returns any pantry item in that
+    same category, enabling swaps like butter → ghee, milk → oat milk.
+    """
+    clean = _strip_quantity(ingredient).lower()
+    category = _FUNCTIONAL_SWAP_CATEGORIES.get(clean)
+    if not category:
+        return None
+    for item in pantry_items:
+        if item.lower() == clean:
+            continue
+        item_lower = item.lower()
+        # Direct match: pantry item name is a known member of the same category
+        if _FUNCTIONAL_SWAP_CATEGORIES.get(item_lower) == category:
+            return item
+        # Substring match: handles "organic oat milk" containing "oat milk"
+        for known_ing, cat in _FUNCTIONAL_SWAP_CATEGORIES.items():
+            if cat == category and known_ing in item_lower and item_lower != clean:
+                return item
+    return None
+
+
+# Assembly template caps by tier — prevents flooding results with templates
+# when a well-stocked pantry satisfies every required role.
+_SOURCE_URL_BUILDERS: dict[str, str] = {
+    "foodcom": "https://www.food.com/recipe/{id}",
+}
+
+
+def _build_source_url(row: dict) -> str | None:
+    """Construct a canonical source URL from DB row fields, or None for generated recipes."""
+    source = row.get("source") or ""
+    external_id = row.get("external_id")
+    template = _SOURCE_URL_BUILDERS.get(source)
+    if not template or not external_id:
+        return None
+    try:
+        return template.format(id=int(float(external_id)))
+    except (ValueError, TypeError):
+        return None
+
+
+_ASSEMBLY_TIER_LIMITS: dict[str, int] = {
+    "free": 2,
+    "paid": 4,
+    "premium": 6,
+}
+
+
 # Method complexity classification patterns
 _EASY_METHODS = re.compile(
     r"\b(microwave|mix|stir|blend|toast|assemble|heat)\b", re.IGNORECASE
@@ -468,15 +625,21 @@ class RecipeEngine:
             # When covered, collect any prep-state annotations (e.g. "melted butter"
             # → note "Melt the butter before starting.") to surface separately.
             swap_candidates: list[SwapCandidate] = []
+            matched: list[str] = []
             missing: list[str] = []
             prep_note_set: set[str] = set()
             for n in ingredient_names:
                 if _ingredient_in_pantry(n, pantry_set):
+                    matched.append(_strip_quantity(n))
                     note = _prep_note_for(n)
                     if note:
                         prep_note_set.add(note)
                     continue
                 swap_item = _pantry_creative_swap(n, pantry_set)
+                # L2: also try functional-category swap for single-token ingredients
+                # that _pantry_creative_swap can't match (requires ≥2 shared tokens).
+                if swap_item is None and req.level == 2:
+                    swap_item = _category_swap(n, pantry_set)
                 if swap_item:
                     swap_candidates.append(SwapCandidate(
                         original_name=n,
@@ -488,8 +651,8 @@ class RecipeEngine:
                 else:
                     missing.append(n)
 
-            # Filter by max_missing (pantry swaps don't count as missing)
-            if req.max_missing is not None and len(missing) > req.max_missing:
+            # Filter by max_missing — skipped in shopping mode (user is willing to buy)
+            if not req.shopping_mode and req.max_missing is not None and len(missing) > req.max_missing:
                 continue
 
             # Filter by hard_day_mode
@@ -547,20 +710,38 @@ class RecipeEngine:
                 match_count=int(row.get("match_count") or 0),
                 element_coverage=coverage_raw,
                 swap_candidates=swap_candidates,
+                matched_ingredients=matched,
                 missing_ingredients=missing,
                 prep_notes=sorted(prep_note_set),
                 level=req.level,
                 nutrition=nutrition if has_nutrition else None,
+                source_url=_build_source_url(row),
             ))
 
-        # Prepend assembly-dish templates (burrito, stir fry, omelette, etc.)
-        # These fire regardless of corpus coverage — any pantry can make a burrito.
+        # Assembly-dish templates (burrito, fried rice, pasta, etc.)
+        # Expiry boost: when expiry_first, the pantry_items list is already sorted
+        # by expiry urgency — treat the first slice as the "expiring" set so templates
+        # that use those items bubble up in the merged ranking.
+        expiring_set: set[str] = set()
+        if req.expiry_first:
+            expiring_set = _expand_pantry_set(req.pantry_items[:10])
+
         assembly = match_assembly_templates(
             pantry_items=req.pantry_items,
             pantry_set=pantry_set,
             excluded_ids=req.excluded_ids or [],
+            expiring_set=expiring_set,
         )
-        suggestions = assembly + suggestions
+
+        # Cap by tier — lifted in shopping mode since missing-ingredient templates
+        # are desirable there (each fires an affiliate link opportunity).
+        if not req.shopping_mode:
+            assembly_limit = _ASSEMBLY_TIER_LIMITS.get(req.tier, 3)
+            assembly = assembly[:assembly_limit]
+
+        # Interleave: sort templates and corpus recipes together by match_count so
+        # assembly dishes earn their position rather than always winning position 0-N.
+        suggestions = sorted(assembly + suggestions, key=lambda s: s.match_count, reverse=True)
 
         # Build grocery list — deduplicated union of all missing ingredients
         seen: set[str] = set()

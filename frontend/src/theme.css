@@ -6,6 +6,37 @@
  */
 
 /* ============================================
+   ACCESSIBILITY UTILITIES
+   ============================================ */
+
+/* Visually hidden but announced by screen readers */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Keyboard focus ring — shown only for keyboard navigation, not mouse/touch */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Form inputs use a different focus treatment (border + shadow); suppress the ring */
+.form-input:focus-visible,
+.form-select:focus-visible,
+.form-textarea:focus-visible {
+  outline: none;
+}
+
+/* ============================================
    LAYOUT UTILITIES - RESPONSIVE GRIDS
    ============================================ */
 
@@ -639,14 +670,20 @@
   }
 }
 
-/* Urgency pulse — for items expiring very soon */
-@keyframes urgencyPulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; }
-}
-
-.pulse-urgent {
-  animation: urgencyPulse 1.8s ease-in-out infinite;
+/* ============================================
+   REDUCED MOTION — global guard (WCAG 2.3.3)
+   All animations/transitions are suppressed when
+   the user has requested reduced motion. This
+   single rule covers every animation in this file.
+   Do NOT add urgency/pulse animations to Kiwi —
+   see design policy in circuitforge-plans.
+   ============================================ */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* ============================================

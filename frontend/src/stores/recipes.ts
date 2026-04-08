@@ -12,8 +12,20 @@ import { recipesAPI, type RecipeResult, type RecipeSuggestion, type RecipeReques
 const DISMISSED_KEY = 'kiwi:dismissed_recipes'
 const DISMISS_TTL_MS = 7 * 24 * 60 * 60 * 1000
 
+const COOK_LOG_KEY = 'kiwi:cook_log'
+const COOK_LOG_MAX = 200
+
+const BOOKMARKS_KEY = 'kiwi:bookmarks'
+const BOOKMARKS_MAX = 50
+
 // [id, dismissedAtMs]
 type DismissEntry = [number, number]
+
+export interface CookLogEntry {
+  id: number
+  title: string
+  cookedAt: number // unix ms
+}
 
 function loadDismissed(): Set<number> {
   try {
@@ -33,6 +45,32 @@ function saveDismissed(ids: Set<number>) {
   localStorage.setItem(DISMISSED_KEY, JSON.stringify(entries))
 }
 
+function loadCookLog(): CookLogEntry[] {
+  try {
+    const raw = localStorage.getItem(COOK_LOG_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
+function saveCookLog(log: CookLogEntry[]) {
+  localStorage.setItem(COOK_LOG_KEY, JSON.stringify(log.slice(-COOK_LOG_MAX)))
+}
+
+function loadBookmarks(): RecipeSuggestion[] {
+  try {
+    const raw = localStorage.getItem(BOOKMARKS_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
+function saveBookmarks(bookmarks: RecipeSuggestion[]) {
+  localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(bookmarks.slice(0, BOOKMARKS_MAX)))
+}
+
 export const useRecipesStore = defineStore('recipes', () => {
   // Suggestion result state
   const result = ref<RecipeResult | null>(null)
@@ -48,6 +86,7 @@ export const useRecipesStore = defineStore('recipes', () => {
   const styleId = ref<string | null>(null)
   const category = ref<string | null>(null)
   const wildcardConfirmed = ref(false)
+  const shoppingMode = ref(false)
   const nutritionFilters = ref<NutritionFilters>({
     max_calories: null,
     max_sugar_g: null,
@@ -59,6 +98,10 @@ export const useRecipesStore = defineStore('recipes', () => {
   const dismissedIds = ref<Set<number>>(loadDismissed())
   // Seen IDs: session-only, used by Load More to avoid repeating results
   const seenIds = ref<Set<number>>(new Set())
+  // Cook log: persisted to localStorage, max COOK_LOG_MAX entries
+  const cookLog = ref<CookLogEntry[]>(loadCookLog())
+  // Bookmarks: full RecipeSuggestion snapshots, max BOOKMARKS_MAX
+  const bookmarks = ref<RecipeSuggestion[]>(loadBookmarks())
 
   const dismissedCount = computed(() => dismissedIds.value.size)
 
@@ -77,6 +120,7 @@ export const useRecipesStore = defineStore('recipes', () => {
       wildcard_confirmed: wildcardConfirmed.value,
       nutrition_filters: nutritionFilters.value,
       excluded_ids: [...excluded],
+      shopping_mode: shoppingMode.value,
     }
   }
 
@@ -144,6 +188,35 @@ export const useRecipesStore = defineStore('recipes', () => {
     localStorage.removeItem(DISMISSED_KEY)
   }
 
+  function logCook(id: number, title: string) {
+    const entry: CookLogEntry = { id, title, cookedAt: Date.now() }
+    cookLog.value = [...cookLog.value, entry]
+    saveCookLog(cookLog.value)
+  }
+
+  function clearCookLog() {
+    cookLog.value = []
+    localStorage.removeItem(COOK_LOG_KEY)
+  }
+
+  function isBookmarked(id: number): boolean {
+    return bookmarks.value.some((b) => b.id === id)
+  }
+
+  function toggleBookmark(recipe: RecipeSuggestion) {
+    if (isBookmarked(recipe.id)) {
+      bookmarks.value = bookmarks.value.filter((b) => b.id !== recipe.id)
+    } else {
+      bookmarks.value = [recipe, ...bookmarks.value]
+    }
+    saveBookmarks(bookmarks.value)
+  }
+
+  function clearBookmarks() {
+    bookmarks.value = []
+    localStorage.removeItem(BOOKMARKS_KEY)
+  }
+
   function clearResult() {
     result.value = null
     error.value = null
@@ -162,9 +235,17 @@ export const useRecipesStore = defineStore('recipes', () => {
     styleId,
     category,
     wildcardConfirmed,
+    shoppingMode,
     nutritionFilters,
     dismissedIds,
     dismissedCount,
+    cookLog,
+    logCook,
+    clearCookLog,
+    bookmarks,
+    isBookmarked,
+    toggleBookmark,
+    clearBookmarks,
     suggest,
     loadMore,
     dismiss,

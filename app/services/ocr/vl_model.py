@@ -33,7 +33,7 @@ def _try_docuvision(image_path: str | Path) -> str | None:
     if not cf_orch_url:
         return None
     try:
-        from circuitforge_core.resources import CFOrchClient
+        from circuitforge_orch.client import CFOrchClient
         from app.services.ocr.docuvision_client import DocuvisionClient
 
         client = CFOrchClient(cf_orch_url)

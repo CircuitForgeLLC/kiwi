@@ -2,6 +2,12 @@
 # Not used in cloud or demo stacks (those use compose.cloud.yml / compose.demo.yml directly).
 
 services:
+  api:
+    volumes:
+      # Symlink /data/kiwi.db → /Library/Assets/kiwi/kiwi.db; mount the NAS path so
+      # Docker can follow the symlink inside the container.
+      - /Library/Assets/kiwi:/Library/Assets/kiwi:rw
+
   # cf-orch agent sidecar: registers kiwi as a GPU node with the coordinator.
   # The API scheduler uses COORDINATOR_URL to lease VRAM cooperatively; this
   # agent makes kiwi's VRAM usage visible on the orchestrator dashboard.

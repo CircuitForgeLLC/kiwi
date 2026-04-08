@@ -133,6 +133,32 @@ class BarcodeScanResponse(BaseModel):
     message: str
 
 
+# ── Bulk add by name ─────────────────────────────────────────────────────────
+
+class BulkAddItem(BaseModel):
+    name: str = Field(..., min_length=1, max_length=200)
+    quantity: float = Field(default=1.0, gt=0)
+    unit: str = "count"
+    location: str = "pantry"
+
+
+class BulkAddByNameRequest(BaseModel):
+    items: List[BulkAddItem] = Field(..., min_length=1)
+
+
+class BulkAddItemResult(BaseModel):
+    name: str
+    ok: bool
+    item_id: Optional[int] = None
+    error: Optional[str] = None
+
+
+class BulkAddByNameResponse(BaseModel):
+    added: int
+    failed: int
+    results: List[BulkAddItemResult]
+
+
 # ── Stats ─────────────────────────────────────────────────────────────────────
 
 class InventoryStats(BaseModel):

@@ -32,6 +32,7 @@ class RecipeSuggestion(BaseModel):
     match_count: int
     element_coverage: dict[str, float] = Field(default_factory=dict)
     swap_candidates: list[SwapCandidate] = Field(default_factory=list)
+    matched_ingredients: list[str] = Field(default_factory=list)
     missing_ingredients: list[str] = Field(default_factory=list)
     directions: list[str] = Field(default_factory=list)
     prep_notes: list[str] = Field(default_factory=list)
@@ -39,6 +40,7 @@ class RecipeSuggestion(BaseModel):
     level: int = 1
     is_wildcard: bool = False
     nutrition: NutritionPanel | None = None
+    source_url: str | None = None
 
 
 class GroceryLink(BaseModel):
@@ -79,3 +81,4 @@ class RecipeRequest(BaseModel):
     allergies: list[str] = Field(default_factory=list)
     nutrition_filters: NutritionFilters = Field(default_factory=NutritionFilters)
     excluded_ids: list[int] = Field(default_factory=list)
+    shopping_mode: bool = False

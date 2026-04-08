@@ -248,6 +248,8 @@ ASSEMBLY_TEMPLATES: list[AssemblyTemplate] = [
                 "zucchini", "mushroom", "corn", "onion", "bean sprout",
                 "cabbage", "spinach", "asparagus",
             ]),
+            # Starch base required — prevents this from firing on any pantry with vegetables
+            AssemblyRole("starch base", ["rice", "noodle", "pasta", "ramen", "cauliflower rice"]),
         ],
         optional=[
             AssemblyRole("protein", [
@@ -257,7 +259,6 @@ ASSEMBLY_TEMPLATES: list[AssemblyTemplate] = [
                 "soy sauce", "teriyaki", "oyster sauce", "hoisin",
                 "stir fry sauce", "sesame",
             ]),
-            AssemblyRole("starch base", ["rice", "noodle", "pasta", "ramen"]),
             AssemblyRole("garlic or ginger", ["garlic", "ginger"]),
             AssemblyRole("oil", ["oil", "sesame"]),
         ],
@@ -381,9 +382,10 @@ ASSEMBLY_TEMPLATES: list[AssemblyTemplate] = [
         id=-8,
         title="Soup / Stew",
         required=[
-            AssemblyRole("broth or liquid base", [
-                "broth", "stock", "bouillon",
-                "tomato sauce", "coconut milk", "cream of",
+            # Narrow to dedicated soup bases — tomato sauce and coconut milk are
+            # pantry staples used in too many non-soup dishes to serve as anchors.
+            AssemblyRole("broth or stock", [
+                "broth", "stock", "bouillon", "cream of",
             ]),
         ],
         optional=[
@@ -572,6 +574,12 @@ ASSEMBLY_TEMPLATES: list[AssemblyTemplate] = [
                 "egg", "cornstarch", "custard powder", "gelatin",
                 "agar", "tapioca", "arrowroot",
             ]),
+            # Require a clear dessert-intent signal — milk + eggs alone is too generic
+            # (also covers white sauce, quiche, etc.)
+            AssemblyRole("sweetener or flavouring", [
+                "sugar", "honey", "maple syrup", "condensed milk",
+                "vanilla", "chocolate", "cocoa", "caramel", "custard powder",
+            ]),
         ],
         optional=[
             AssemblyRole("sweetener", ["sugar", "honey", "maple syrup", "condensed milk"]),
@@ -605,14 +613,20 @@ def match_assembly_templates(
     pantry_items: list[str],
     pantry_set: set[str],
     excluded_ids: list[int],
+    expiring_set: set[str] | None = None,
 ) -> list[RecipeSuggestion]:
     """Return assembly-dish suggestions whose required roles are all satisfied.
 
     Titles are personalized with specific pantry items (deterministically chosen
     from the pantry contents so the same pantry always produces the same title).
     Skips templates whose id is in excluded_ids (dismiss/load-more support).
+
+    expiring_set: expanded pantry set of items close to expiry.  Templates that
+    use an expiring item in a required role get +2 added to match_count so they
+    rank higher when the caller sorts the combined result list.
     """
     excluded = set(excluded_ids)
+    expiring = expiring_set or set()
     seed = _pantry_hash(pantry_set)
     results: list[RecipeSuggestion] = []
 
@@ -620,20 +634,40 @@ def match_assembly_templates(
         if tmpl.id in excluded:
             continue
 
-        # All required roles must be satisfied
-        if any(not _matches_role(role, pantry_set) for role in tmpl.required):
+        # All required roles must be satisfied; collect matched items for required roles
+        required_matches: list[str] = []
+        skip = False
+        for role in tmpl.required:
+            hits = _matches_role(role, pantry_set)
+            if not hits:
+                skip = True
+                break
+            required_matches.append(_pick_one(hits, seed + tmpl.id))
+        if skip:
             continue
 
-        optional_hit_count = sum(
-            1 for role in tmpl.optional if _matches_role(role, pantry_set)
-        )
+        # Collect matched items for optional roles (one representative per matched role)
+        optional_matches: list[str] = []
+        for role in tmpl.optional:
+            hits = _matches_role(role, pantry_set)
+            if hits:
+                optional_matches.append(_pick_one(hits, seed + tmpl.id))
+
+        matched = required_matches + optional_matches
+
+        # Expiry boost: +2 if any required ingredient is in the expiring set,
+        # so time-sensitive templates surface first in the merged ranking.
+        expiry_bonus = 2 if expiring and any(
+            item.lower() in expiring for item in required_matches
+        ) else 0
 
         results.append(RecipeSuggestion(
             id=tmpl.id,
             title=_personalized_title(tmpl, pantry_set, seed + tmpl.id),
-            match_count=len(tmpl.required) + optional_hit_count,
+            match_count=len(matched) + expiry_bonus,
             element_coverage={},
             swap_candidates=[],
+            matched_ingredients=matched,
             missing_ingredients=[],
             directions=tmpl.directions,
             notes=tmpl.notes,

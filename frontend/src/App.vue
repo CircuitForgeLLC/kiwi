@@ -16,6 +16,18 @@
       </div>
 
       <nav class="sidebar-nav">
+        <button :class="['sidebar-item', { active: currentTab === 'recipes' }]" @click="switchTab('recipes')">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <!-- Ramen bowl: chopsticks, rim, body, wavy noodles -->
+            <line x1="9" y1="2" x2="11" y2="9"/>
+            <line x1="15" y1="2" x2="13" y2="9"/>
+            <path d="M4 9 Q4 6 12 6 Q20 6 20 9"/>
+            <path d="M4 9 L4.5 17 Q4.5 21 12 21 Q19.5 21 19.5 17 L20 9"/>
+            <path d="M7 14 Q9 12 11 14 Q13 16 15 14 Q17 12 19 14"/>
+          </svg>
+          <span class="sidebar-label">Recipes</span>
+        </button>
+
         <button :class="['sidebar-item', { active: currentTab === 'inventory' }]" @click="switchTab('inventory')">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <rect x="3" y="4" width="18" height="4" rx="1"/>
@@ -32,14 +44,6 @@
             <line x1="8" y1="13" x2="14" y2="13"/>
           </svg>
           <span class="sidebar-label">Receipts</span>
-        </button>
-
-        <button :class="['sidebar-item', { active: currentTab === 'recipes' }]" @click="switchTab('recipes')">
-          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2C9 2 7 5 7 8c0 2.5 1 4.5 3 5.5V20h4v-6.5c2-1 3-3 3-5.5 0-3-2-6-5-6z"/>
-            <line x1="9" y1="12" x2="15" y2="12"/>
-          </svg>
-          <span class="sidebar-label">Recipes</span>
         </button>
 
         <button :class="['sidebar-item', { active: currentTab === 'settings' }]" @click="switchTab('settings')">
@@ -81,6 +85,16 @@
 
     <!-- Mobile bottom nav only -->
     <nav class="bottom-nav" role="navigation" aria-label="Main navigation">
+      <button :class="['nav-item', { active: currentTab === 'recipes' }]" @click="switchTab('recipes')" aria-label="Recipes">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="9" y1="2" x2="11" y2="9"/>
+          <line x1="15" y1="2" x2="13" y2="9"/>
+          <path d="M4 9 Q4 6 12 6 Q20 6 20 9"/>
+          <path d="M4 9 L4.5 17 Q4.5 21 12 21 Q19.5 21 19.5 17 L20 9"/>
+          <path d="M7 14 Q9 12 11 14 Q13 16 15 14 Q17 12 19 14"/>
+        </svg>
+        <span class="nav-label">Recipes</span>
+      </button>
       <button :class="['nav-item', { active: currentTab === 'inventory' }]" @click="switchTab('inventory')" aria-label="Pantry">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <rect x="3" y="4" width="18" height="4" rx="1"/>
@@ -96,13 +110,6 @@
           <line x1="8" y1="13" x2="14" y2="13"/>
         </svg>
         <span class="nav-label">Receipts</span>
-      </button>
-      <button :class="['nav-item', { active: currentTab === 'recipes' }]" @click="switchTab('recipes')" aria-label="Recipes">
-        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 2C9 2 7 5 7 8c0 2.5 1 4.5 3 5.5V20h4v-6.5c2-1 3-3 3-5.5 0-3-2-6-5-6z"/>
-          <line x1="9" y1="12" x2="15" y2="12"/>
-        </svg>
-        <span class="nav-label">Recipes</span>
       </button>
       <button :class="['nav-item', { active: currentTab === 'settings' }]" @click="switchTab('settings')" aria-label="Settings">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -151,7 +158,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import InventoryList from './components/InventoryList.vue'
 import ReceiptsView from './components/ReceiptsView.vue'
 import RecipesView from './components/RecipesView.vue'
@@ -159,6 +166,7 @@ import SettingsView from './components/SettingsView.vue'
 import FeedbackButton from './components/FeedbackButton.vue'
 import { useInventoryStore } from './stores/inventory'
 import { useEasterEggs } from './composables/useEasterEggs'
+import { householdAPI } from './services/api'
 
 type Tab = 'inventory' | 'receipts' | 'recipes' | 'settings'
 
@@ -188,6 +196,31 @@ async function switchTab(tab: Tab) {
     await inventoryStore.fetchItems()
   }
 }
+
+onMounted(async () => {
+  // Handle household invite links: /#/join?household_id=xxx&token=yyy
+  const hash = window.location.hash
+  if (hash.includes('/join')) {
+    const params = new URLSearchParams(hash.split('?')[1] ?? '')
+    const householdId = params.get('household_id')
+    const token = params.get('token')
+    if (householdId && token) {
+      try {
+        const result = await householdAPI.accept(householdId, token)
+        alert(result.message)
+        // Clear the invite params from URL and reload
+        window.location.hash = '/'
+        window.location.reload()
+      } catch (err: unknown) {
+        const msg = (err instanceof Object && 'response' in err)
+          ? ((err as { response?: { data?: { detail?: string } } }).response?.data?.detail ?? 'Could not join household.')
+          : 'Could not join household.'
+        alert(`Failed to join: ${msg}`)
+        window.location.hash = '/'
+      }
+    }
+  }
+})
 </script>
 
 <style>
@@ -224,6 +257,9 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
 .sidebar { display: none; }

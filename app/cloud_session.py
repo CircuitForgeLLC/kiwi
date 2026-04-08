@@ -76,7 +76,7 @@ def _is_bypass_ip(ip: str) -> bool:
 
 _LOCAL_KIWI_DB: Path = Path(os.environ.get("KIWI_DB", "data/kiwi.db"))
 
-_TIER_CACHE: dict[str, tuple[str, float]] = {}
+_TIER_CACHE: dict[str, tuple[dict, float]] = {}
 _TIER_CACHE_TTL = 300  # 5 minutes
 
 TIERS = ["free", "paid", "premium", "ultra"]
@@ -90,6 +90,8 @@ class CloudUser:
     tier: str         # free | paid | premium | ultra | local
     db: Path          # per-user SQLite DB path
     has_byok: bool    # True if a configured LLM backend is present in llm.yaml
+    household_id: str | None = None
+    is_household_owner: bool = False
 
 
 # ── JWT validation ─────────────────────────────────────────────────────────────
@@ -130,14 +132,16 @@ def _ensure_provisioned(user_id: str) -> None:
         log.warning("Heimdall provision failed for user %s: %s", user_id, exc)
 
 
-def _fetch_cloud_tier(user_id: str) -> str:
+def _fetch_cloud_tier(user_id: str) -> tuple[str, str | None, bool]:
+    """Returns (tier, household_id | None, is_household_owner)."""
     now = time.monotonic()
     cached = _TIER_CACHE.get(user_id)
     if cached and (now - cached[1]) < _TIER_CACHE_TTL:
-        return cached[0]
+        entry = cached[0]
+        return entry["tier"], entry.get("household_id"), entry.get("is_household_owner", False)
 
     if not HEIMDALL_ADMIN_TOKEN:
-        return "free"
+        return "free", None, False
     try:
         resp = requests.post(
             f"{HEIMDALL_URL}/admin/cloud/resolve",
@@ -145,17 +149,23 @@ def _fetch_cloud_tier(user_id: str) -> str:
             headers={"Authorization": f"Bearer {HEIMDALL_ADMIN_TOKEN}"},
             timeout=5,
         )
-        tier = resp.json().get("tier", "free") if resp.ok else "free"
+        data = resp.json() if resp.ok else {}
+        tier = data.get("tier", "free")
+        household_id = data.get("household_id")
+        is_owner = data.get("is_household_owner", False)
     except Exception as exc:
         log.warning("Heimdall tier resolve failed for user %s: %s", user_id, exc)
-        tier = "free"
+        tier, household_id, is_owner = "free", None, False
 
-    _TIER_CACHE[user_id] = (tier, now)
-    return tier
+    _TIER_CACHE[user_id] = ({"tier": tier, "household_id": household_id, "is_household_owner": is_owner}, now)
+    return tier, household_id, is_owner
 
 
-def _user_db_path(user_id: str) -> Path:
-    path = CLOUD_DATA_ROOT / user_id / "kiwi.db"
+def _user_db_path(user_id: str, household_id: str | None = None) -> Path:
+    if household_id:
+        path = CLOUD_DATA_ROOT / f"household_{household_id}" / "kiwi.db"
+    else:
+        path = CLOUD_DATA_ROOT / user_id / "kiwi.db"
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -200,8 +210,6 @@ def get_session(request: Request) -> CloudUser:
 
     # Prefer X-Real-IP (set by nginx from the actual client address) over the
     # TCP peer address (which is nginx's container IP when behind the proxy).
-    # Prefer X-Real-IP (set by nginx from the actual client address) over the
-    # TCP peer address (which is nginx's container IP when behind the proxy).
     client_ip = (
         request.headers.get("x-real-ip", "")
         or (request.client.host if request.client else "")
@@ -225,8 +233,15 @@ def get_session(request: Request) -> CloudUser:
 
     user_id = validate_session_jwt(token)
     _ensure_provisioned(user_id)
-    tier = _fetch_cloud_tier(user_id)
-    return CloudUser(user_id=user_id, tier=tier, db=_user_db_path(user_id), has_byok=has_byok)
+    tier, household_id, is_household_owner = _fetch_cloud_tier(user_id)
+    return CloudUser(
+        user_id=user_id,
+        tier=tier,
+        db=_user_db_path(user_id, household_id=household_id),
+        has_byok=has_byok,
+        household_id=household_id,
+        is_household_owner=is_household_owner,
+    )
 
 
 def require_tier(min_tier: str):

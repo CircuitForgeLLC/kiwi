@@ -25,3 +25,6 @@ data/
 
 # Test artifacts (MagicMock sqlite files from pytest)
 <MagicMock*
+
+# Playwright / debug screenshots
+debug-screenshots/

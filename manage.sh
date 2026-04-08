@@ -9,6 +9,10 @@ COMPOSE_FILE="compose.yml"
 CLOUD_COMPOSE_FILE="compose.cloud.yml"
 CLOUD_PROJECT="kiwi-cloud"
 
+# Auto-include compose.override.yml when present (local dev extras, NAS mounts, etc.)
+OVERRIDE_FLAG=""
+[[ -f "compose.override.yml" ]] && OVERRIDE_FLAG="-f compose.override.yml"
+
 usage() {
     echo "Usage: $0 {start|stop|restart|status|logs|open|build|test"
     echo "           |cloud-start|cloud-stop|cloud-restart|cloud-status|cloud-logs|cloud-build}"
@@ -38,23 +42,23 @@ shift || true
 
 case "$cmd" in
   start)
-    docker compose -f "$COMPOSE_FILE" up -d --build
+    docker compose -f "$COMPOSE_FILE" $OVERRIDE_FLAG up -d --build
     echo "Kiwi running → http://localhost:${WEB_PORT}"
     ;;
   stop)
-    docker compose -f "$COMPOSE_FILE" down
+    docker compose -f "$COMPOSE_FILE" $OVERRIDE_FLAG down
     ;;
   restart)
-    docker compose -f "$COMPOSE_FILE" down
-    docker compose -f "$COMPOSE_FILE" up -d --build
+    docker compose -f "$COMPOSE_FILE" $OVERRIDE_FLAG down
+    docker compose -f "$COMPOSE_FILE" $OVERRIDE_FLAG up -d --build
     echo "Kiwi running → http://localhost:${WEB_PORT}"
     ;;
   status)
-    docker compose -f "$COMPOSE_FILE" ps
+    docker compose -f "$COMPOSE_FILE" $OVERRIDE_FLAG ps
     ;;
   logs)
     svc="${1:-}"
-    docker compose -f "$COMPOSE_FILE" logs -f ${svc}
+    docker compose -f "$COMPOSE_FILE" $OVERRIDE_FLAG logs -f ${svc}
     ;;
   open)
     xdg-open "http://localhost:${WEB_PORT}" 2>/dev/null \
@@ -62,10 +66,10 @@ case "$cmd" in
       || echo "Open http://localhost:${WEB_PORT} in your browser"
     ;;
   build)
-    docker compose -f "$COMPOSE_FILE" build --no-cache
+    docker compose -f "$COMPOSE_FILE" $OVERRIDE_FLAG build --no-cache
     ;;
   test)
-    docker compose -f "$COMPOSE_FILE" run --rm api \
+    docker compose -f "$COMPOSE_FILE" $OVERRIDE_FLAG run --rm api \
       conda run -n job-seeker pytest tests/ -v
     ;;
 

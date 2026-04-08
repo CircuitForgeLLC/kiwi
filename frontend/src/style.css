@@ -152,11 +152,15 @@ a:hover {
   color: var(--color-primary-light);
 }
 
+html {
+  overflow-x: hidden; /* iOS Safari: html is the true scroll container — body alone isn't enough */
+}
+
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  overflow-x: hidden; /* prevent any element from expanding the mobile viewport */
+  overflow-x: hidden;
   background-color: var(--color-bg-primary);
   color: var(--color-text-primary);
 }
