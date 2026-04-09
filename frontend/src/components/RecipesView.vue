@@ -66,170 +66,168 @@
         </label>
       </div>
 
-      <!-- Dietary Constraints Tags -->
-      <div class="form-group">
-        <label class="form-label">Dietary Constraints</label>
-        <div class="tags-wrap flex flex-wrap gap-xs mb-xs">
-          <span
-            v-for="tag in recipesStore.constraints"
-            :key="tag"
-            class="tag-chip status-badge status-info"
-          >
-            {{ tag }}
-            <button class="chip-remove" @click="removeConstraint(tag)" :aria-label="'Remove constraint: ' + tag">×</button>
-          </span>
-        </div>
-        <input
-          class="form-input"
-          v-model="constraintInput"
-          placeholder="e.g. vegetarian, vegan, gluten-free"
-          aria-describedby="constraint-hint"
-          @keydown="onConstraintKey"
-          @blur="commitConstraintInput"
-        />
-        <span id="constraint-hint" class="form-hint">Press Enter or comma to add each item.</span>
-      </div>
-
-      <!-- Allergies Tags -->
-      <div class="form-group">
-        <label class="form-label">Allergies (hard exclusions)</label>
-        <div class="tags-wrap flex flex-wrap gap-xs mb-xs">
-          <span
-            v-for="tag in recipesStore.allergies"
-            :key="tag"
-            class="tag-chip status-badge status-error"
-          >
-            {{ tag }}
-            <button class="chip-remove" @click="removeAllergy(tag)" :aria-label="'Remove allergy: ' + tag">×</button>
-          </span>
-        </div>
-        <input
-          class="form-input"
-          v-model="allergyInput"
-          placeholder="e.g. peanuts, shellfish, dairy"
-          aria-describedby="allergy-hint"
-          @keydown="onAllergyKey"
-          @blur="commitAllergyInput"
-        />
-        <span id="allergy-hint" class="form-hint">Press Enter or comma to add. Allergies are hard exclusions — no recipes containing these will appear.</span>
-      </div>
-
-      <!-- Hard Day Mode -->
-      <div class="form-group">
-        <label class="flex-start gap-sm hard-day-toggle">
-          <input type="checkbox" v-model="recipesStore.hardDayMode" />
-          <span class="form-label" style="margin-bottom: 0;">Hard Day Mode</span>
-        </label>
-        <p v-if="recipesStore.hardDayMode" class="text-sm text-secondary mt-xs">
-          Only suggests quick, simple recipes based on your saved equipment.
-        </p>
-      </div>
-
-      <!-- Shopping Mode -->
-      <div class="form-group">
-        <label class="flex-start gap-sm shopping-toggle">
-          <input type="checkbox" v-model="recipesStore.shoppingMode" />
-          <span class="form-label" style="margin-bottom: 0;">Open to buying missing ingredients</span>
-        </label>
-        <p v-if="recipesStore.shoppingMode" class="text-sm text-secondary mt-xs">
-          All recipes shown regardless of missing ingredients. Affiliate links appear for anything you'd need to buy.
-        </p>
-      </div>
-
-      <!-- Max Missing — hidden in shopping mode (it's lifted automatically) -->
-      <div v-if="!recipesStore.shoppingMode" class="form-group">
-        <label class="form-label">Max Missing Ingredients (optional)</label>
-        <input
-          type="number"
-          class="form-input"
-          min="0"
-          max="5"
-          placeholder="Leave blank for no limit"
-          :value="recipesStore.maxMissing ?? ''"
-          @input="onMaxMissingInput"
-        />
-      </div>
-
-      <!-- Nutrition Filters -->
+      <!-- Dietary Preferences (collapsible) -->
       <details class="collapsible form-group">
-        <summary class="form-label collapsible-summary nutrition-summary">
-          Nutrition Filters <span class="text-muted text-xs">(per recipe, optional)</span>
+        <summary class="collapsible-summary filter-summary">
+          Dietary preferences
+          <span v-if="dietaryActive" class="filter-active-dot" aria-label="filters active"></span>
         </summary>
-        <div class="nutrition-filters-grid mt-xs">
+
+        <div class="collapsible-body">
+          <!-- Dietary Constraints Tags -->
           <div class="form-group">
-            <label class="form-label">Max Calories</label>
+            <label class="form-label">Dietary Constraints</label>
+            <div class="tags-wrap flex flex-wrap gap-xs mb-xs">
+              <span
+                v-for="tag in recipesStore.constraints"
+                :key="tag"
+                class="tag-chip status-badge status-info"
+              >
+                {{ tag }}
+                <button class="chip-remove" @click="removeConstraint(tag)" :aria-label="'Remove constraint: ' + tag">×</button>
+              </span>
+            </div>
             <input
-              type="number"
               class="form-input"
-              min="0"
-              placeholder="e.g. 600"
-              :value="recipesStore.nutritionFilters.max_calories ?? ''"
-              @input="onNutritionInput('max_calories', $event)"
+              v-model="constraintInput"
+              placeholder="e.g. vegetarian, vegan, gluten-free"
+              aria-describedby="constraint-hint"
+              @keydown="onConstraintKey"
+              @blur="commitConstraintInput"
             />
+            <span id="constraint-hint" class="form-hint">Press Enter or comma to add each item.</span>
           </div>
+
+          <!-- Allergies Tags -->
           <div class="form-group">
-            <label class="form-label">Max Sugar (g)</label>
+            <label class="form-label">Allergies (hard exclusions)</label>
+            <div class="tags-wrap flex flex-wrap gap-xs mb-xs">
+              <span
+                v-for="tag in recipesStore.allergies"
+                :key="tag"
+                class="tag-chip status-badge status-error"
+              >
+                {{ tag }}
+                <button class="chip-remove" @click="removeAllergy(tag)" :aria-label="'Remove allergy: ' + tag">×</button>
+              </span>
+            </div>
             <input
-              type="number"
               class="form-input"
-              min="0"
-              placeholder="e.g. 10"
-              :value="recipesStore.nutritionFilters.max_sugar_g ?? ''"
-              @input="onNutritionInput('max_sugar_g', $event)"
+              v-model="allergyInput"
+              placeholder="e.g. peanuts, shellfish, dairy"
+              aria-describedby="allergy-hint"
+              @keydown="onAllergyKey"
+              @blur="commitAllergyInput"
             />
+            <span id="allergy-hint" class="form-hint">Press Enter or comma to add. Allergies are hard exclusions — no recipes containing these will appear.</span>
           </div>
+
+          <!-- Hard Day Mode -->
           <div class="form-group">
-            <label class="form-label">Max Carbs (g)</label>
+            <label class="flex-start gap-sm hard-day-toggle">
+              <input type="checkbox" v-model="recipesStore.hardDayMode" />
+              <span class="form-label" style="margin-bottom: 0;">Hard Day Mode</span>
+            </label>
+            <p v-if="recipesStore.hardDayMode" class="text-sm text-secondary mt-xs">
+              Only suggests quick, simple recipes based on your saved equipment.
+            </p>
+          </div>
+
+          <!-- Shopping Mode (temporary home — moves to Shopping tab in #71) -->
+          <div class="form-group">
+            <label class="flex-start gap-sm shopping-toggle">
+              <input type="checkbox" v-model="recipesStore.shoppingMode" />
+              <span class="form-label" style="margin-bottom: 0;">Open to buying missing ingredients</span>
+            </label>
+            <p v-if="recipesStore.shoppingMode" class="text-sm text-secondary mt-xs">
+              All recipes shown regardless of missing ingredients. Affiliate links appear for anything you'd need to buy.
+            </p>
+          </div>
+
+          <!-- Max Missing — hidden in shopping mode -->
+          <div v-if="!recipesStore.shoppingMode" class="form-group">
+            <label class="form-label">Max Missing Ingredients (optional)</label>
             <input
               type="number"
               class="form-input"
               min="0"
-              placeholder="e.g. 50"
-              :value="recipesStore.nutritionFilters.max_carbs_g ?? ''"
-              @input="onNutritionInput('max_carbs_g', $event)"
-            />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Max Sodium (mg)</label>
-            <input
-              type="number"
-              class="form-input"
-              min="0"
-              placeholder="e.g. 800"
-              :value="recipesStore.nutritionFilters.max_sodium_mg ?? ''"
-              @input="onNutritionInput('max_sodium_mg', $event)"
+              max="5"
+              placeholder="Leave blank for no limit"
+              :value="recipesStore.maxMissing ?? ''"
+              @input="onMaxMissingInput"
             />
           </div>
         </div>
-        <p class="text-xs text-muted mt-xs">
-          Recipes without nutrition data always appear. Filters apply to food.com and estimated values.
-        </p>
       </details>
 
-      <!-- Cuisine Style (Level 3+ only) -->
-      <div v-if="recipesStore.level >= 3" class="form-group">
-        <label class="form-label">Cuisine Style <span class="text-muted text-xs">(Level 3+)</span></label>
-        <div class="flex flex-wrap gap-xs">
-          <button
-            v-for="style in cuisineStyles"
-            :key="style.id"
-            :class="['btn', 'btn-secondary', 'btn-sm', { active: recipesStore.styleId === style.id }]"
-            @click="recipesStore.styleId = recipesStore.styleId === style.id ? null : style.id"
-          >{{ style.label }}</button>
-        </div>
-      </div>
+      <!-- Advanced Filters (collapsible) -->
+      <details class="collapsible form-group">
+        <summary class="collapsible-summary filter-summary">
+          Advanced filters
+          <span v-if="advancedActive" class="filter-active-dot" aria-label="filters active"></span>
+        </summary>
 
-      <!-- Category Filter (Level 1–2 only) -->
-      <div v-if="recipesStore.level <= 2" class="form-group">
-        <label class="form-label">Category <span class="text-muted text-xs">(optional)</span></label>
-        <input
-          class="form-input"
-          v-model="categoryInput"
-          placeholder="e.g. Breakfast, Asian, Chicken, &lt; 30 Mins"
-          @blur="recipesStore.category = categoryInput.trim() || null"
-          @keydown.enter="recipesStore.category = categoryInput.trim() || null"
-        />
-      </div>
+        <div class="collapsible-body">
+          <!-- Nutrition Filters -->
+          <div class="form-group">
+            <label class="form-label">Nutrition limits <span class="text-muted text-xs">(per recipe, optional)</span></label>
+            <div class="nutrition-filters-grid mt-xs">
+              <div class="form-group">
+                <label class="form-label">Max Calories</label>
+                <input type="number" class="form-input" min="0" placeholder="e.g. 600"
+                  :value="recipesStore.nutritionFilters.max_calories ?? ''"
+                  @input="onNutritionInput('max_calories', $event)" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Max Sugar (g)</label>
+                <input type="number" class="form-input" min="0" placeholder="e.g. 10"
+                  :value="recipesStore.nutritionFilters.max_sugar_g ?? ''"
+                  @input="onNutritionInput('max_sugar_g', $event)" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Max Carbs (g)</label>
+                <input type="number" class="form-input" min="0" placeholder="e.g. 50"
+                  :value="recipesStore.nutritionFilters.max_carbs_g ?? ''"
+                  @input="onNutritionInput('max_carbs_g', $event)" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Max Sodium (mg)</label>
+                <input type="number" class="form-input" min="0" placeholder="e.g. 800"
+                  :value="recipesStore.nutritionFilters.max_sodium_mg ?? ''"
+                  @input="onNutritionInput('max_sodium_mg', $event)" />
+              </div>
+            </div>
+            <p class="text-xs text-muted mt-xs">
+              Recipes without nutrition data always appear.
+            </p>
+          </div>
+
+          <!-- Cuisine Style (Level 3+ only) -->
+          <div v-if="recipesStore.level >= 3" class="form-group">
+            <label class="form-label">Cuisine Style</label>
+            <div class="flex flex-wrap gap-xs">
+              <button
+                v-for="style in cuisineStyles"
+                :key="style.id"
+                :class="['btn', 'btn-secondary', 'btn-sm', { active: recipesStore.styleId === style.id }]"
+                @click="recipesStore.styleId = recipesStore.styleId === style.id ? null : style.id"
+              >{{ style.label }}</button>
+            </div>
+          </div>
+
+          <!-- Category Filter (Level 1–2 only) -->
+          <div v-if="recipesStore.level <= 2" class="form-group">
+            <label class="form-label">Category <span class="text-muted text-xs">(optional)</span></label>
+            <input
+              class="form-input"
+              v-model="categoryInput"
+              placeholder="e.g. Breakfast, Asian, Chicken, &lt; 30 Mins"
+              @blur="recipesStore.category = categoryInput.trim() || null"
+              @keydown.enter="recipesStore.category = categoryInput.trim() || null"
+            />
+          </div>
+        </div>
+      </details>
 
       <!-- Suggest Button -->
       <div class="suggest-row">
@@ -657,6 +655,20 @@ const levels = [
   { value: 4, label: 'Surprise Me 🎲',   description: 'Fully AI-generated — open-ended and occasionally unexpected. Requires paid tier.' },
 ]
 
+const dietaryActive = computed(() =>
+  recipesStore.constraints.length > 0 ||
+  recipesStore.allergies.length > 0 ||
+  recipesStore.hardDayMode ||
+  recipesStore.shoppingMode
+)
+
+const advancedActive = computed(() =>
+  Object.values(recipesStore.nutritionFilters).some((v) => v !== null) ||
+  recipesStore.maxMissing !== null ||
+  !!recipesStore.category ||
+  !!recipesStore.styleId
+)
+
 const activeLevel = computed(() => levels.find(l => l.value === recipesStore.level))
 
 const cuisineStyles = [
@@ -1050,6 +1062,30 @@ onMounted(async () => {
 
 details[open] .collapsible-summary::before {
   content: '▼ ';
+}
+
+.filter-summary {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  font-weight: 500;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.filter-active-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.collapsible-body {
+  padding-top: var(--spacing-sm);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
 }
 
 .swap-row {
