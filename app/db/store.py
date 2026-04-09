@@ -14,9 +14,16 @@ from circuitforge_core.db.migrations import run_migrations
 
 MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 
+# Module-level cache for recipe counts by keyword set.
+# The recipe corpus is static at runtime — counts are computed once per
+# (db_path, keyword_set) and reused for all subsequent requests.
+# Key: (db_path_str, sorted_keywords_tuple) → int
+_COUNT_CACHE: dict[tuple[str, ...], int] = {}
+
 
 class Store:
     def __init__(self, db_path: Path, key: str = "") -> None:
+        self._db_path = str(db_path)
         self.conn: sqlite3.Connection = get_connection(db_path, key)
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute("PRAGMA foreign_keys=ON")
@@ -911,18 +918,26 @@ class Store:
             results.append({"category": category, "recipe_count": count})
         return results
 
+    @staticmethod
+    def _browser_fts_query(keywords: list[str]) -> str:
+        """Build an FTS5 MATCH expression that ORs all keywords as exact phrases."""
+        phrases = ['"' + kw.replace('"', '""') + '"' for kw in keywords]
+        return " OR ".join(phrases)
+
     def _count_recipes_for_keywords(self, keywords: list[str]) -> int:
         if not keywords:
             return 0
-        conditions = " OR ".join(
-            ["lower(category) LIKE ?"] * len(keywords)
-            + ["lower(keywords) LIKE ?"] * len(keywords)
-        )
-        params = tuple(f"%{kw.lower()}%" for kw in keywords) * 2
+        cache_key = (self._db_path, *sorted(keywords))
+        if cache_key in _COUNT_CACHE:
+            return _COUNT_CACHE[cache_key]
+        match_expr = self._browser_fts_query(keywords)
         row = self.conn.execute(
-            f"SELECT count(*) AS n FROM recipes WHERE {conditions}", params
+            "SELECT count(*) FROM recipe_browser_fts WHERE recipe_browser_fts MATCH ?",
+            (match_expr,),
         ).fetchone()
-        return row[0] if row else 0
+        count = row[0] if row else 0
+        _COUNT_CACHE[cache_key] = count
+        return count
 
     def browse_recipes(
         self,
@@ -940,28 +955,23 @@ class Store:
         if not keywords:
             return {"recipes": [], "total": 0, "page": page}
 
-        conditions = " OR ".join(
-            ["lower(category) LIKE ?"] * len(keywords)
-            + ["lower(keywords) LIKE ?"] * len(keywords)
-        )
-        like_params = tuple(f"%{kw.lower()}%" for kw in keywords) * 2
+        match_expr = self._browser_fts_query(keywords)
         offset = (page - 1) * page_size
 
-        total_row = self.conn.execute(
-            f"SELECT count(*) AS n FROM recipes WHERE {conditions}", like_params
-        ).fetchone()
-        total = total_row[0] if total_row else 0
+        # Reuse cached count — avoids a second index scan on every page turn.
+        total = self._count_recipes_for_keywords(keywords)
 
         rows = self._fetch_all(
-            f"""
-            SELECT id, title, category, keywords, ingredient_names,
-                   calories, fat_g, protein_g, sodium_mg, source_url
-            FROM recipes
-            WHERE {conditions}
-            ORDER BY title ASC
+            """
+            SELECT r.id, r.title, r.category, r.keywords, r.ingredient_names,
+                   r.calories, r.fat_g, r.protein_g, r.sodium_mg, r.source_url
+            FROM recipe_browser_fts fts
+            JOIN recipes r ON r.id = fts.rowid
+            WHERE fts MATCH ?
+            ORDER BY r.id ASC
             LIMIT ? OFFSET ?
             """,
-            like_params + (page_size, offset),
+            (match_expr, page_size, offset),
         )
 
         pantry_set = {p.lower() for p in pantry_items} if pantry_items else None

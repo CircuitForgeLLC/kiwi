@@ -66,6 +66,16 @@
         </label>
       </div>
 
+      <!-- Hard Day Mode — surfaced as a top-level toggle button -->
+      <button
+        :class="['btn', 'hard-day-btn', recipesStore.hardDayMode ? 'hard-day-active' : 'btn-secondary']"
+        @click="recipesStore.hardDayMode = !recipesStore.hardDayMode"
+        :aria-pressed="recipesStore.hardDayMode"
+      >
+        🌿 Hard Day Mode
+        <span class="hard-day-sub">{{ recipesStore.hardDayMode ? 'on — quick &amp; simple only' : 'quick, simple recipes only' }}</span>
+      </button>
+
       <!-- Dietary Preferences (collapsible) -->
       <details class="collapsible form-group">
         <summary class="collapsible-summary filter-summary">
@@ -74,36 +84,45 @@
         </summary>
 
         <div class="collapsible-body">
-          <!-- Dietary Constraints Tags -->
+          <!-- Dietary Constraints — preset checkboxes + other -->
           <div class="form-group">
-            <label class="form-label">Dietary Constraints</label>
-            <div class="tags-wrap flex flex-wrap gap-xs mb-xs">
-              <span
-                v-for="tag in recipesStore.constraints"
-                :key="tag"
-                class="tag-chip status-badge status-info"
-              >
-                {{ tag }}
-                <button class="chip-remove" @click="removeConstraint(tag)" :aria-label="'Remove constraint: ' + tag">×</button>
-              </span>
+            <label class="form-label">I eat</label>
+            <div class="preset-grid">
+              <button
+                v-for="opt in dietaryPresets"
+                :key="opt.value"
+                :class="['btn', 'btn-sm', 'preset-btn', recipesStore.constraints.includes(opt.value) ? 'preset-active' : '']"
+                @click="toggleConstraint(opt.value)"
+                :aria-pressed="recipesStore.constraints.includes(opt.value)"
+              >{{ opt.label }}</button>
             </div>
             <input
-              class="form-input"
+              class="form-input mt-sm"
               v-model="constraintInput"
-              placeholder="e.g. vegetarian, vegan, gluten-free"
+              placeholder="Other (e.g. low-sodium, raw, whole30)"
               aria-describedby="constraint-hint"
               @keydown="onConstraintKey"
               @blur="commitConstraintInput"
             />
-            <span id="constraint-hint" class="form-hint">Press Enter or comma to add each item.</span>
+            <span id="constraint-hint" class="form-hint">Press Enter or comma to add.</span>
           </div>
 
-          <!-- Allergies Tags -->
+          <!-- Allergies — Big 9 quick-select + other -->
           <div class="form-group">
-            <label class="form-label">Allergies (hard exclusions)</label>
-            <div class="tags-wrap flex flex-wrap gap-xs mb-xs">
+            <label class="form-label">Allergies <span class="text-muted text-xs">(hard exclusions)</span></label>
+            <div class="preset-grid">
+              <button
+                v-for="allergen in allergenPresets"
+                :key="allergen.value"
+                :class="['btn', 'btn-sm', 'allergen-btn', recipesStore.allergies.includes(allergen.value) ? 'allergen-active' : '']"
+                @click="toggleAllergy(allergen.value)"
+                :aria-pressed="recipesStore.allergies.includes(allergen.value)"
+              >{{ allergen.label }}</button>
+            </div>
+            <!-- Active custom allergy tags -->
+            <div v-if="recipesStore.allergies.filter(a => !allergenPresets.map(p=>p.value).includes(a)).length > 0" class="tags-wrap flex flex-wrap gap-xs mt-xs">
               <span
-                v-for="tag in recipesStore.allergies"
+                v-for="tag in recipesStore.allergies.filter(a => !allergenPresets.map(p=>p.value).includes(a))"
                 :key="tag"
                 class="tag-chip status-badge status-error"
               >
@@ -112,25 +131,14 @@
               </span>
             </div>
             <input
-              class="form-input"
+              class="form-input mt-sm"
               v-model="allergyInput"
-              placeholder="e.g. peanuts, shellfish, dairy"
+              placeholder="Other allergen…"
               aria-describedby="allergy-hint"
               @keydown="onAllergyKey"
               @blur="commitAllergyInput"
             />
-            <span id="allergy-hint" class="form-hint">Press Enter or comma to add. Allergies are hard exclusions — no recipes containing these will appear.</span>
-          </div>
-
-          <!-- Hard Day Mode -->
-          <div class="form-group">
-            <label class="flex-start gap-sm hard-day-toggle">
-              <input type="checkbox" v-model="recipesStore.hardDayMode" />
-              <span class="form-label" style="margin-bottom: 0;">Hard Day Mode</span>
-            </label>
-            <p v-if="recipesStore.hardDayMode" class="text-sm text-secondary mt-xs">
-              Only suggests quick, simple recipes based on your saved equipment.
-            </p>
+            <span id="allergy-hint" class="form-hint">No recipes containing these ingredients will appear.</span>
           </div>
 
           <!-- Shopping Mode (temporary home — moves to Shopping tab in #71) -->
@@ -146,7 +154,7 @@
 
           <!-- Max Missing — hidden in shopping mode -->
           <div v-if="!recipesStore.shoppingMode" class="form-group">
-            <label class="form-label">Max Missing Ingredients (optional)</label>
+            <label class="form-label">Max Missing Ingredients <span class="text-muted text-xs">(optional)</span></label>
             <input
               type="number"
               class="form-input"
@@ -655,10 +663,48 @@ const levels = [
   { value: 4, label: 'Surprise Me 🎲',   description: 'Fully AI-generated — open-ended and occasionally unexpected. Requires paid tier.' },
 ]
 
+const dietaryPresets = [
+  { label: 'Vegetarian', value: 'vegetarian' },
+  { label: 'Vegan',      value: 'vegan' },
+  { label: 'Gluten-free', value: 'gluten-free' },
+  { label: 'Dairy-free', value: 'dairy-free' },
+  { label: 'Keto',       value: 'keto' },
+  { label: 'Low-carb',   value: 'low-carb' },
+  { label: 'Halal',      value: 'halal' },
+  { label: 'Kosher',     value: 'kosher' },
+]
+
+const allergenPresets = [
+  { label: 'Peanuts',    value: 'peanuts' },
+  { label: 'Tree nuts',  value: 'tree nuts' },
+  { label: 'Shellfish',  value: 'shellfish' },
+  { label: 'Fish',       value: 'fish' },
+  { label: 'Milk',       value: 'milk' },
+  { label: 'Eggs',       value: 'eggs' },
+  { label: 'Wheat',      value: 'wheat' },
+  { label: 'Soy',        value: 'soy' },
+  { label: 'Sesame',     value: 'sesame' },
+]
+
+function toggleConstraint(value: string) {
+  if (recipesStore.constraints.includes(value)) {
+    recipesStore.constraints = recipesStore.constraints.filter((c) => c !== value)
+  } else {
+    recipesStore.constraints = [...recipesStore.constraints, value]
+  }
+}
+
+function toggleAllergy(value: string) {
+  if (recipesStore.allergies.includes(value)) {
+    recipesStore.allergies = recipesStore.allergies.filter((a) => a !== value)
+  } else {
+    recipesStore.allergies = [...recipesStore.allergies, value]
+  }
+}
+
 const dietaryActive = computed(() =>
   recipesStore.constraints.length > 0 ||
   recipesStore.allergies.length > 0 ||
-  recipesStore.hardDayMode ||
   recipesStore.shoppingMode
 )
 
@@ -1085,7 +1131,62 @@ details[open] .collapsible-summary::before {
   padding-top: var(--spacing-sm);
   display: flex;
   flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+/* Hard Day Mode button */
+.hard-day-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  justify-content: flex-start;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  transition: background 0.15s, color 0.15s;
+}
+
+.hard-day-active {
+  background: var(--color-success, #2d7a4f);
+  color: white;
+  border-color: var(--color-success, #2d7a4f);
+}
+
+.hard-day-sub {
+  font-size: var(--font-size-xs, 0.75rem);
+  font-weight: 400;
+  opacity: 0.85;
+  margin-left: auto;
+}
+
+/* Preset grid — auto-fill 2+ columns */
+.preset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
   gap: var(--spacing-xs);
+}
+
+.preset-btn {
+  justify-content: center;
+  text-align: center;
+}
+
+.preset-active {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+}
+
+.allergen-btn {
+  justify-content: center;
+  text-align: center;
+}
+
+.allergen-active {
+  background: var(--color-error, #c0392b);
+  color: white;
+  border-color: var(--color-error, #c0392b);
 }
 
 .swap-row {
