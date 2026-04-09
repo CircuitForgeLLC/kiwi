@@ -963,12 +963,14 @@ class Store:
 
         rows = self._fetch_all(
             """
-            SELECT r.id, r.title, r.category, r.keywords, r.ingredient_names,
-                   r.calories, r.fat_g, r.protein_g, r.sodium_mg
-            FROM recipe_browser_fts fts
-            JOIN recipes r ON r.id = fts.rowid
-            WHERE fts MATCH ?
-            ORDER BY r.id ASC
+            SELECT id, title, category, keywords, ingredient_names,
+                   calories, fat_g, protein_g, sodium_mg
+            FROM recipes
+            WHERE id IN (
+                SELECT rowid FROM recipe_browser_fts
+                WHERE recipe_browser_fts MATCH ?
+            )
+            ORDER BY id ASC
             LIMIT ? OFFSET ?
             """,
             (match_expr, page_size, offset),
