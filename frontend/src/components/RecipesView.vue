@@ -755,10 +755,6 @@ function addConstraint(value: string) {
   constraintInput.value = ''
 }
 
-function removeConstraint(tag: string) {
-  recipesStore.constraints = recipesStore.constraints.filter((c) => c !== tag)
-}
-
 function onConstraintKey(e: KeyboardEvent) {
   if (e.key === 'Enter' || e.key === ',') {
     e.preventDefault()
