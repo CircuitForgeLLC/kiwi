@@ -15,7 +15,7 @@
     <div v-if="loadingDomains" class="text-secondary text-sm">Loading…</div>
 
     <div v-else-if="activeDomain" class="browser-body">
-      <!-- Category list -->
+      <!-- Category list + Surprise Me -->
       <div class="category-list mb-md flex flex-wrap gap-xs">
         <button
           v-for="cat in categories"
@@ -25,6 +25,14 @@
         >
           {{ cat.category }}
           <span class="cat-count">{{ cat.recipe_count }}</span>
+        </button>
+        <button
+          v-if="categories.length > 1"
+          class="btn btn-secondary cat-btn surprise-btn"
+          @click="surpriseMe"
+          title="Pick a random category"
+        >
+          🎲 Surprise me
         </button>
       </div>
 
@@ -93,10 +101,10 @@
         </template>
       </template>
 
-      <div v-else class="text-secondary text-sm">Select a category above to browse recipes.</div>
+      <div v-else class="text-secondary text-sm">Loading recipes…</div>
     </div>
 
-    <div v-else-if="!loadingDomains" class="text-secondary text-sm">Select a domain to start browsing.</div>
+    <div v-else-if="!loadingDomains" class="text-secondary text-sm">Loading…</div>
 
     <!-- Save modal -->
     <SaveRecipeModal
@@ -171,6 +179,18 @@ async function selectDomain(domainId: string) {
   total.value = 0
   page.value = 1
   categories.value = await browserAPI.listCategories(domainId)
+  // Auto-select the most-populated category so content appears immediately
+  if (categories.value.length > 0) {
+    const top = categories.value.reduce((best, c) =>
+      c.recipe_count > best.recipe_count ? c : best, categories.value[0]!)
+    selectCategory(top.category)
+  }
+}
+
+function surpriseMe() {
+  if (categories.value.length === 0) return
+  const pick = categories.value[Math.floor(Math.random() * categories.value.length)]!
+  selectCategory(pick.category)
 }
 
 async function selectCategory(category: string) {
@@ -248,6 +268,15 @@ async function doUnsave(recipeId: number) {
 .cat-btn.active .cat-count {
   background: rgba(255, 255, 255, 0.2);
   color: white;
+}
+
+.surprise-btn {
+  opacity: 0.75;
+  font-style: italic;
+}
+
+.surprise-btn:hover {
+  opacity: 1;
 }
 
 .recipe-grid {
