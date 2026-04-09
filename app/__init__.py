@@ -3,5 +3,5 @@
 Kiwi: Pantry tracking and leftover recipe suggestions.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __author__ = "Alan 'pyr0ball' Weinstock"

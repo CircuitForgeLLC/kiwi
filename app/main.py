@@ -35,7 +35,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.PROJECT_NAME,
     description="Pantry tracking + leftover recipe suggestions",
-    version="0.1.0",
+    version="0.2.0",
     lifespan=lifespan,
 )
 
