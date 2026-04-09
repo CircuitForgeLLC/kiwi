@@ -59,9 +59,9 @@
 
       <!-- Surprise Me confirmation -->
       <div v-if="recipesStore.level === 4" class="status-badge status-warning wildcard-warning">
-        The AI will freestyle recipes from whatever you have. Results can be unusual — that's part of the fun.
+        <span id="wildcard-warning-desc">The AI will freestyle recipes from whatever you have. Results can be unusual — that's part of the fun.</span>
         <label class="flex-start gap-sm mt-xs">
-          <input type="checkbox" v-model="recipesStore.wildcardConfirmed" />
+          <input type="checkbox" v-model="recipesStore.wildcardConfirmed" aria-describedby="wildcard-warning-desc" />
           <span>I understand, go for it</span>
         </label>
       </div>
@@ -82,10 +82,12 @@
         <input
           class="form-input"
           v-model="constraintInput"
-          placeholder="e.g. vegetarian, vegan, gluten-free — press Enter or comma"
+          placeholder="e.g. vegetarian, vegan, gluten-free"
+          aria-describedby="constraint-hint"
           @keydown="onConstraintKey"
           @blur="commitConstraintInput"
         />
+        <span id="constraint-hint" class="form-hint">Press Enter or comma to add each item.</span>
       </div>
 
       <!-- Allergies Tags -->
@@ -104,10 +106,12 @@
         <input
           class="form-input"
           v-model="allergyInput"
-          placeholder="e.g. peanuts, shellfish, dairy — press Enter or comma"
+          placeholder="e.g. peanuts, shellfish, dairy"
+          aria-describedby="allergy-hint"
           @keydown="onAllergyKey"
           @blur="commitAllergyInput"
         />
+        <span id="allergy-hint" class="form-hint">Press Enter or comma to add. Allergies are hard exclusions — no recipes containing these will appear.</span>
       </div>
 
       <!-- Hard Day Mode -->
