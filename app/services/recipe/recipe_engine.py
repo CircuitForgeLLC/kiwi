@@ -532,6 +532,43 @@ _INVOLVED_METHODS = re.compile(
     r"\b(braise|roast|knead|deep.?fry|fry|sauté|saute|bake|boil)\b", re.IGNORECASE
 )
 
+# Hard day mode sort tier patterns
+_PREMADE_TITLE_RE = re.compile(
+    r"\b(frozen|instant|microwave|ready.?made|pre.?made|packaged|heat.?and.?eat)\b",
+    re.IGNORECASE,
+)
+_HEAT_ONLY_RE = re.compile(r"\b(microwave|heat|warm|thaw)\b", re.IGNORECASE)
+
+
+def _hard_day_sort_tier(
+    title: str,
+    ingredient_names: list[str],
+    directions: list[str],
+) -> int:
+    """Return a sort priority tier for hard day mode.
+
+    0 — premade / heat-only (frozen dinner, quesadilla, microwave meal)
+    1 — super simple (≤3 ingredients, easy method)
+    2 — easy/moderate (everything else that passed the 'involved' filter)
+
+    Lower tier surfaces first.
+    """
+    dir_text = " ".join(directions)
+    n_ingredients = len(ingredient_names)
+    n_steps = len(directions)
+
+    # Tier 0: title signals premade, OR very few ingredients with heat-only steps
+    if _PREMADE_TITLE_RE.search(title):
+        return 0
+    if n_ingredients <= 2 and n_steps <= 3 and _HEAT_ONLY_RE.search(dir_text):
+        return 0
+
+    # Tier 1: ≤3 ingredients with any easy method (quesadilla, cheese toast, etc.)
+    if n_ingredients <= 3 and _EASY_METHODS.search(dir_text):
+        return 1
+
+    return 2
+
 
 def _classify_method_complexity(
     directions: list[str],
@@ -612,6 +649,7 @@ class RecipeEngine:
             excluded_ids=req.excluded_ids or [],
         )
         suggestions = []
+        hard_day_tier_map: dict[int, int] = {}  # recipe_id → tier when hard_day_mode
 
         for row in rows:
             ingredient_names: list[str] = row.get("ingredient_names") or []
@@ -655,7 +693,7 @@ class RecipeEngine:
             if not req.shopping_mode and req.max_missing is not None and len(missing) > req.max_missing:
                 continue
 
-            # Filter by hard_day_mode
+            # Filter and tier-rank by hard_day_mode
             if req.hard_day_mode:
                 directions: list[str] = row.get("directions") or []
                 if isinstance(directions, str):
@@ -666,6 +704,11 @@ class RecipeEngine:
                 complexity = _classify_method_complexity(directions, available_equipment)
                 if complexity == "involved":
                     continue
+                hard_day_tier_map[row["id"]] = _hard_day_sort_tier(
+                    title=row.get("title", ""),
+                    ingredient_names=ingredient_names,
+                    directions=directions,
+                )
 
             # Level 2: also add dietary constraint swaps from substitution_pairs
             if req.level == 2 and req.constraints:
@@ -739,9 +782,18 @@ class RecipeEngine:
             assembly_limit = _ASSEMBLY_TIER_LIMITS.get(req.tier, 3)
             assembly = assembly[:assembly_limit]
 
-        # Interleave: sort templates and corpus recipes together by match_count so
-        # assembly dishes earn their position rather than always winning position 0-N.
-        suggestions = sorted(assembly + suggestions, key=lambda s: s.match_count, reverse=True)
+        # Interleave: sort templates and corpus recipes together.
+        # Hard day mode: primary sort by tier (0=premade, 1=simple, 2=moderate),
+        # then by match_count within each tier. Assembly templates are inherently
+        # simple so they default to tier 1 when not in the tier map.
+        # Normal mode: sort by match_count only.
+        if req.hard_day_mode and hard_day_tier_map:
+            suggestions = sorted(
+                assembly + suggestions,
+                key=lambda s: (hard_day_tier_map.get(s.id, 1), -s.match_count),
+            )
+        else:
+            suggestions = sorted(assembly + suggestions, key=lambda s: s.match_count, reverse=True)
 
         # Build grocery list — deduplicated union of all missing ingredients
         seen: set[str] = set()
