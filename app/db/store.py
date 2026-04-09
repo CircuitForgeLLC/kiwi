@@ -964,7 +964,7 @@ class Store:
         rows = self._fetch_all(
             """
             SELECT r.id, r.title, r.category, r.keywords, r.ingredient_names,
-                   r.calories, r.fat_g, r.protein_g, r.sodium_mg, r.source_url
+                   r.calories, r.fat_g, r.protein_g, r.sodium_mg
             FROM recipe_browser_fts fts
             JOIN recipes r ON r.id = fts.rowid
             WHERE fts MATCH ?
