@@ -3,7 +3,11 @@
 """Estimate cook times for recipes missing corpus prep/cook time fields.
 
 Used only when tier allows `meal_plan_llm_timing`. Falls back gracefully
-when LLMRouter is unavailable.
+when no LLM backend is available.
+
+Routing: pass a router from get_meal_plan_router() in llm_router.py.
+Cloud: cf-text via cf-orch (3B GGUF, ~2GB VRAM).
+Local: LLMRouter (ollama / vllm / openai-compat per llm.yaml).
 """
 from __future__ import annotations
 

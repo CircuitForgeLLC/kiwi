@@ -5,6 +5,10 @@
 Returns suggestions for human review — never writes to the DB directly.
 The API endpoint presents the suggestions and waits for user approval
 before calling store.upsert_slot().
+
+Routing: pass a router from get_meal_plan_router() in llm_router.py.
+Cloud: cf-text via cf-orch (3B-7B GGUF, ~2GB VRAM).
+Local: LLMRouter (ollama / vllm / openai-compat per llm.yaml).
 """
 from __future__ import annotations
 
