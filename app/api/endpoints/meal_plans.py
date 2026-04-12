@@ -92,12 +92,17 @@ async def create_plan(
     return _plan_summary(plan, slots)
 
 
-@router.get("/", response_model=list[dict])
+@router.get("/", response_model=list[PlanSummary])
 async def list_plans(
     session: CloudUser = Depends(get_session),
     store: Store = Depends(get_store),
-) -> list[dict]:
-    return await asyncio.to_thread(store.list_meal_plans)
+) -> list[PlanSummary]:
+    plans = await asyncio.to_thread(store.list_meal_plans)
+    result = []
+    for p in plans:
+        slots = await asyncio.to_thread(store.get_plan_slots, p["id"])
+        result.append(_plan_summary(p, slots))
+    return result
 
 
 @router.get("/{plan_id}", response_model=PlanSummary)
@@ -124,6 +129,8 @@ async def upsert_slot(
     session: CloudUser = Depends(get_session),
     store: Store = Depends(get_store),
 ) -> SlotSummary:
+    if day_of_week < 0 or day_of_week > 6:
+        raise HTTPException(status_code=422, detail="day_of_week must be 0-6.")
     if meal_type not in VALID_MEAL_TYPES:
         raise HTTPException(status_code=422, detail=f"Invalid meal_type '{meal_type}'.")
     plan = await asyncio.to_thread(store.get_meal_plan, plan_id)
@@ -196,6 +203,28 @@ async def get_shopping_list(
 
 
 # ── prep session ──────────────────────────────────────────────────────────────
+
+@router.get("/{plan_id}/prep-session", response_model=PrepSessionSummary)
+async def get_prep_session(
+    plan_id: int,
+    session: CloudUser = Depends(get_session),
+    store: Store = Depends(get_store),
+) -> PrepSessionSummary:
+    plan = await asyncio.to_thread(store.get_meal_plan, plan_id)
+    if plan is None:
+        raise HTTPException(status_code=404, detail="Plan not found.")
+    prep_session = await asyncio.to_thread(store.get_prep_session_for_plan, plan_id)
+    if prep_session is None:
+        raise HTTPException(status_code=404, detail="No prep session for this plan.")
+    raw_tasks = await asyncio.to_thread(store.get_prep_tasks, prep_session["id"])
+    return PrepSessionSummary(
+        id=prep_session["id"],
+        plan_id=plan_id,
+        scheduled_date=prep_session["scheduled_date"],
+        status=prep_session["status"],
+        tasks=[_prep_task_summary(t) for t in raw_tasks],
+    )
+
 
 @router.post("/{plan_id}/prep-session", response_model=PrepSessionSummary)
 async def create_prep_session(
