@@ -645,6 +645,112 @@ export const savedRecipesAPI = {
   },
 }
 
+// --- Meal Plan types ---
+
+export interface MealPlanSlot {
+  id: number
+  plan_id: number
+  day_of_week: number       // 0 = Monday
+  meal_type: string
+  recipe_id: number | null
+  recipe_title: string | null
+  servings: number
+  custom_label: string | null
+}
+
+export interface MealPlan {
+  id: number
+  week_start: string        // ISO date, e.g. "2026-04-13"
+  meal_types: string[]
+  slots: MealPlanSlot[]
+  created_at: string
+}
+
+export interface RetailerLink {
+  retailer: string
+  label: string
+  url: string
+}
+
+export interface GapItem {
+  ingredient_name: string
+  needed_raw: string | null
+  have_quantity: number | null
+  have_unit: string | null
+  covered: boolean
+  retailer_links: RetailerLink[]
+}
+
+export interface ShoppingList {
+  plan_id: number
+  gap_items: GapItem[]
+  covered_items: GapItem[]
+  disclosure: string | null
+}
+
+export interface PrepTask {
+  id: number
+  recipe_id: number | null
+  task_label: string
+  duration_minutes: number | null
+  sequence_order: number
+  equipment: string | null
+  is_parallel: boolean
+  notes: string | null
+  user_edited: boolean
+}
+
+export interface PrepSession {
+  id: number
+  plan_id: number
+  scheduled_date: string
+  status: 'draft' | 'reviewed' | 'done'
+  tasks: PrepTask[]
+}
+
+// --- Meal Plan API ---
+
+export const mealPlanAPI = {
+  async list(): Promise<MealPlan[]> {
+    const resp = await api.get<MealPlan[]>('/meal-plans/')
+    return resp.data
+  },
+
+  async create(weekStart: string, mealTypes: string[]): Promise<MealPlan> {
+    const resp = await api.post<MealPlan>('/meal-plans/', { week_start: weekStart, meal_types: mealTypes })
+    return resp.data
+  },
+
+  async get(planId: number): Promise<MealPlan> {
+    const resp = await api.get<MealPlan>(`/meal-plans/${planId}`)
+    return resp.data
+  },
+
+  async upsertSlot(planId: number, dayOfWeek: number, mealType: string, data: { recipe_id?: number | null; servings?: number; custom_label?: string | null }): Promise<MealPlanSlot> {
+    const resp = await api.put<MealPlanSlot>(`/meal-plans/${planId}/slots/${dayOfWeek}/${mealType}`, data)
+    return resp.data
+  },
+
+  async deleteSlot(planId: number, slotId: number): Promise<void> {
+    await api.delete(`/meal-plans/${planId}/slots/${slotId}`)
+  },
+
+  async getShoppingList(planId: number): Promise<ShoppingList> {
+    const resp = await api.get<ShoppingList>(`/meal-plans/${planId}/shopping-list`)
+    return resp.data
+  },
+
+  async getPrepSession(planId: number): Promise<PrepSession> {
+    const resp = await api.get<PrepSession>(`/meal-plans/${planId}/prep-session`)
+    return resp.data
+  },
+
+  async updatePrepTask(planId: number, taskId: number, data: Partial<Pick<PrepTask, 'duration_minutes' | 'sequence_order' | 'notes' | 'equipment'>>): Promise<PrepTask> {
+    const resp = await api.patch<PrepTask>(`/meal-plans/${planId}/prep-session/tasks/${taskId}`, data)
+    return resp.data
+  },
+}
+
 // ========== Browser Types ==========
 
 export interface BrowserDomain {
