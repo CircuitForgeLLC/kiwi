@@ -110,14 +110,12 @@ async function onSelectPlan(planId: number) {
   if (planId) await store.setActivePlan(planId)
 }
 
-function onSlotClick({ dayOfWeek, mealType }: { dayOfWeek: number; mealType: string }) {
+function onSlotClick(_: { dayOfWeek: number; mealType: string }) {
   // Recipe picker integration filed as follow-up
-  console.log('[MealPlan] slot-click', { dayOfWeek, mealType })
 }
 
 function onAddMealType() {
   // Add meal type picker — Paid gate enforced by backend
-  console.log('[MealPlan] add-meal-type')
 }
 </script>
 

@@ -1114,10 +1114,10 @@ class Store:
 
     def update_prep_task(self, task_id: int, **kwargs: object) -> dict | None:
         allowed = {"duration_minutes", "sequence_order", "notes", "equipment"}
-        updates = {k: v for k, v in kwargs.items() if k in allowed and v is not None}
-        invalid = set(updates) - allowed
+        invalid = set(kwargs) - allowed  # check raw kwargs BEFORE filtering
         if invalid:
             raise ValueError(f"Unexpected column(s) in update_prep_task: {invalid}")
+        updates = {k: v for k, v in kwargs.items() if v is not None}
         if not updates:
             return self._fetch_one("SELECT * FROM prep_tasks WHERE id = ?", (task_id,))
         set_clause = ", ".join(f"{k} = ?" for k in updates)

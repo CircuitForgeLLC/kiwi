@@ -11,8 +11,6 @@ from app.api.routes import api_router
 from app.core.config import settings
 from app.services.meal_plan.affiliates import register_kiwi_programs
 
-register_kiwi_programs()
-
 logger = logging.getLogger(__name__)
 
 
@@ -20,6 +18,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     logger.info("Starting Kiwi API...")
     settings.ensure_dirs()
+    register_kiwi_programs()
 
     # Start LLM background task scheduler
     from app.tasks.scheduler import get_scheduler
