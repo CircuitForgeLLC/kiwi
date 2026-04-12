@@ -9,6 +9,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import api_router
 from app.core.config import settings
+from app.services.meal_plan.affiliates import register_kiwi_programs
+
+register_kiwi_programs()
 
 logger = logging.getLogger(__name__)
 
