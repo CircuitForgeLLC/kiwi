@@ -16,6 +16,8 @@ KIWI_BYOK_UNLOCKABLE: frozenset[str] = frozenset({
     "expiry_llm_matching",
     "receipt_ocr",
     "style_classifier",
+    "meal_plan_llm",
+    "meal_plan_llm_timing",
 })
 
 # Feature → minimum tier required
@@ -33,7 +35,10 @@ KIWI_FEATURES: dict[str, str] = {
     "receipt_ocr":           "paid",   # BYOK-unlockable
     "recipe_suggestions":    "paid",   # BYOK-unlockable
     "expiry_llm_matching":   "paid",   # BYOK-unlockable
-    "meal_planning":         "paid",
+    "meal_planning":         "free",
+    "meal_plan_config":       "paid",    # configurable meal types (breakfast/lunch/snack)
+    "meal_plan_llm":          "paid",    # LLM-assisted full-week plan generation; BYOK-unlockable
+    "meal_plan_llm_timing":   "paid",    # LLM time fill-in for recipes missing corpus times; BYOK-unlockable
     "dietary_profiles":      "paid",
     "style_picker":          "paid",
     "recipe_collections":    "paid",
