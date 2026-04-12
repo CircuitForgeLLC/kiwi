@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -48,7 +49,6 @@ def _slot_summary(row: dict) -> SlotSummary:
 def _plan_summary(plan: dict, slots: list[dict]) -> PlanSummary:
     meal_types = plan.get("meal_types") or ["dinner"]
     if isinstance(meal_types, str):
-        import json
         meal_types = json.loads(meal_types)
     return PlanSummary(
         id=plan["id"],
@@ -87,7 +87,7 @@ async def create_plan(
     else:
         meal_types = ["dinner"]
 
-    plan = await asyncio.to_thread(store.create_meal_plan, req.week_start, meal_types)
+    plan = await asyncio.to_thread(store.create_meal_plan, str(req.week_start), meal_types)
     slots = await asyncio.to_thread(store.get_plan_slots, plan["id"])
     return _plan_summary(plan, slots)
 
@@ -124,6 +124,8 @@ async def upsert_slot(
     session: CloudUser = Depends(get_session),
     store: Store = Depends(get_store),
 ) -> SlotSummary:
+    if meal_type not in VALID_MEAL_TYPES:
+        raise HTTPException(status_code=422, detail=f"Invalid meal_type '{meal_type}'.")
     plan = await asyncio.to_thread(store.get_meal_plan, plan_id)
     if plan is None:
         raise HTTPException(status_code=404, detail="Plan not found.")

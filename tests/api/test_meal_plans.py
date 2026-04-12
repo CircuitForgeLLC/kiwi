@@ -69,20 +69,20 @@ def paid_session():
 
 def test_create_plan_free_tier_locks_to_dinner(free_session):
     resp = client.post("/api/v1/meal-plans/", json={
-        "week_start": "2026-04-14", "meal_types": ["breakfast", "dinner"]
+        "week_start": "2026-04-13", "meal_types": ["breakfast", "dinner"]
     })
     assert resp.status_code == 200
     # Free tier forced to dinner-only regardless of request
-    free_session.create_meal_plan.assert_called_once_with("2026-04-14", ["dinner"])
+    free_session.create_meal_plan.assert_called_once_with("2026-04-13", ["dinner"])
 
 
 def test_create_plan_paid_tier_respects_meal_types(paid_session):
     resp = client.post("/api/v1/meal-plans/", json={
-        "week_start": "2026-04-14", "meal_types": ["breakfast", "lunch", "dinner"]
+        "week_start": "2026-04-13", "meal_types": ["breakfast", "lunch", "dinner"]
     })
     assert resp.status_code == 200
     paid_session.create_meal_plan.assert_called_once_with(
-        "2026-04-14", ["breakfast", "lunch", "dinner"]
+        "2026-04-13", ["breakfast", "lunch", "dinner"]
     )
 
 

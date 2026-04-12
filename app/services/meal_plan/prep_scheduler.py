@@ -6,13 +6,13 @@ Pure function — no DB or network calls. Sorts tasks by equipment priority
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 _EQUIPMENT_PRIORITY = {"oven": 0, "stovetop": 1, "cold": 2, "no-heat": 3}
 _DEFAULT_PRIORITY = 4
 
 
-@dataclass
+@dataclass(frozen=True)
 class PrepTask:
     recipe_id: int | None
     slot_id: int | None
@@ -57,7 +57,7 @@ def build_prep_tasks(slots: list[dict], recipes: list[dict]) -> list[PrepTask]:
         return []
 
     recipe_map: dict[int, dict] = {r["id"]: r for r in recipes}
-    raw_tasks: list[tuple[int, PrepTask]] = []  # (priority, task)
+    raw_tasks: list[tuple[int, dict]] = []  # (priority, kwargs)
 
     for slot in slots:
         recipe_id = slot.get("recipe_id")
@@ -69,18 +69,23 @@ def build_prep_tasks(slots: list[dict], recipes: list[dict]) -> list[PrepTask]:
 
         eq = _equipment(recipe)
         priority = _EQUIPMENT_PRIORITY.get(eq or "", _DEFAULT_PRIORITY)
-        task = PrepTask(
-            recipe_id=recipe_id,
-            slot_id=slot.get("id"),
-            task_label=recipe.get("name", f"Recipe {recipe_id}"),
-            duration_minutes=_total_minutes(recipe),
-            sequence_order=0,  # filled below
-            equipment=eq,
-        )
-        raw_tasks.append((priority, task))
+        raw_tasks.append((priority, {
+            "recipe_id": recipe_id,
+            "slot_id": slot.get("id"),
+            "task_label": recipe.get("name", f"Recipe {recipe_id}"),
+            "duration_minutes": _total_minutes(recipe),
+            "equipment": eq,
+        }))
 
     raw_tasks.sort(key=lambda t: t[0])
-    for i, (_, task) in enumerate(raw_tasks, 1):
-        task.sequence_order = i
-
-    return [t for _, t in raw_tasks]
+    return [
+        PrepTask(
+            recipe_id=kw["recipe_id"],
+            slot_id=kw["slot_id"],
+            task_label=kw["task_label"],
+            duration_minutes=kw["duration_minutes"],
+            sequence_order=i,
+            equipment=kw["equipment"],
+        )
+        for i, (_, kw) in enumerate(raw_tasks, 1)
+    ]

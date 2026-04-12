@@ -2,15 +2,24 @@
 """Pydantic schemas for meal planning endpoints."""
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from datetime import date as _date
+
+from pydantic import BaseModel, Field, field_validator
 
 
 VALID_MEAL_TYPES = {"breakfast", "lunch", "dinner", "snack"}
 
 
 class CreatePlanRequest(BaseModel):
-    week_start: str  # ISO date string, e.g. "2026-04-14" (must be Monday)
+    week_start: _date
     meal_types: list[str] = Field(default_factory=lambda: ["dinner"])
+
+    @field_validator("week_start")
+    @classmethod
+    def must_be_monday(cls, v: _date) -> _date:
+        if v.weekday() != 0:
+            raise ValueError("week_start must be a Monday (weekday 0)")
+        return v
 
 
 class UpsertSlotRequest(BaseModel):
