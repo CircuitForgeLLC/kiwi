@@ -20,6 +20,9 @@ services:
       CLOUD_AUTH_BYPASS_IPS: ${CLOUD_AUTH_BYPASS_IPS:-}
       # cf-orch: route LLM calls through the coordinator for managed GPU inference
       CF_ORCH_URL: http://host.docker.internal:7700
+      # Community PostgreSQL — shared across CF products; unset = community features unavailable (fail soft)
+      COMMUNITY_DB_URL: ${COMMUNITY_DB_URL:-}
+      COMMUNITY_PSEUDONYM_SALT: ${COMMUNITY_PSEUDONYM_SALT:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
