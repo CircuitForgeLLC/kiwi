@@ -42,6 +42,15 @@ def init_community_store(community_db_url: str | None) -> None:
     logger.info("Community store initialized.")
 
 
+def _visible(post, session=None) -> bool:
+    """Return False for premium-tier posts when the session is not paid/premium."""
+    tier = getattr(post, "tier", None)
+    if tier == "premium":
+        if session is None or getattr(session, "tier", None) not in ("paid", "premium"):
+            return False
+    return True
+
+
 @router.get("/posts")
 async def list_posts(
     post_type: str | None = None,
@@ -66,7 +75,7 @@ async def list_posts(
         dietary_tags=dietary,
         allergen_exclude=allergen_ex,
     )
-    return {"posts": [_post_to_dict(p) for p in posts], "page": page, "page_size": page_size}
+    return {"posts": [_post_to_dict(p) for p in posts if _visible(p)], "page": page, "page_size": page_size}
 
 
 @router.get("/posts/{slug}")
@@ -80,7 +89,7 @@ async def get_post(slug: str, request: Request):
         raise HTTPException(status_code=404, detail="Post not found.")
 
     accept = request.headers.get("accept", "")
-    if "application/activity+json" in accept:
+    if "application/activity+json" in accept or "application/ld+json" in accept:
         from app.services.community.ap_compat import post_to_ap_json_ld
         base_url = str(request.base_url).rstrip("/")
         return post_to_ap_json_ld(_post_to_dict(post), base_url=base_url)
