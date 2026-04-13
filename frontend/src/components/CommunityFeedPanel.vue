@@ -111,13 +111,21 @@ const filterIds = filters.map((f) => f.id)
 
 function onFilterKeydown(e: KeyboardEvent) {
   const current = filterIds.indexOf(activeFilter.value)
+  let next = current
   if (e.key === 'ArrowRight') {
     e.preventDefault()
-    setFilter(filterIds[(current + 1) % filterIds.length]!)
+    next = (current + 1) % filterIds.length
   } else if (e.key === 'ArrowLeft') {
     e.preventDefault()
-    setFilter(filterIds[(current - 1 + filterIds.length) % filterIds.length]!)
+    next = (current - 1 + filterIds.length) % filterIds.length
+  } else {
+    return
   }
+  setFilter(filterIds[next]!)
+  // Move DOM focus to the newly active tab per ARIA tablist pattern
+  const bar = (e.currentTarget as HTMLElement).closest('[role="tablist"]')
+  const buttons = bar?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+  buttons?.[next]?.focus()
 }
 
 async function setFilter(filterId: string) {
@@ -246,6 +254,11 @@ onMounted(async () => {
   .skeleton-line {
     animation: none;
     opacity: 0.7;
+  }
+
+  .toast-fade-enter-active,
+  .toast-fade-leave-active {
+    transition: none;
   }
 }
 </style>

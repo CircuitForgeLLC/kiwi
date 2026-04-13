@@ -169,4 +169,10 @@ const fullDate = computed(() => {
     width: 100%;
   }
 }
+
+@media (prefers-reduced-motion: reduce) {
+  .community-post-card {
+    transition: none;
+  }
+}
 </style>
