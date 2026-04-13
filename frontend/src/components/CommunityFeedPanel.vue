@@ -12,6 +12,9 @@
         :class="['btn', 'tab-btn', activeFilter === f.id ? 'btn-primary' : 'btn-secondary']"
         @click="setFilter(f.id)"
         @keydown="onFilterKeydown"
+        @pointerdown="f.id === 'recipe_blooper' ? onBlooperPointerDown($event) : undefined"
+        @pointerup="f.id === 'recipe_blooper' ? onBlooperPointerCancel() : undefined"
+        @pointerleave="f.id === 'recipe_blooper' ? onBlooperPointerCancel() : undefined"
       >{{ f.label }}</button>
     </div>
 
@@ -103,6 +106,12 @@
       @published="onPlanPublished"
     />
 
+    <!-- Hall of Chaos easter egg: hold Bloopers tab for 800ms -->
+    <HallOfChaosView
+      v-if="showHallOfChaos"
+      @close="showHallOfChaos = false"
+    />
+
   </div>
 </template>
 
@@ -111,6 +120,7 @@ import { ref, onMounted } from 'vue'
 import { useCommunityStore } from '../stores/community'
 import CommunityPostCard from './CommunityPostCard.vue'
 import PublishPlanModal from './PublishPlanModal.vue'
+import HallOfChaosView from './HallOfChaosView.vue'
 
 const emit = defineEmits<{
   'plan-forked': [payload: { plan_id: number; week_start: string }]
@@ -120,6 +130,22 @@ const store = useCommunityStore()
 
 const activeFilter = ref('all')
 const showPublishPlan = ref(false)
+const showHallOfChaos = ref(false)
+let blooperHoldTimer: ReturnType<typeof setTimeout> | null = null
+
+function onBlooperPointerDown(_e: PointerEvent) {
+  blooperHoldTimer = setTimeout(() => {
+    showHallOfChaos.value = true
+    blooperHoldTimer = null
+  }, 800)
+}
+
+function onBlooperPointerCancel() {
+  if (blooperHoldTimer !== null) {
+    clearTimeout(blooperHoldTimer)
+    blooperHoldTimer = null
+  }
+}
 
 const filters = [
   { id: 'all',            label: 'All' },
