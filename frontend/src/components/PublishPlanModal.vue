@@ -155,6 +155,8 @@ function handleKeydown(e: KeyboardEvent) {
     return
   }
   if (e.key !== 'Tab') return
+  // Only intercept Tab when focus is inside this dialog
+  if (!dialogRef.value?.contains(document.activeElement)) return
 
   const focusables = getFocusables()
   if (focusables.length === 0) return

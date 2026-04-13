@@ -33,6 +33,7 @@
             <legend class="form-label">What kind of story is this?</legend>
             <div class="type-toggle flex gap-sm">
               <button
+                ref="firstFocusRef"
                 :class="['btn', 'type-btn', postType === 'recipe_success' ? 'type-btn-active' : 'btn-secondary']"
                 :aria-pressed="postType === 'recipe_success'"
                 @click="postType = 'recipe_success'"
@@ -57,7 +58,6 @@
           </label>
           <input
             id="outcome-title"
-            ref="firstFocusRef"
             v-model="title"
             class="form-input"
             type="text"
@@ -163,7 +163,7 @@ const submitError = ref<string | null>(null)
 const submitSuccess = ref<string | null>(null)
 
 const dialogRef = ref<HTMLElement | null>(null)
-const firstFocusRef = ref<HTMLInputElement | null>(null)
+const firstFocusRef = ref<HTMLButtonElement | null>(null)
 let previousFocus: HTMLElement | null = null
 
 function getFocusables(): HTMLElement[] {
@@ -181,6 +181,8 @@ function handleKeydown(e: KeyboardEvent) {
     return
   }
   if (e.key !== 'Tab') return
+  // Only intercept Tab when focus is inside this dialog
+  if (!dialogRef.value?.contains(document.activeElement)) return
 
   const focusables = getFocusables()
   if (focusables.length === 0) return
