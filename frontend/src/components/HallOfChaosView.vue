@@ -17,7 +17,7 @@
     </div>
 
     <!-- Loading -->
-    <div v-if="loading" class="chaos-loading text-center text-secondary" aria-busy="true">
+    <div v-if="loading" class="chaos-loading text-center text-secondary" aria-live="polite" aria-busy="true">
       Assembling the chaos...
     </div>
 

@@ -116,7 +116,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useCommunityStore } from '../stores/community'
 import CommunityPostCard from './CommunityPostCard.vue'
 import PublishPlanModal from './PublishPlanModal.vue'
@@ -215,6 +215,13 @@ function onPlanPublished(_payload: { slug: string }) {
 onMounted(async () => {
   if (store.posts.length === 0) {
     await store.fetchPosts()
+  }
+})
+
+onUnmounted(() => {
+  if (blooperHoldTimer !== null) {
+    clearTimeout(blooperHoldTimer)
+    blooperHoldTimer = null
   }
 })
 </script>
@@ -319,6 +326,11 @@ onMounted(async () => {
   .toast-fade-enter-active,
   .toast-fade-leave-active {
     transition: none;
+  }
+
+  .toast-fade-enter-from,
+  .toast-fade-leave-to {
+    transform: translateX(-50%);
   }
 }
 </style>
