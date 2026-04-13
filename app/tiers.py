@@ -16,6 +16,7 @@ KIWI_BYOK_UNLOCKABLE: frozenset[str] = frozenset({
     "expiry_llm_matching",
     "receipt_ocr",
     "style_classifier",
+    "community_fork_adapt",
 })
 
 # Feature → minimum tier required
@@ -38,6 +39,8 @@ KIWI_FEATURES: dict[str, str] = {
     "style_picker":          "paid",
     "recipe_collections":    "paid",
     "style_classifier":      "paid",   # LLM auto-tag for saved recipe style tags; BYOK-unlockable
+    "community_publish":     "paid",    # Publish plans/outcomes to community feed
+    "community_fork_adapt":  "paid",    # Fork with LLM pantry adaptation (BYOK-unlockable)
 
     # Premium tier
     "multi_household":       "premium",

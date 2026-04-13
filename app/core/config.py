@@ -35,6 +35,16 @@ class Settings:
     # Database
     DB_PATH: Path = Path(os.environ.get("DB_PATH", str(DATA_DIR / "kiwi.db")))
 
+    # Community feature settings
+    COMMUNITY_DB_URL: str | None = os.environ.get("COMMUNITY_DB_URL") or None
+    COMMUNITY_PSEUDONYM_SALT: str = os.environ.get(
+        "COMMUNITY_PSEUDONYM_SALT", "kiwi-default-salt-change-in-prod"
+    )
+    COMMUNITY_CLOUD_FEED_URL: str = os.environ.get(
+        "COMMUNITY_CLOUD_FEED_URL",
+        "https://menagerie.circuitforge.tech/kiwi/api/v1/community/posts",
+    )
+
     # Processing
     MAX_CONCURRENT_JOBS: int = int(os.environ.get("MAX_CONCURRENT_JOBS", "4"))
     USE_GPU: bool = os.environ.get("USE_GPU", "true").lower() in ("1", "true", "yes")
