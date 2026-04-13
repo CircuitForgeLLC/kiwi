@@ -119,11 +119,38 @@ async def local_feed():
     return [_post_to_dict(p) for p in posts]
 
 
+_VALID_POST_TYPES = {"plan", "recipe_success", "recipe_blooper"}
+_MAX_TITLE_LEN = 200
+_MAX_TEXT_LEN = 2000
+
+
+def _validate_publish_body(body: dict) -> None:
+    """Raise HTTPException(422) for any invalid fields in a publish request."""
+    post_type = body.get("post_type", "plan")
+    if post_type not in _VALID_POST_TYPES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"post_type must be one of: {', '.join(sorted(_VALID_POST_TYPES))}",
+        )
+    title = body.get("title") or ""
+    if len(title) > _MAX_TITLE_LEN:
+        raise HTTPException(status_code=422, detail=f"title exceeds {_MAX_TITLE_LEN} character limit.")
+    for field in ("description", "outcome_notes", "recipe_name"):
+        value = body.get(field)
+        if value and len(str(value)) > _MAX_TEXT_LEN:
+            raise HTTPException(status_code=422, detail=f"{field} exceeds {_MAX_TEXT_LEN} character limit.")
+    photo_url = body.get("photo_url")
+    if photo_url and not str(photo_url).startswith("https://"):
+        raise HTTPException(status_code=422, detail="photo_url must be an https:// URL.")
+
+
 @router.post("/posts", status_code=201)
 async def publish_post(body: dict, session: CloudUser = Depends(get_session)):
     from app.tiers import can_use
     if not can_use("community_publish", session.tier, session.has_byok):
         raise HTTPException(status_code=402, detail="Community publishing requires Paid tier.")
+
+    _validate_publish_body(body)
 
     store = _get_community_store()
     if store is None:
@@ -144,7 +171,10 @@ async def publish_post(body: dict, session: CloudUser = Depends(get_session)):
             )
         finally:
             s.close()
-    pseudonym = await asyncio.to_thread(_get_pseudonym)
+    try:
+        pseudonym = await asyncio.to_thread(_get_pseudonym)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     recipe_ids = [slot["recipe_id"] for slot in body.get("slots", []) if slot.get("recipe_id")]
     from app.services.community.element_snapshot import compute_snapshot
@@ -156,17 +186,18 @@ async def publish_post(body: dict, session: CloudUser = Depends(get_session)):
             s.close()
     snapshot = await asyncio.to_thread(_snapshot)
 
+    post_type = body.get("post_type", "plan")
     slug_title = re.sub(r"[^a-z0-9]+", "-", (body.get("title") or "plan").lower()).strip("-")
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    slug = f"kiwi-{_post_type_prefix(body.get('post_type', 'plan'))}-{pseudonym.lower().replace(' ', '')}-{today}-{slug_title}"[:120]
+    slug = f"kiwi-{_post_type_prefix(post_type)}-{pseudonym.lower().replace(' ', '')}-{today}-{slug_title}"[:120]
 
     from circuitforge_core.community.models import CommunityPost
     post = CommunityPost(
         slug=slug,
         pseudonym=pseudonym,
-        post_type=body.get("post_type", "plan"),
+        post_type=post_type,
         published=datetime.now(timezone.utc),
-        title=body.get("title", "Untitled"),
+        title=(body.get("title") or "Untitled")[:_MAX_TITLE_LEN],
         description=body.get("description"),
         photo_url=body.get("photo_url"),
         slots=body.get("slots", []),
@@ -189,7 +220,16 @@ async def publish_post(body: dict, session: CloudUser = Depends(get_session)):
         moisture_pct=snapshot.moisture_pct,
     )
 
-    inserted = await asyncio.to_thread(store.insert_post, post)
+    try:
+        inserted = await asyncio.to_thread(store.insert_post, post)
+    except Exception as exc:
+        exc_str = str(exc).lower()
+        if "unique" in exc_str or "duplicate" in exc_str:
+            raise HTTPException(
+                status_code=409,
+                detail="A post with this title already exists today. Try a different title.",
+            ) from exc
+        raise
     return _post_to_dict(inserted)
 
 
@@ -225,6 +265,10 @@ async def fork_post(slug: str, session: CloudUser = Depends(get_session)):
         raise HTTPException(status_code=404, detail="Post not found.")
     if post.post_type != "plan":
         raise HTTPException(status_code=400, detail="Only plan posts can be forked as a meal plan.")
+
+    required_slot_keys = {"day", "meal_type", "recipe_id"}
+    if any(not required_slot_keys.issubset(slot) for slot in post.slots):
+        raise HTTPException(status_code=400, detail="Post contains malformed slots and cannot be forked.")
 
     from datetime import date
     week_start = date.today().strftime("%Y-%m-%d")
