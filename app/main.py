@@ -20,6 +20,10 @@ async def lifespan(app: FastAPI):
     settings.ensure_dirs()
     register_kiwi_programs()
 
+    # Initialize community store (fail-soft if COMMUNITY_DB_URL not set)
+    from app.api.endpoints.community import init_community_store
+    init_community_store(settings.COMMUNITY_DB_URL)
+
     # Start LLM background task scheduler
     from app.tasks.scheduler import get_scheduler
     get_scheduler(settings.DB_PATH)

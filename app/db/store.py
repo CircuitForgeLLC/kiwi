@@ -1128,3 +1128,31 @@ class Store:
         )
         self.conn.commit()
         return self._fetch_one("SELECT * FROM prep_tasks WHERE id = ?", (task_id,))
+
+    # ── Community pseudonyms ──────────────────────────────────────────────────
+
+    def get_current_pseudonym(self, directus_user_id: str) -> str | None:
+        """Return the current community pseudonym for this user, or None if not set."""
+        cur = self.conn.execute(
+            "SELECT pseudonym FROM community_pseudonyms "
+            "WHERE directus_user_id = ? AND is_current = 1 LIMIT 1",
+            (directus_user_id,),
+        )
+        row = cur.fetchone()
+        return row["pseudonym"] if row else None
+
+    def set_pseudonym(self, directus_user_id: str, pseudonym: str) -> None:
+        """Set the current community pseudonym for this user.
+
+        Marks any previous pseudonym as non-current (retains history for attribution).
+        """
+        self.conn.execute(
+            "UPDATE community_pseudonyms SET is_current = 0 WHERE directus_user_id = ?",
+            (directus_user_id,),
+        )
+        self.conn.execute(
+            "INSERT INTO community_pseudonyms (pseudonym, directus_user_id, is_current) "
+            "VALUES (?, ?, 1)",
+            (pseudonym, directus_user_id),
+        )
+        self.conn.commit()
