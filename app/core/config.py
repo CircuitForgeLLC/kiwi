@@ -53,6 +53,17 @@ class Settings:
     # Feature flags
     ENABLE_OCR: bool = os.environ.get("ENABLE_OCR", "false").lower() in ("1", "true", "yes")
 
+    # Community feature
+    # COMMUNITY_DB_URL: unset = community writes disabled (local/offline mode, fail soft)
+    COMMUNITY_DB_URL: str | None = os.environ.get("COMMUNITY_DB_URL") or None
+    COMMUNITY_PSEUDONYM_SALT: str = os.environ.get(
+        "COMMUNITY_PSEUDONYM_SALT", "kiwi-default-salt-change-in-prod"
+    )
+    COMMUNITY_CLOUD_FEED_URL: str = os.environ.get(
+        "COMMUNITY_CLOUD_FEED_URL",
+        "https://menagerie.circuitforge.tech/kiwi/api/v1/community/posts",
+    )
+
     # Runtime
     DEBUG: bool = os.environ.get("DEBUG", "false").lower() in ("1", "true", "yes")
     CLOUD_MODE: bool = os.environ.get("CLOUD_MODE", "false").lower() in ("1", "true", "yes")

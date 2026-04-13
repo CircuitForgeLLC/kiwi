@@ -18,6 +18,7 @@ KIWI_BYOK_UNLOCKABLE: frozenset[str] = frozenset({
     "style_classifier",
     "meal_plan_llm",
     "meal_plan_llm_timing",
+    "community_fork_adapt",   # Fork a community plan with LLM pantry adaptation
 })
 
 # Feature → minimum tier required
@@ -43,6 +44,11 @@ KIWI_FEATURES: dict[str, str] = {
     "style_picker":          "paid",
     "recipe_collections":    "paid",
     "style_classifier":      "paid",   # LLM auto-tag for saved recipe style tags; BYOK-unlockable
+
+    # Community (free to browse, paid to publish/fork)
+    "community_browse":      "free",    # Read-only feed access
+    "community_publish":     "paid",    # Publish plans/outcomes to community feed
+    "community_fork_adapt":  "paid",    # Fork a plan with LLM pantry adaptation; BYOK-unlockable
 
     # Premium tier
     "multi_household":       "premium",
