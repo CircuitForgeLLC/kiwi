@@ -63,6 +63,7 @@ export interface PublishPayload {
   plan_id?: number
   recipe_id?: number
   outcome_notes?: string
+  slots?: CommunityPostSlot[]
 }
 
 export interface PublishResult {

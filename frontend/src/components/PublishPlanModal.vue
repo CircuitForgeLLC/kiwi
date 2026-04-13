@@ -202,6 +202,9 @@ async function onSubmit() {
   if (description.value.trim()) payload.description = description.value.trim()
   if (pseudonymName.value.trim()) payload.pseudonym_name = pseudonymName.value.trim()
   if (props.plan?.id != null) payload.plan_id = props.plan.id
+  if (props.plan?.slots?.length) {
+    payload.slots = props.plan.slots.map(({ day, meal_type, recipe_id }) => ({ day, meal_type, recipe_id }))
+  }
 
   submitting.value = true
   try {

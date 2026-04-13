@@ -118,12 +118,13 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useCommunityStore } from '../stores/community'
+import type { ForkResult } from '../stores/community'
 import CommunityPostCard from './CommunityPostCard.vue'
 import PublishPlanModal from './PublishPlanModal.vue'
 import HallOfChaosView from './HallOfChaosView.vue'
 
 const emit = defineEmits<{
-  'plan-forked': [payload: { plan_id: number; week_start: string }]
+  'plan-forked': [payload: ForkResult]
 }>()
 
 const store = useCommunityStore()
@@ -201,7 +202,7 @@ async function handleFork(slug: string) {
   try {
     const result = await store.forkPost(slug)
     showToast('Plan added to your week.', 'success')
-    emit('plan-forked', { plan_id: result.plan_id, week_start: result.week_start })
+    emit('plan-forked', result)
   } catch (err: unknown) {
     showToast(err instanceof Error ? err.message : 'Could not fork this plan.', 'error')
   }

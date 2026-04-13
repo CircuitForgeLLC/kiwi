@@ -563,6 +563,7 @@ import RecipeDetailPanel from './RecipeDetailPanel.vue'
 import RecipeBrowserPanel from './RecipeBrowserPanel.vue'
 import SavedRecipesPanel from './SavedRecipesPanel.vue'
 import CommunityFeedPanel from './CommunityFeedPanel.vue'
+import type { ForkResult } from '../stores/community'
 import type { RecipeSuggestion, GroceryLink } from '../services/api'
 import { recipesAPI } from '../services/api'
 
@@ -592,7 +593,7 @@ function onTabKeydown(e: KeyboardEvent) {
 }
 
 // Community tab: navigate to Find tab after a plan fork (full plan view deferred to Task 9)
-function onPlanForked(_payload: { plan_id: number; week_start: string }) {
+function onPlanForked(_payload: ForkResult) {
   activeTab.value = 'find'
 }
 
