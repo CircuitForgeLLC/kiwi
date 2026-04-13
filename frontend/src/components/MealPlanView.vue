@@ -26,7 +26,7 @@
         @add-meal-type="onAddMealType"
       />
 
-      <!-- Panel tabs: Shopping List | Prep Schedule -->
+      <!-- Panel tabs: Shopping List | Prep Schedule | Community -->
       <div class="panel-tabs" role="tablist" aria-label="Plan outputs">
         <button
           v-for="tab in TABS"
@@ -60,6 +60,16 @@
       >
         <PrepSessionView @load="store.loadPrepSession()" />
       </div>
+
+      <div
+        v-show="activeTab === 'community'"
+        id="tabpanel-community"
+        role="tabpanel"
+        aria-labelledby="tab-community"
+        class="tab-panel"
+      >
+        <CommunityFeedPanel :active-plan-id="activePlan?.id ?? null" />
+      </div>
     </template>
 
     <div v-else-if="!loading" class="empty-plan-state">
@@ -76,10 +86,12 @@ import { useMealPlanStore } from '../stores/mealPlan'
 import MealPlanGrid from './MealPlanGrid.vue'
 import ShoppingListPanel from './ShoppingListPanel.vue'
 import PrepSessionView from './PrepSessionView.vue'
+import CommunityFeedPanel from './CommunityFeedPanel.vue'
 
 const TABS = [
-  { id: 'shopping', label: 'Shopping List' },
-  { id: 'prep',     label: 'Prep Schedule' },
+  { id: 'shopping',  label: 'Shopping List' },
+  { id: 'prep',      label: 'Prep Schedule' },
+  { id: 'community', label: 'Community' },
 ] as const
 
 type TabId = typeof TABS[number]['id']
