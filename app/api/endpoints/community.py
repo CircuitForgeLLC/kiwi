@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import sqlite3
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -222,14 +223,11 @@ async def publish_post(body: dict, session: CloudUser = Depends(get_session)):
 
     try:
         inserted = await asyncio.to_thread(store.insert_post, post)
-    except Exception as exc:
-        exc_str = str(exc).lower()
-        if "unique" in exc_str or "duplicate" in exc_str:
-            raise HTTPException(
-                status_code=409,
-                detail="A post with this title already exists today. Try a different title.",
-            ) from exc
-        raise
+    except sqlite3.IntegrityError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="A post with this title already exists today. Try a different title.",
+        ) from exc
     return _post_to_dict(inserted)
 
 
