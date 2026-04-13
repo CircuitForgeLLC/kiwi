@@ -32,6 +32,14 @@
       @open-recipe="openRecipeById"
     />
 
+    <!-- Community tab -->
+    <CommunityFeedPanel
+      v-else-if="activeTab === 'community'"
+      role="tabpanel"
+      aria-labelledby="tab-community"
+      @plan-forked="onPlanForked"
+    />
+
     <!-- Find tab (existing search UI) -->
     <div v-else role="tabpanel" aria-labelledby="tab-find">
     <!-- Controls Panel -->
@@ -554,6 +562,7 @@ import { useInventoryStore } from '../stores/inventory'
 import RecipeDetailPanel from './RecipeDetailPanel.vue'
 import RecipeBrowserPanel from './RecipeBrowserPanel.vue'
 import SavedRecipesPanel from './SavedRecipesPanel.vue'
+import CommunityFeedPanel from './CommunityFeedPanel.vue'
 import type { RecipeSuggestion, GroceryLink } from '../services/api'
 import { recipesAPI } from '../services/api'
 
@@ -561,16 +570,17 @@ const recipesStore = useRecipesStore()
 const inventoryStore = useInventoryStore()
 
 // Tab state
-type TabId = 'find' | 'browse' | 'saved'
+type TabId = 'find' | 'browse' | 'saved' | 'community'
 const tabs: Array<{ id: TabId; label: string }> = [
-  { id: 'find',   label: 'Find' },
-  { id: 'browse', label: 'Browse' },
-  { id: 'saved',  label: 'Saved' },
+  { id: 'find',      label: 'Find' },
+  { id: 'browse',    label: 'Browse' },
+  { id: 'saved',     label: 'Saved' },
+  { id: 'community', label: 'Community' },
 ]
 const activeTab = ref<TabId>('find')
 
 function onTabKeydown(e: KeyboardEvent) {
-  const tabIds: TabId[] = ['find', 'browse', 'saved']
+  const tabIds: TabId[] = ['find', 'browse', 'saved', 'community']
   const current = tabIds.indexOf(activeTab.value)
   if (e.key === 'ArrowRight') {
     e.preventDefault()
@@ -579,6 +589,11 @@ function onTabKeydown(e: KeyboardEvent) {
     e.preventDefault()
     activeTab.value = tabIds[(current - 1 + tabIds.length) % tabIds.length]!
   }
+}
+
+// Community tab: navigate to Find tab after a plan fork (full plan view deferred to Task 9)
+function onPlanForked(_payload: { plan_id: number; week_start: string }) {
+  activeTab.value = 'find'
 }
 
 // Browser/saved tab recipe detail panel (fetches full recipe from API)
