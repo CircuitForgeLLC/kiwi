@@ -55,6 +55,20 @@ export interface ForkResult {
   forked_from: string
 }
 
+export interface PublishPayload {
+  post_type: 'plan' | 'recipe_success' | 'recipe_blooper'
+  title: string
+  description?: string
+  pseudonym_name?: string
+  plan_id?: number
+  recipe_id?: number
+  outcome_notes?: string
+}
+
+export interface PublishResult {
+  slug: string
+}
+
 // ========== Store ==========
 
 export const useCommunityStore = defineStore('community', () => {
@@ -87,6 +101,11 @@ export const useCommunityStore = defineStore('community', () => {
     return response.data
   }
 
+  async function publishPost(payload: PublishPayload): Promise<PublishResult> {
+    const response = await api.post<PublishResult>('/community/posts', payload)
+    return response.data
+  }
+
   return {
     posts,
     loading,
@@ -94,5 +113,6 @@ export const useCommunityStore = defineStore('community', () => {
     currentFilter,
     fetchPosts,
     forkPost,
+    publishPost,
   }
 })

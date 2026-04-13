@@ -15,6 +15,17 @@
       >{{ f.label }}</button>
     </div>
 
+    <!-- Share a plan action row -->
+    <div class="action-row flex-between mb-sm">
+      <button
+        class="btn btn-secondary btn-sm share-plan-btn"
+        aria-haspopup="dialog"
+        @click="showPublishPlan = true"
+      >
+        Share a plan
+      </button>
+    </div>
+
     <!-- Loading skeletons -->
     <div
       v-if="store.loading"
@@ -84,6 +95,14 @@
       </div>
     </Transition>
 
+    <!-- Publish plan modal -->
+    <PublishPlanModal
+      v-if="showPublishPlan"
+      :plan="null"
+      @close="showPublishPlan = false"
+      @published="onPlanPublished"
+    />
+
   </div>
 </template>
 
@@ -91,6 +110,7 @@
 import { ref, onMounted } from 'vue'
 import { useCommunityStore } from '../stores/community'
 import CommunityPostCard from './CommunityPostCard.vue'
+import PublishPlanModal from './PublishPlanModal.vue'
 
 const emit = defineEmits<{
   'plan-forked': [payload: { plan_id: number; week_start: string }]
@@ -99,6 +119,7 @@ const emit = defineEmits<{
 const store = useCommunityStore()
 
 const activeFilter = ref('all')
+const showPublishPlan = ref(false)
 
 const filters = [
   { id: 'all',            label: 'All' },
@@ -160,6 +181,11 @@ async function handleFork(slug: string) {
   }
 }
 
+function onPlanPublished(_payload: { slug: string }) {
+  showPublishPlan.value = false
+  store.fetchPosts(activeFilter.value === 'all' ? undefined : activeFilter.value)
+}
+
 onMounted(async () => {
   if (store.posts.length === 0) {
     await store.fetchPosts()
@@ -180,6 +206,14 @@ onMounted(async () => {
 .tab-btn {
   border-radius: var(--radius-md) var(--radius-md) 0 0;
   border-bottom: none;
+}
+
+.action-row {
+  padding: var(--spacing-xs) 0;
+}
+
+.share-plan-btn {
+  font-size: var(--font-size-xs);
 }
 
 /* Loading skeletons */
