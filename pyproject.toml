@@ -24,6 +24,8 @@ dependencies = [
     "requests>=2.31",
     # CircuitForge shared scaffold
     "circuitforge-core>=0.8.0",
+    # mDNS advertisement (opt-in: _kiwi._tcp.local discovery)
+    "zeroconf>=0.131",
 ]
 
 [tool.setuptools.packages.find]
