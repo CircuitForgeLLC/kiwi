@@ -46,6 +46,18 @@
           <span class="sidebar-label">Receipts</span>
         </button>
 
+        <button :class="['sidebar-item', { active: currentTab === 'mealplan' }]" @click="switchTab('mealplan')" aria-label="Meal Plan">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="16" rx="2"/>
+            <line x1="3" y1="9" x2="21" y2="9"/>
+            <line x1="8" y1="4" x2="8" y2="9"/>
+            <line x1="16" y1="4" x2="16" y2="9"/>
+            <line x1="7" y1="14" x2="11" y2="14"/>
+            <line x1="7" y1="17" x2="14" y2="17"/>
+          </svg>
+          <span class="sidebar-label">Meal Plan</span>
+        </button>
+
         <button :class="['sidebar-item', { active: currentTab === 'settings' }]" @click="switchTab('settings')">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="3"/>
@@ -78,6 +90,9 @@
           </div>
           <div v-show="currentTab === 'settings'" class="tab-content fade-in">
             <SettingsView />
+          </div>
+          <div v-show="currentTab === 'mealplan'" class="tab-content">
+            <MealPlanView />
           </div>
         </div>
       </main>
@@ -117,6 +132,17 @@
           <path d="M12 1v3M12 20v3M4.22 4.22l2.12 2.12M17.66 17.66l2.12 2.12M1 12h3M20 12h3M4.22 19.78l2.12-2.12M17.66 6.34l2.12-2.12"/>
         </svg>
         <span class="nav-label">Settings</span>
+      </button>
+      <button :class="['nav-item', { active: currentTab === 'mealplan' }]" @click="switchTab('mealplan')" aria-label="Meal Plan">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="16" rx="2"/>
+          <line x1="3" y1="9" x2="21" y2="9"/>
+          <line x1="8" y1="4" x2="8" y2="9"/>
+          <line x1="16" y1="4" x2="16" y2="9"/>
+          <line x1="7" y1="14" x2="11" y2="14"/>
+          <line x1="7" y1="17" x2="14" y2="17"/>
+        </svg>
+        <span class="nav-label">Meal Plan</span>
       </button>
     </nav>
 
@@ -163,12 +189,13 @@ import InventoryList from './components/InventoryList.vue'
 import ReceiptsView from './components/ReceiptsView.vue'
 import RecipesView from './components/RecipesView.vue'
 import SettingsView from './components/SettingsView.vue'
+import MealPlanView from './components/MealPlanView.vue'
 import FeedbackButton from './components/FeedbackButton.vue'
 import { useInventoryStore } from './stores/inventory'
 import { useEasterEggs } from './composables/useEasterEggs'
 import { householdAPI } from './services/api'
 
-type Tab = 'inventory' | 'receipts' | 'recipes' | 'settings'
+type Tab = 'inventory' | 'receipts' | 'recipes' | 'settings' | 'mealplan'
 
 const currentTab = ref<Tab>('recipes')
 const sidebarCollapsed = ref(false)

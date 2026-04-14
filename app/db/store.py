@@ -44,7 +44,9 @@ class Store:
                     "ingredients", "ingredient_names", "directions",
                     "keywords", "element_coverage",
                     # saved recipe columns
-                    "style_tags"):
+                    "style_tags",
+                    # meal plan columns
+                    "meal_types"):
             if key in d and isinstance(d[key], str):
                 try:
                     d[key] = json.loads(d[key])
@@ -1078,6 +1080,123 @@ class Store:
             (domain, category, page, result_count),
         )
         self.conn.commit()
+
+    # ── meal plans ────────────────────────────────────────────────────────
+
+    def create_meal_plan(self, week_start: str, meal_types: list[str]) -> dict:
+        return self._insert_returning(
+            "INSERT INTO meal_plans (week_start, meal_types) VALUES (?, ?) RETURNING *",
+            (week_start, json.dumps(meal_types)),
+        )
+
+    def get_meal_plan(self, plan_id: int) -> dict | None:
+        return self._fetch_one("SELECT * FROM meal_plans WHERE id = ?", (plan_id,))
+
+    def list_meal_plans(self) -> list[dict]:
+        return self._fetch_all("SELECT * FROM meal_plans ORDER BY week_start DESC")
+
+    def upsert_slot(
+        self,
+        plan_id: int,
+        day_of_week: int,
+        meal_type: str,
+        recipe_id: int | None,
+        servings: float,
+        custom_label: str | None,
+    ) -> dict:
+        return self._insert_returning(
+            """INSERT INTO meal_plan_slots
+               (plan_id, day_of_week, meal_type, recipe_id, servings, custom_label)
+               VALUES (?, ?, ?, ?, ?, ?)
+               ON CONFLICT(plan_id, day_of_week, meal_type) DO UPDATE SET
+                 recipe_id    = excluded.recipe_id,
+                 servings     = excluded.servings,
+                 custom_label = excluded.custom_label
+               RETURNING *""",
+            (plan_id, day_of_week, meal_type, recipe_id, servings, custom_label),
+        )
+
+    def delete_slot(self, slot_id: int) -> None:
+        self.conn.execute("DELETE FROM meal_plan_slots WHERE id = ?", (slot_id,))
+        self.conn.commit()
+
+    def get_plan_slots(self, plan_id: int) -> list[dict]:
+        return self._fetch_all(
+            """SELECT s.*, r.name AS recipe_title
+               FROM meal_plan_slots s
+               LEFT JOIN recipes r ON r.id = s.recipe_id
+               WHERE s.plan_id = ?
+               ORDER BY s.day_of_week, s.meal_type""",
+            (plan_id,),
+        )
+
+    def get_plan_recipes(self, plan_id: int) -> list[dict]:
+        """Return full recipe rows for all recipes assigned to a plan."""
+        return self._fetch_all(
+            """SELECT DISTINCT r.*
+               FROM meal_plan_slots s
+               JOIN recipes r ON r.id = s.recipe_id
+               WHERE s.plan_id = ? AND s.recipe_id IS NOT NULL""",
+            (plan_id,),
+        )
+
+    # ── prep sessions ─────────────────────────────────────────────────────
+
+    def create_prep_session(self, plan_id: int, scheduled_date: str) -> dict:
+        return self._insert_returning(
+            "INSERT INTO prep_sessions (plan_id, scheduled_date) VALUES (?, ?) RETURNING *",
+            (plan_id, scheduled_date),
+        )
+
+    def get_prep_session_for_plan(self, plan_id: int) -> dict | None:
+        return self._fetch_one(
+            "SELECT * FROM prep_sessions WHERE plan_id = ? ORDER BY id DESC LIMIT 1",
+            (plan_id,),
+        )
+
+    def bulk_insert_prep_tasks(self, session_id: int, tasks: list[dict]) -> list[dict]:
+        """Insert multiple prep tasks and return them all."""
+        inserted = []
+        for t in tasks:
+            row = self._insert_returning(
+                """INSERT INTO prep_tasks
+                   (session_id, recipe_id, slot_id, task_label, duration_minutes,
+                    sequence_order, equipment, is_parallel, notes)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *""",
+                (
+                    session_id, t.get("recipe_id"), t.get("slot_id"),
+                    t["task_label"], t.get("duration_minutes"),
+                    t["sequence_order"], t.get("equipment"),
+                    int(t.get("is_parallel", False)), t.get("notes"),
+                ),
+            )
+            inserted.append(row)
+        return inserted
+
+    def get_prep_tasks(self, session_id: int) -> list[dict]:
+        return self._fetch_all(
+            "SELECT * FROM prep_tasks WHERE session_id = ? ORDER BY sequence_order",
+            (session_id,),
+        )
+
+    def update_prep_task(self, task_id: int, **kwargs: object) -> dict | None:
+        allowed = {"duration_minutes", "sequence_order", "notes", "equipment"}
+        invalid = set(kwargs) - allowed  # check raw kwargs BEFORE filtering
+        if invalid:
+            raise ValueError(f"Unexpected column(s) in update_prep_task: {invalid}")
+        updates = {k: v for k, v in kwargs.items() if v is not None}
+        if not updates:
+            return self._fetch_one("SELECT * FROM prep_tasks WHERE id = ?", (task_id,))
+        set_clause = ", ".join(f"{k} = ?" for k in updates)
+        values = list(updates.values()) + [1, task_id]
+        self.conn.execute(
+            f"UPDATE prep_tasks SET {set_clause}, user_edited = ? WHERE id = ?",
+            values,
+        )
+        self.conn.commit()
+        return self._fetch_one("SELECT * FROM prep_tasks WHERE id = ?", (task_id,))
+
+    # ── community ─────────────────────────────────────────────────────────
 
     def get_current_pseudonym(self, directus_user_id: str) -> str | None:
         """Return the current community pseudonym for this user, or None if not set."""
