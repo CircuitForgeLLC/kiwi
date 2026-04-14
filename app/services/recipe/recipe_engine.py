@@ -21,7 +21,6 @@ if TYPE_CHECKING:
     from app.db.store import Store
 
 from app.models.schemas.recipe import GroceryLink, NutritionPanel, RecipeRequest, RecipeResult, RecipeSuggestion, SwapCandidate
-from app.services.recipe.assembly_recipes import match_assembly_templates
 from app.services.recipe.element_classifier import ElementClassifier
 from app.services.recipe.grocery_links import GroceryLinkBuilder
 from app.services.recipe.substitution_engine import SubstitutionEngine
@@ -517,13 +516,6 @@ def _build_source_url(row: dict) -> str | None:
         return None
 
 
-_ASSEMBLY_TIER_LIMITS: dict[str, int] = {
-    "free": 2,
-    "paid": 4,
-    "premium": 6,
-}
-
-
 # Method complexity classification patterns
 _EASY_METHODS = re.compile(
     r"\b(microwave|mix|stir|blend|toast|assemble|heat)\b", re.IGNORECASE
@@ -637,6 +629,11 @@ class RecipeEngine:
             return gen.generate(req, profiles, gaps)
 
         # Level 1 & 2: deterministic path
+        # L1 ("Use What I Have") applies strict quality gates:
+        #   - exclude_generic: filter catch-all recipes at the DB level
+        #   - effective_max_missing: default to 2 when user hasn't set a cap
+        #   - match ratio: require ≥60% ingredient coverage to avoid low-signal results
+        _l1 = req.level == 1 and not req.shopping_mode
         nf = req.nutrition_filters
         rows = self._store.search_recipes_by_ingredients(
             req.pantry_items,
@@ -647,7 +644,16 @@ class RecipeEngine:
             max_carbs_g=nf.max_carbs_g,
             max_sodium_mg=nf.max_sodium_mg,
             excluded_ids=req.excluded_ids or [],
+            exclude_generic=_l1,
         )
+
+        # L1 strict defaults: cap missing ingredients and require a minimum ratio.
+        _L1_MAX_MISSING_DEFAULT = 2
+        _L1_MIN_MATCH_RATIO = 0.6
+        effective_max_missing = req.max_missing
+        if _l1 and effective_max_missing is None:
+            effective_max_missing = _L1_MAX_MISSING_DEFAULT
+
         suggestions = []
         hard_day_tier_map: dict[int, int] = {}  # recipe_id → tier when hard_day_mode
 
@@ -690,8 +696,16 @@ class RecipeEngine:
                     missing.append(n)
 
             # Filter by max_missing — skipped in shopping mode (user is willing to buy)
-            if not req.shopping_mode and req.max_missing is not None and len(missing) > req.max_missing:
+            if not req.shopping_mode and effective_max_missing is not None and len(missing) > effective_max_missing:
                 continue
+
+            # L1 match ratio gate: drop results where less than 60% of the recipe's
+            # ingredients are in the pantry. Prevents low-signal results like a
+            # 10-ingredient recipe matching on only one common item.
+            if _l1 and ingredient_names:
+                match_ratio = len(matched) / len(ingredient_names)
+                if match_ratio < _L1_MIN_MATCH_RATIO:
+                    continue
 
             # Filter and tier-rank by hard_day_mode
             if req.hard_day_mode:
@@ -761,39 +775,17 @@ class RecipeEngine:
                 source_url=_build_source_url(row),
             ))
 
-        # Assembly-dish templates (burrito, fried rice, pasta, etc.)
-        # Expiry boost: when expiry_first, the pantry_items list is already sorted
-        # by expiry urgency — treat the first slice as the "expiring" set so templates
-        # that use those items bubble up in the merged ranking.
-        expiring_set: set[str] = set()
-        if req.expiry_first:
-            expiring_set = _expand_pantry_set(req.pantry_items[:10])
-
-        assembly = match_assembly_templates(
-            pantry_items=req.pantry_items,
-            pantry_set=pantry_set,
-            excluded_ids=req.excluded_ids or [],
-            expiring_set=expiring_set,
-        )
-
-        # Cap by tier — lifted in shopping mode since missing-ingredient templates
-        # are desirable there (each fires an affiliate link opportunity).
-        if not req.shopping_mode:
-            assembly_limit = _ASSEMBLY_TIER_LIMITS.get(req.tier, 3)
-            assembly = assembly[:assembly_limit]
-
-        # Interleave: sort templates and corpus recipes together.
+        # Sort corpus results — assembly templates are now served from a dedicated tab.
         # Hard day mode: primary sort by tier (0=premade, 1=simple, 2=moderate),
-        # then by match_count within each tier. Assembly templates are inherently
-        # simple so they default to tier 1 when not in the tier map.
-        # Normal mode: sort by match_count only.
+        # then by match_count within each tier.
+        # Normal mode: sort by match_count descending.
         if req.hard_day_mode and hard_day_tier_map:
             suggestions = sorted(
-                assembly + suggestions,
+                suggestions,
                 key=lambda s: (hard_day_tier_map.get(s.id, 1), -s.match_count),
             )
         else:
-            suggestions = sorted(assembly + suggestions, key=lambda s: s.match_count, reverse=True)
+            suggestions = sorted(suggestions, key=lambda s: -s.match_count)
 
         # Build grocery list — deduplicated union of all missing ingredients
         seen: set[str] = set()
