@@ -22,6 +22,8 @@ dependencies = [
     # HTTP clients
     "httpx>=0.27",
     "requests>=2.31",
+    # mDNS advertisement (optional; user must opt in)
+    "zeroconf>=0.131",
     # CircuitForge shared scaffold
     "circuitforge-core>=0.8.0",
 ]

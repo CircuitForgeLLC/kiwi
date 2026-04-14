@@ -42,3 +42,15 @@ def test_check_rate_limit_exceeded(store_with_recipes):
     allowed, count = store_with_recipes.check_and_increment_rate_limit("leftover_mode", daily_max=5)
     assert allowed is False
     assert count == 5
+
+
+def test_get_element_profiles_returns_known_items(store_with_profiles):
+    profiles = store_with_profiles.get_element_profiles(["butter", "parmesan", "unknown_item"])
+    assert profiles["butter"] == ["Richness"]
+    assert "Depth" in profiles["parmesan"]
+    assert "unknown_item" not in profiles
+
+
+def test_get_element_profiles_empty_list(store_with_profiles):
+    profiles = store_with_profiles.get_element_profiles([])
+    assert profiles == {}

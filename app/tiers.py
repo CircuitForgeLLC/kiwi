@@ -18,7 +18,18 @@ KIWI_BYOK_UNLOCKABLE: frozenset[str] = frozenset({
     "style_classifier",
     "meal_plan_llm",
     "meal_plan_llm_timing",
+    "community_fork_adapt",
 })
+
+# Sources subject to monthly cf-orch call caps. Subscription-based sources are uncapped.
+LIFETIME_SOURCES: frozenset[str] = frozenset({"lifetime", "founders"})
+
+# (source, tier) → monthly cf-orch call allowance
+LIFETIME_ORCH_CAPS: dict[tuple[str, str], int] = {
+    ("lifetime", "paid"):    60,
+    ("lifetime", "premium"): 180,
+    ("founders", "premium"): 300,
+}
 
 # Feature → minimum tier required
 KIWI_FEATURES: dict[str, str] = {
@@ -43,6 +54,8 @@ KIWI_FEATURES: dict[str, str] = {
     "style_picker":          "paid",
     "recipe_collections":    "paid",
     "style_classifier":      "paid",   # LLM auto-tag for saved recipe style tags; BYOK-unlockable
+    "community_publish":     "paid",    # Publish plans/outcomes to community feed
+    "community_fork_adapt":  "paid",    # Fork with LLM pantry adaptation (BYOK-unlockable)
 
     # Premium tier
     "multi_household":       "premium",

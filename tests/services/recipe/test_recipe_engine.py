@@ -119,3 +119,18 @@ def test_grocery_links_free_tier(store_with_recipes):
         assert hasattr(link, "ingredient")
         assert hasattr(link, "retailer")
         assert hasattr(link, "url")
+
+
+def test_suggest_returns_no_assembly_results(store_with_recipes):
+    """Assembly templates (negative IDs) must no longer appear in suggest() output."""
+    from app.services.recipe.recipe_engine import RecipeEngine
+    from app.models.schemas.recipe import RecipeRequest
+    engine = RecipeEngine(store_with_recipes)
+    req = RecipeRequest(
+        pantry_items=["flour tortilla", "chicken", "salsa", "rice"],
+        level=1,
+        constraints=[],
+    )
+    result = engine.suggest(req)
+    assembly_ids = [s.id for s in result.suggestions if s.id < 0]
+    assert assembly_ids == [], f"Found assembly results in suggest(): {assembly_ids}"

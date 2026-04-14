@@ -25,6 +25,10 @@ async def lifespan(app: FastAPI):
     get_scheduler(settings.DB_PATH)
     logger.info("Task scheduler started.")
 
+    # Initialize community store (no-op if COMMUNITY_DB_URL is not set)
+    from app.api.endpoints.community import init_community_store
+    init_community_store(settings.COMMUNITY_DB_URL)
+
     yield
 
     # Graceful scheduler shutdown

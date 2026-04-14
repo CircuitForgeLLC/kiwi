@@ -6,7 +6,7 @@
  */
 
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { recipesAPI, type RecipeResult, type RecipeSuggestion, type RecipeRequest, type NutritionFilters } from '../services/api'
 
 const DISMISSED_KEY = 'kiwi:dismissed_recipes'
@@ -17,6 +17,12 @@ const COOK_LOG_MAX = 200
 
 const BOOKMARKS_KEY = 'kiwi:bookmarks'
 const BOOKMARKS_MAX = 50
+
+const MISSING_MODE_KEY = 'kiwi:builder_missing_mode'
+const FILTER_MODE_KEY = 'kiwi:builder_filter_mode'
+
+type MissingIngredientMode = 'hidden' | 'greyed' | 'add-to-cart'
+type BuilderFilterMode = 'text' | 'tags'
 
 // [id, dismissedAtMs]
 type DismissEntry = [number, number]
@@ -71,6 +77,16 @@ function saveBookmarks(bookmarks: RecipeSuggestion[]) {
   localStorage.setItem(BOOKMARKS_KEY, JSON.stringify(bookmarks.slice(0, BOOKMARKS_MAX)))
 }
 
+function loadMissingMode(): MissingIngredientMode {
+  const raw = localStorage.getItem(MISSING_MODE_KEY)
+  if (raw === 'hidden' || raw === 'greyed' || raw === 'add-to-cart') return raw
+  return 'greyed'
+}
+
+function loadFilterMode(): BuilderFilterMode {
+  return localStorage.getItem(FILTER_MODE_KEY) === 'tags' ? 'tags' : 'text'
+}
+
 export const useRecipesStore = defineStore('recipes', () => {
   // Suggestion result state
   const result = ref<RecipeResult | null>(null)
@@ -102,6 +118,14 @@ export const useRecipesStore = defineStore('recipes', () => {
   const cookLog = ref<CookLogEntry[]>(loadCookLog())
   // Bookmarks: full RecipeSuggestion snapshots, max BOOKMARKS_MAX
   const bookmarks = ref<RecipeSuggestion[]>(loadBookmarks())
+
+  // Build Your Own wizard preferences -- persisted across sessions
+  const missingIngredientMode = ref<MissingIngredientMode>(loadMissingMode())
+  const builderFilterMode = ref<BuilderFilterMode>(loadFilterMode())
+
+  // Persist wizard prefs on change
+  watch(missingIngredientMode, (val) => localStorage.setItem(MISSING_MODE_KEY, val))
+  watch(builderFilterMode, (val) => localStorage.setItem(FILTER_MODE_KEY, val))
 
   const dismissedCount = computed(() => dismissedIds.value.size)
 
@@ -246,6 +270,8 @@ export const useRecipesStore = defineStore('recipes', () => {
     isBookmarked,
     toggleBookmark,
     clearBookmarks,
+    missingIngredientMode,
+    builderFilterMode,
     suggest,
     loadMore,
     dismiss,

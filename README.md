@@ -10,6 +10,8 @@ Scan barcodes, photograph receipts, and get recipe ideas based on what you alrea
 
 **Status:** Beta · CircuitForge LLC
 
+**[Documentation](https://docs.circuitforge.tech/kiwi/)** · [circuitforge.tech](https://circuitforge.tech)
+
 ---
 
 ## What it does
@@ -21,7 +23,7 @@ Scan barcodes, photograph receipts, and get recipe ideas based on what you alrea
 - **Receipt OCR** — extract line items from receipt photos automatically (Paid tier, BYOK-unlockable)
 - **Recipe suggestions** — four levels from pantry-match to full LLM generation (Paid tier, BYOK-unlockable)
 - **Style auto-classifier** — LLM suggests style tags (comforting, hands-off, quick, etc.) for saved recipes (Paid tier, BYOK-unlockable)
-- **Leftover mode** — prioritize nearly-expired items in recipe ranking (Premium tier)
+- **Leftover mode** — prioritize nearly-expired items in recipe ranking (Free, 5/day; unlimited at Paid+)
 - **LLM backend config** — configure inference via `circuitforge-core` env-var system; BYOK unlocks Paid AI features at any tier
 - **Feedback FAB** — in-app feedback button; status probed on load, hidden if CF feedback endpoint unreachable
 
@@ -68,7 +70,7 @@ cp .env.example .env
 | LLM style auto-classifier | — | BYOK | ✓ |
 | Meal planning | — | ✓ | ✓ |
 | Multi-household | — | — | ✓ |
-| Leftover mode | — | — | ✓ |
+| Leftover mode (5/day) | ✓ | ✓ | ✓ |
 
 BYOK = bring your own LLM backend (configure `~/.config/circuitforge/llm.yaml`)
 

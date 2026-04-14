@@ -16,6 +16,12 @@ COPY kiwi/environment.yml .
 RUN conda env create -f environment.yml
 
 COPY kiwi/ ./kiwi/
+
+# Remove gitignored config files that may exist locally — defense-in-depth.
+# The parent .dockerignore should exclude these, but an explicit rm guarantees
+# they never end up in the cloud image regardless of .dockerignore placement.
+RUN rm -f /app/kiwi/.env
+
 # Install cf-core into the kiwi env BEFORE installing kiwi (kiwi lists it as a dep)
 RUN conda run -n kiwi pip install --no-cache-dir -e /app/circuitforge-core
 WORKDIR /app/kiwi

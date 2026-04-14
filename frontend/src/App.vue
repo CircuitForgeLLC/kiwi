@@ -197,7 +197,7 @@ import { householdAPI } from './services/api'
 
 type Tab = 'inventory' | 'receipts' | 'recipes' | 'settings' | 'mealplan'
 
-const currentTab = ref<Tab>('inventory')
+const currentTab = ref<Tab>('recipes')
 const sidebarCollapsed = ref(false)
 const inventoryStore = useInventoryStore()
 const { kiwiVisible, kiwiDirection } = useEasterEggs()
@@ -225,6 +225,11 @@ async function switchTab(tab: Tab) {
 }
 
 onMounted(async () => {
+  // Pre-fetch inventory so Recipes tab has data on first load
+  if (inventoryStore.items.length === 0) {
+    await inventoryStore.fetchItems()
+  }
+
   // Handle household invite links: /#/join?household_id=xxx&token=yyy
   const hash = window.location.hash
   if (hash.includes('/join')) {

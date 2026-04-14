@@ -18,7 +18,8 @@
   /* Theme Colors - Dark Mode (Default) */
   --color-text-primary: rgba(255, 248, 235, 0.92);
   --color-text-secondary: rgba(255, 248, 235, 0.60);
-  --color-text-muted: rgba(255, 248, 235, 0.38);
+  /* Raised from 0.38 → 0.52 for WCAG 1.4.3 AA compliance (~5.5:1 against card bg) */
+  --color-text-muted: rgba(255, 248, 235, 0.52);
 
   --color-bg-primary: #1e1c1a;
   --color-bg-secondary: #161412;
@@ -40,7 +41,8 @@
   /* Status Colors */
   --color-success: #4a8c40;
   --color-success-dark: #3a7030;
-  --color-success-light: #6aac60;
+  /* Lightened from #6aac60 → #7fc073 for WCAG 1.4.3 AA compliance on dark backgrounds */
+  --color-success-light: #7fc073;
   --color-success-bg: rgba(74, 140, 64, 0.12);
   --color-success-border: rgba(74, 140, 64, 0.30);
 

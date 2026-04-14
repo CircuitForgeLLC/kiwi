@@ -9,7 +9,19 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.cloud_session import CloudUser, get_session
 from app.db.store import Store
-from app.models.schemas.recipe import RecipeRequest, RecipeResult
+from app.models.schemas.recipe import (
+    AssemblyTemplateOut,
+    BuildRequest,
+    RecipeRequest,
+    RecipeResult,
+    RecipeSuggestion,
+    RoleCandidatesResponse,
+)
+from app.services.recipe.assembly_recipes import (
+    build_from_selection,
+    get_role_candidates,
+    get_templates_for_api,
+)
 from app.services.recipe.browser_domains import (
     DOMAINS,
     get_category_names,
@@ -141,6 +153,96 @@ async def browse_recipes(
             store.close()
 
     return await asyncio.to_thread(_browse, session.db)
+
+
+@router.get("/templates", response_model=list[AssemblyTemplateOut])
+async def list_assembly_templates() -> list[dict]:
+    """Return all 13 assembly templates with ordered role sequences.
+
+    Cache-friendly: static data, no per-user state.
+    """
+    return get_templates_for_api()
+
+
+@router.get("/template-candidates", response_model=RoleCandidatesResponse)
+async def get_template_role_candidates(
+    template_id: str = Query(..., description="Template slug, e.g. 'burrito_taco'"),
+    role: str = Query(..., description="Role display name, e.g. 'protein'"),
+    prior_picks: str = Query(default="", description="Comma-separated prior selections"),
+    session: CloudUser = Depends(get_session),
+) -> dict:
+    """Return pantry-matched candidates for one wizard step."""
+    def _get(db_path: Path) -> dict:
+        store = Store(db_path)
+        try:
+            items = store.list_inventory(status="available")
+            pantry_set = {
+                item["product_name"]
+                for item in items
+                if item.get("product_name")
+            }
+            pantry_list = list(pantry_set)
+            prior = [p.strip() for p in prior_picks.split(",") if p.strip()]
+            profile_index = store.get_element_profiles(pantry_list + prior)
+            return get_role_candidates(
+                template_slug=template_id,
+                role_display=role,
+                pantry_set=pantry_set,
+                prior_picks=prior,
+                profile_index=profile_index,
+            )
+        finally:
+            store.close()
+
+    return await asyncio.to_thread(_get, session.db)
+
+
+@router.post("/build", response_model=RecipeSuggestion)
+async def build_recipe(
+    req: BuildRequest,
+    session: CloudUser = Depends(get_session),
+) -> RecipeSuggestion:
+    """Build a recipe from explicit role selections."""
+    def _build(db_path: Path) -> RecipeSuggestion | None:
+        store = Store(db_path)
+        try:
+            items = store.list_inventory(status="available")
+            pantry_set = {
+                item["product_name"]
+                for item in items
+                if item.get("product_name")
+            }
+            suggestion = build_from_selection(
+                template_slug=req.template_id,
+                role_overrides=req.role_overrides,
+                pantry_set=pantry_set,
+            )
+            if suggestion is None:
+                return None
+            # Persist to recipes table so the result can be saved/bookmarked.
+            # external_id encodes template + selections for stable dedup.
+            import hashlib as _hl, json as _js
+            sel_hash = _hl.md5(
+                _js.dumps(req.role_overrides, sort_keys=True).encode()
+            ).hexdigest()[:8]
+            external_id = f"assembly:{req.template_id}:{sel_hash}"
+            real_id = store.upsert_built_recipe(
+                external_id=external_id,
+                title=suggestion.title,
+                ingredients=suggestion.matched_ingredients,
+                directions=suggestion.directions,
+            )
+            return suggestion.model_copy(update={"id": real_id})
+        finally:
+            store.close()
+
+    result = await asyncio.to_thread(_build, session.db)
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Template not found or required ingredient missing.",
+        )
+    return result
 
 
 @router.get("/{recipe_id}")

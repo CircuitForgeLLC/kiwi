@@ -573,6 +573,7 @@ class Store:
         max_carbs_g: float | None = None,
         max_sodium_mg: float | None = None,
         excluded_ids: list[int] | None = None,
+        exclude_generic: bool = False,
     ) -> list[dict]:
         """Find recipes containing any of the given ingredient names.
         Scores by match count and returns highest-scoring first.
@@ -582,6 +583,9 @@ class Store:
 
         Nutrition filters use NULL-passthrough: rows without nutrition data
         always pass (they may be estimated or absent entirely).
+
+        exclude_generic: when True, skips recipes marked is_generic=1.
+        Pass True for Level 1 ("Use What I Have") to suppress catch-all recipes.
         """
         if not ingredient_names:
             return []
@@ -607,6 +611,8 @@ class Store:
             placeholders = ",".join("?" * len(excluded_ids))
             extra_clauses.append(f"r.id NOT IN ({placeholders})")
             extra_params.extend(excluded_ids)
+        if exclude_generic:
+            extra_clauses.append("r.is_generic = 0")
         where_extra = (" AND " + " AND ".join(extra_clauses)) if extra_clauses else ""
 
         if self._fts_ready():
@@ -681,6 +687,67 @@ class Store:
 
     def get_recipe(self, recipe_id: int) -> dict | None:
         return self._fetch_one("SELECT * FROM recipes WHERE id = ?", (recipe_id,))
+
+    def upsert_built_recipe(
+        self,
+        external_id: str,
+        title: str,
+        ingredients: list[str],
+        directions: list[str],
+    ) -> int:
+        """Persist an assembly-built recipe and return its DB id.
+
+        Uses external_id as a stable dedup key so the same build slug doesn't
+        accumulate duplicate rows across multiple user sessions.
+        """
+        import json as _json
+        self.conn.execute(
+            """
+            INSERT OR IGNORE INTO recipes
+              (external_id, title, ingredients, ingredient_names, directions, source)
+            VALUES (?, ?, ?, ?, ?, 'assembly')
+            """,
+            (
+                external_id,
+                title,
+                _json.dumps(ingredients),
+                _json.dumps(ingredients),
+                _json.dumps(directions),
+            ),
+        )
+        # Update title in case the build was re-run with tweaked selections
+        self.conn.execute(
+            "UPDATE recipes SET title = ? WHERE external_id = ?",
+            (title, external_id),
+        )
+        self.conn.commit()
+        row = self._fetch_one(
+            "SELECT id FROM recipes WHERE external_id = ?", (external_id,)
+        )
+        return row["id"]  # type: ignore[index]
+
+    def get_element_profiles(self, names: list[str]) -> dict[str, list[str]]:
+        """Return {ingredient_name: [element_tag, ...]} for the given names.
+
+        Only names present in ingredient_profiles are returned -- missing names
+        are silently omitted so callers can distinguish "no profile" from "empty
+        elements list".
+        """
+        if not names:
+            return {}
+        placeholders = ",".join("?" * len(names))
+        rows = self._fetch_all(
+            f"SELECT name, elements FROM ingredient_profiles WHERE name IN ({placeholders})",
+            tuple(names),
+        )
+        result: dict[str, list[str]] = {}
+        for row in rows:
+            try:
+                elements = json.loads(row["elements"]) if row["elements"] else []
+            except (json.JSONDecodeError, TypeError):
+                elements = []
+            result[row["name"]] = elements
+        return result
 
     # ── rate limits ───────────────────────────────────────────────────────
 
@@ -1128,3 +1195,31 @@ class Store:
         )
         self.conn.commit()
         return self._fetch_one("SELECT * FROM prep_tasks WHERE id = ?", (task_id,))
+
+    # ── community ─────────────────────────────────────────────────────────
+
+    def get_current_pseudonym(self, directus_user_id: str) -> str | None:
+        """Return the current community pseudonym for this user, or None if not set."""
+        cur = self.conn.execute(
+            "SELECT pseudonym FROM community_pseudonyms "
+            "WHERE directus_user_id = ? AND is_current = 1 LIMIT 1",
+            (directus_user_id,),
+        )
+        row = cur.fetchone()
+        return row["pseudonym"] if row else None
+
+    def set_pseudonym(self, directus_user_id: str, pseudonym: str) -> None:
+        """Set the current community pseudonym for this user.
+
+        Marks any previous pseudonym as non-current (retains history for attribution).
+        """
+        self.conn.execute(
+            "UPDATE community_pseudonyms SET is_current = 0 WHERE directus_user_id = ?",
+            (directus_user_id,),
+        )
+        self.conn.execute(
+            "INSERT INTO community_pseudonyms (pseudonym, directus_user_id, is_current) "
+            "VALUES (?, ?, 1)",
+            (pseudonym, directus_user_id),
+        )
+        self.conn.commit()

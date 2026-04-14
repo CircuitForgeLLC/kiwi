@@ -92,6 +92,7 @@ class CloudUser:
     has_byok: bool    # True if a configured LLM backend is present in llm.yaml
     household_id: str | None = None
     is_household_owner: bool = False
+    license_key: str | None = None  # key_display for lifetime/founders keys; None for subscription/free
 
 
 # ── JWT validation ─────────────────────────────────────────────────────────────
@@ -132,16 +133,16 @@ def _ensure_provisioned(user_id: str) -> None:
         log.warning("Heimdall provision failed for user %s: %s", user_id, exc)
 
 
-def _fetch_cloud_tier(user_id: str) -> tuple[str, str | None, bool]:
-    """Returns (tier, household_id | None, is_household_owner)."""
+def _fetch_cloud_tier(user_id: str) -> tuple[str, str | None, bool, str | None]:
+    """Returns (tier, household_id | None, is_household_owner, license_key | None)."""
     now = time.monotonic()
     cached = _TIER_CACHE.get(user_id)
     if cached and (now - cached[1]) < _TIER_CACHE_TTL:
         entry = cached[0]
-        return entry["tier"], entry.get("household_id"), entry.get("is_household_owner", False)
+        return entry["tier"], entry.get("household_id"), entry.get("is_household_owner", False), entry.get("license_key")
 
     if not HEIMDALL_ADMIN_TOKEN:
-        return "free", None, False
+        return "free", None, False, None
     try:
         resp = requests.post(
             f"{HEIMDALL_URL}/admin/cloud/resolve",
@@ -153,12 +154,13 @@ def _fetch_cloud_tier(user_id: str) -> tuple[str, str | None, bool]:
         tier = data.get("tier", "free")
         household_id = data.get("household_id")
         is_owner = data.get("is_household_owner", False)
+        license_key = data.get("key_display")
     except Exception as exc:
         log.warning("Heimdall tier resolve failed for user %s: %s", user_id, exc)
-        tier, household_id, is_owner = "free", None, False
+        tier, household_id, is_owner, license_key = "free", None, False, None
 
-    _TIER_CACHE[user_id] = ({"tier": tier, "household_id": household_id, "is_household_owner": is_owner}, now)
-    return tier, household_id, is_owner
+    _TIER_CACHE[user_id] = ({"tier": tier, "household_id": household_id, "is_household_owner": is_owner, "license_key": license_key}, now)
+    return tier, household_id, is_owner, license_key
 
 
 def _user_db_path(user_id: str, household_id: str | None = None) -> Path:
@@ -166,6 +168,13 @@ def _user_db_path(user_id: str, household_id: str | None = None) -> Path:
         path = CLOUD_DATA_ROOT / f"household_{household_id}" / "kiwi.db"
     else:
         path = CLOUD_DATA_ROOT / user_id / "kiwi.db"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _anon_db_path() -> Path:
+    """Ephemeral DB for unauthenticated guest visitors (Free tier, no persistence)."""
+    path = CLOUD_DATA_ROOT / "anonymous" / "kiwi.db"
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -225,15 +234,25 @@ def get_session(request: Request) -> CloudUser:
         or request.headers.get("cookie", "")
     )
     if not raw_header:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+        return CloudUser(
+            user_id="anonymous",
+            tier="free",
+            db=_anon_db_path(),
+            has_byok=has_byok,
+        )
 
     token = _extract_session_token(raw_header)  # gitleaks:allow — function name, not a secret
     if not token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+        return CloudUser(
+            user_id="anonymous",
+            tier="free",
+            db=_anon_db_path(),
+            has_byok=has_byok,
+        )
 
     user_id = validate_session_jwt(token)
     _ensure_provisioned(user_id)
-    tier, household_id, is_household_owner = _fetch_cloud_tier(user_id)
+    tier, household_id, is_household_owner, license_key = _fetch_cloud_tier(user_id)
     return CloudUser(
         user_id=user_id,
         tier=tier,
@@ -241,6 +260,7 @@ def get_session(request: Request) -> CloudUser:
         has_byok=has_byok,
         household_id=household_id,
         is_household_owner=is_household_owner,
+        license_key=license_key,
     )
 
 
