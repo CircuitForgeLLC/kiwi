@@ -595,9 +595,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useRecipesStore } from '../stores/recipes'
 import { useInventoryStore } from '../stores/inventory'
+import { useSavedRecipesStore } from '../stores/savedRecipes'
 import RecipeDetailPanel from './RecipeDetailPanel.vue'
 import RecipeBrowserPanel from './RecipeBrowserPanel.vue'
 import SavedRecipesPanel from './SavedRecipesPanel.vue'
@@ -613,18 +614,19 @@ const inventoryStore = useInventoryStore()
 // Tab state
 type TabId = 'find' | 'browse' | 'saved' | 'community' | 'build'
 const tabs: Array<{ id: TabId; label: string }> = [
+  { id: 'saved',     label: 'Saved' },
+  { id: 'build',     label: 'Build Your Own' },
+  { id: 'community', label: 'Community' },
   { id: 'find',      label: 'Find' },
   { id: 'browse',    label: 'Browse' },
-  { id: 'saved',     label: 'Saved' },
-  { id: 'community', label: 'Community' },
-  { id: 'build',     label: 'Build Your Own' },
 ]
-const activeTab = ref<TabId>('find')
+const activeTab = ref<TabId>('saved')
+const savedStore = useSavedRecipesStore()
 // Template ref for the Find-tab panel div (used for focus management on tab switch)
 const findPanelRef = ref<HTMLElement | null>(null)
 
 function onTabKeydown(e: KeyboardEvent) {
-  const tabIds: TabId[] = ['find', 'browse', 'saved', 'community', 'build']
+  const tabIds: TabId[] = ['saved', 'build', 'community', 'find', 'browse']
   const current = tabIds.indexOf(activeTab.value)
   if (e.key === 'ArrowRight') {
     e.preventDefault()
@@ -919,7 +921,20 @@ onMounted(async () => {
   if (inventoryStore.items.length === 0) {
     await inventoryStore.fetchItems()
   }
+  // Pre-load saved recipes so we know immediately whether to redirect
+  await savedStore.load()
 })
+
+// If Saved tab is empty after loading, bounce to Build Your Own
+watch(
+  () => ({ loading: savedStore.loading, count: savedStore.saved.length }),
+  ({ loading, count }) => {
+    if (!loading && count === 0 && activeTab.value === 'saved') {
+      activeTab.value = 'build'
+    }
+  },
+  { immediate: true },
+)
 </script>
 
 <style scoped>

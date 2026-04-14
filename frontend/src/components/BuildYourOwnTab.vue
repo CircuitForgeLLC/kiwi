@@ -132,14 +132,24 @@
         </div>
       </template>
 
-      <!-- No-match state -->
-      <p
-        v-if="!candidatesLoading && !candidatesError && filteredCompatible.length === 0 && filteredOther.length === 0"
-        class="text-sm text-secondary mb-sm"
-      >
-        Nothing in your pantry fits this role yet. You can skip it or
-        <button class="btn-link" @click="recipesStore.missingIngredientMode = 'greyed'">show options to add.</button>
-      </p>
+      <!-- No-match state: nothing compatible AND nothing visible in other section.
+           filteredOther items are hidden when mode is 'hidden', so check visibility too. -->
+      <template v-if="!candidatesLoading && !candidatesError && filteredCompatible.length === 0 && (filteredOther.length === 0 || recipesStore.missingIngredientMode === 'hidden')">
+        <!-- Custom freeform input: text filter with no matches → offer "use anyway" -->
+        <div v-if="recipesStore.builderFilterMode === 'text' && filterText.trim().length > 0" class="custom-ingredient-prompt mb-sm">
+          <p class="text-sm text-secondary mb-xs">
+            No match for "{{ filterText.trim() }}" in your pantry.
+          </p>
+          <button class="btn btn-secondary" @click="useCustomIngredient">
+            Use "{{ filterText.trim() }}" anyway
+          </button>
+        </div>
+        <!-- No pantry items at all for this role -->
+        <p v-else class="text-sm text-secondary mb-sm">
+          Nothing in your pantry fits this role yet. You can skip it or
+          <button class="btn-link" @click="recipesStore.missingIngredientMode = 'greyed'">show options to add.</button>
+        </p>
+      </template>
 
       <!-- Skip / Next -->
       <div class="byo-actions">
@@ -271,6 +281,17 @@ function toggleIngredient(name: string) {
   const current = new Set(roleOverrides.value[role] ?? [])
   current.has(name) ? current.delete(name) : current.add(name)
   roleOverrides.value = { ...roleOverrides.value, [role]: [...current] }
+}
+
+function useCustomIngredient() {
+  const name = filterText.value.trim()
+  if (!name) return
+  const role = currentRole.value?.display
+  if (!role) return
+  const current = new Set(roleOverrides.value[role] ?? [])
+  current.add(name)
+  roleOverrides.value = { ...roleOverrides.value, [role]: [...current] }
+  filterText.value = ''
 }
 
 async function selectTemplate(tmpl: AssemblyTemplateOut) {
