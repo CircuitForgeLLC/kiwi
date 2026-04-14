@@ -29,7 +29,8 @@ from app.services.recipe.browser_domains import (
     get_keywords_for_category,
 )
 from app.services.recipe.recipe_engine import RecipeEngine
-from app.tiers import can_use
+from app.services.heimdall_orch import check_orch_budget
+from app.tiers import LIFETIME_SOURCES, can_use
 
 router = APIRouter()
 
@@ -68,7 +69,25 @@ async def suggest_recipes(
         )
     if req.style_id and not can_use("style_picker", req.tier):
         raise HTTPException(status_code=403, detail="Style picker requires Paid tier.")
-    return await asyncio.to_thread(_suggest_in_thread, session.db, req)
+
+    # Orch budget check for lifetime/founders keys — downgrade to L2 (local) if exhausted.
+    # Subscription and local/BYOK users skip this check entirely.
+    orch_fallback = False
+    if (
+        req.level in (3, 4)
+        and session.license_key is not None
+        and not session.has_byok
+        and session.tier != "local"
+    ):
+        budget = check_orch_budget(session.license_key, "kiwi")
+        if not budget.get("allowed", True):
+            req = req.model_copy(update={"level": 2})
+            orch_fallback = True
+
+    result = await asyncio.to_thread(_suggest_in_thread, session.db, req)
+    if orch_fallback:
+        result = result.model_copy(update={"orch_fallback": True})
+    return result
 
 
 @router.get("/browse/domains")
