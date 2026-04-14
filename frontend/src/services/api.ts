@@ -807,6 +807,16 @@ export const mealPlanAPI = {
   },
 }
 
+// ========== Orch Usage Types ==========
+
+export interface OrchUsage {
+  calls_used: number
+  topup_calls: number
+  calls_total: number
+  period_start: string  // ISO date YYYY-MM-DD
+  resets_on: string     // ISO date YYYY-MM-DD
+}
+
 // ========== Browser Types ==========
 
 export interface BrowserDomain {
@@ -851,6 +861,13 @@ export const browserAPI = {
     const response = await api.get(`/recipes/browse/${domain}/${encodeURIComponent(category)}`, { params })
     return response.data
   },
+}
+
+// ── Orch Usage ────────────────────────────────────────────────────────────────
+
+export async function getOrchUsage(): Promise<OrchUsage | null> {
+  const resp = await api.get<OrchUsage | null>('/orch-usage')
+  return resp.data
 }
 
 export default api
