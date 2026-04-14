@@ -503,6 +503,40 @@ export interface Staple {
   dietary_tags: string[]
 }
 
+// ── Build Your Own types ──────────────────────────────────────────────────
+
+export interface AssemblyRoleOut {
+  display: string
+  required: boolean
+  keywords: string[]
+  hint: string
+}
+
+export interface AssemblyTemplateOut {
+  id: string
+  title: string
+  icon: string
+  descriptor: string
+  role_sequence: AssemblyRoleOut[]
+}
+
+export interface RoleCandidateItem {
+  name: string
+  in_pantry: boolean
+  tags: string[]
+}
+
+export interface RoleCandidatesResponse {
+  compatible: RoleCandidateItem[]
+  other: RoleCandidateItem[]
+  available_tags: string[]
+}
+
+export interface BuildRequest {
+  template_id: string
+  role_overrides: Record<string, string>
+}
+
 // ========== Recipes API ==========
 
 export const recipesAPI = {
@@ -516,6 +550,28 @@ export const recipesAPI = {
   },
   async listStaples(dietary?: string): Promise<Staple[]> {
     const response = await api.get('/staples/', { params: dietary ? { dietary } : undefined })
+    return response.data
+  },
+  async getTemplates(): Promise<AssemblyTemplateOut[]> {
+    const response = await api.get('/recipes/templates')
+    return response.data
+  },
+  async getRoleCandidates(
+    templateId: string,
+    role: string,
+    priorPicks: string[] = [],
+  ): Promise<RoleCandidatesResponse> {
+    const response = await api.get('/recipes/template-candidates', {
+      params: {
+        template_id: templateId,
+        role,
+        prior_picks: priorPicks.join(','),
+      },
+    })
+    return response.data
+  },
+  async buildRecipe(req: BuildRequest): Promise<RecipeSuggestion> {
+    const response = await api.post('/recipes/build', req)
     return response.data
   },
 }
