@@ -70,3 +70,14 @@ def test_local_feed_returns_json():
         response = client.get("/api/v1/community/local-feed")
     assert response.status_code == 200
     assert isinstance(response.json(), list)
+
+
+def test_hall_of_chaos_route_exists():
+    """GET /community/hall-of-chaos returns 200 and includes chaos_level key."""
+    mock_store = MagicMock()
+    mock_store.list_posts.return_value = []
+    with patch("app.api.endpoints.community._community_store", mock_store):
+        response = client.get("/api/v1/community/hall-of-chaos")
+    assert response.status_code == 200
+    data = response.json()
+    assert "chaos_level" in data

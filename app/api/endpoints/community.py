@@ -120,6 +120,21 @@ async def local_feed():
     return [_post_to_dict(p) for p in posts]
 
 
+@router.get("/hall-of-chaos")
+async def hall_of_chaos():
+    """Hidden easter egg endpoint -- returns the 10 most chaotic bloopers."""
+    store = _get_community_store()
+    if store is None:
+        return {"posts": [], "chaos_level": 0}
+    posts = await asyncio.to_thread(
+        store.list_posts, limit=10, post_type="recipe_blooper"
+    )
+    return {
+        "posts": [_post_to_dict(p) for p in posts],
+        "chaos_level": len(posts),
+    }
+
+
 _VALID_POST_TYPES = {"plan", "recipe_success", "recipe_blooper"}
 _MAX_TITLE_LEN = 200
 _MAX_TEXT_LEN = 2000

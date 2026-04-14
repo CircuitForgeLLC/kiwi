@@ -170,6 +170,13 @@ def _user_db_path(user_id: str, household_id: str | None = None) -> Path:
     return path
 
 
+def _anon_db_path() -> Path:
+    """Ephemeral DB for unauthenticated guest visitors (Free tier, no persistence)."""
+    path = CLOUD_DATA_ROOT / "anonymous" / "kiwi.db"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 # ── BYOK detection ────────────────────────────────────────────────────────────
 
 _LLM_CONFIG_PATH = Path.home() / ".config" / "circuitforge" / "llm.yaml"
@@ -225,11 +232,21 @@ def get_session(request: Request) -> CloudUser:
         or request.headers.get("cookie", "")
     )
     if not raw_header:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+        return CloudUser(
+            user_id="anonymous",
+            tier="free",
+            db=_anon_db_path(),
+            has_byok=has_byok,
+        )
 
     token = _extract_session_token(raw_header)  # gitleaks:allow — function name, not a secret
     if not token:
-        raise HTTPException(status_code=401, detail="Not authenticated")
+        return CloudUser(
+            user_id="anonymous",
+            tier="free",
+            db=_anon_db_path(),
+            has_byok=has_byok,
+        )
 
     user_id = validate_session_jwt(token)
     _ensure_provisioned(user_id)

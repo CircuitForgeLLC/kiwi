@@ -57,6 +57,34 @@ def _parse_r_vector(s: str) -> list[str]:
     return _QUOTED.findall(s)
 
 
+def _parse_keywords(val: object) -> list[str]:
+    """Parse the food.com Keywords column into a proper list of keyword strings.
+
+    The raw parquet value can arrive in three forms:
+      - None / NaN              → []
+      - str: c("Italian", ...)  → parse quoted tokens via _parse_r_vector
+      - list of single chars    → the R-vector was character-split during dataset
+                                  export; rejoin then re-parse
+      - list of strings         → already correct, use as-is
+    """
+    import math
+    if val is None:
+        return []
+    if isinstance(val, float) and math.isnan(val):
+        return []
+    if isinstance(val, str):
+        return _parse_r_vector(val)
+    if isinstance(val, list):
+        if not val:
+            return []
+        # Detect character-split R-vector: every element is a single character
+        if all(isinstance(e, str) and len(e) == 1 for e in val):
+            return _parse_r_vector("".join(val))
+        # Already a proper list of keyword strings
+        return [str(e) for e in val if e]
+    return []
+
+
 def extract_ingredient_names(raw_list: list[str]) -> list[str]:
     """Strip quantities and units from ingredient strings -> normalized names."""
     names = []
@@ -168,7 +196,7 @@ def build(db_path: Path, recipes_path: Path, batch_size: int = 10000) -> None:
                 json.dumps(ingredient_names),
                 json.dumps(directions),
                 str(row.get("RecipeCategory", "") or ""),
-                json.dumps(_safe_list(row.get("Keywords"))),
+                json.dumps(_parse_keywords(row.get("Keywords"))),
                 _float_or_none(row.get("Calories")),
                 _float_or_none(row.get("FatContent")),
                 _float_or_none(row.get("ProteinContent")),
