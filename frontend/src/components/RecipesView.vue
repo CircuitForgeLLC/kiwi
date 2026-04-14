@@ -21,6 +21,7 @@
       v-if="activeTab === 'browse'"
       role="tabpanel"
       aria-labelledby="tab-browse"
+      tabindex="0"
       @open-recipe="openRecipeById"
     />
 
@@ -29,6 +30,7 @@
       v-else-if="activeTab === 'saved'"
       role="tabpanel"
       aria-labelledby="tab-saved"
+      tabindex="0"
       @open-recipe="openRecipeById"
     />
 
@@ -37,11 +39,20 @@
       v-else-if="activeTab === 'community'"
       role="tabpanel"
       aria-labelledby="tab-community"
+      tabindex="0"
       @plan-forked="onPlanForked"
     />
 
+    <!-- Build Your Own tab -->
+    <BuildYourOwnTab
+      v-else-if="activeTab === 'build'"
+      role="tabpanel"
+      aria-labelledby="tab-build"
+      tabindex="0"
+    />
+
     <!-- Find tab (existing search UI) -->
-    <div v-else role="tabpanel" aria-labelledby="tab-find">
+    <div v-else ref="findPanelRef" role="tabpanel" aria-labelledby="tab-find" tabindex="0">
     <!-- Controls Panel -->
     <div class="card mb-controls">
       <h2 class="section-title text-xl mb-md">Find Recipes</h2>
@@ -55,6 +66,7 @@
             :key="lvl.value"
             :class="['btn', 'btn-secondary', { active: recipesStore.level === lvl.value }]"
             @click="recipesStore.level = lvl.value"
+            :aria-pressed="recipesStore.level === lvl.value"
             :title="lvl.description"
           >
             {{ lvl.label }}
@@ -85,8 +97,8 @@
       </button>
 
       <!-- Dietary Preferences (collapsible) -->
-      <details class="collapsible form-group">
-        <summary class="collapsible-summary filter-summary">
+      <details class="collapsible form-group" @toggle="(e: Event) => dietaryOpen = (e.target as HTMLDetailsElement).open">
+        <summary class="collapsible-summary filter-summary" :aria-expanded="dietaryOpen">
           Dietary preferences
           <span v-if="dietaryActive" class="filter-active-dot" aria-label="filters active"></span>
         </summary>
@@ -162,8 +174,9 @@
 
           <!-- Max Missing — hidden in shopping mode -->
           <div v-if="!recipesStore.shoppingMode" class="form-group">
-            <label class="form-label">Max Missing Ingredients <span class="text-muted text-xs">(optional)</span></label>
+            <label class="form-label" for="max-missing">Max Missing Ingredients <span class="text-muted text-xs">(optional)</span></label>
             <input
+              id="max-missing"
               type="number"
               class="form-input"
               min="0"
@@ -177,8 +190,8 @@
       </details>
 
       <!-- Advanced Filters (collapsible) -->
-      <details class="collapsible form-group">
-        <summary class="collapsible-summary filter-summary">
+      <details class="collapsible form-group" @toggle="(e: Event) => advancedOpen = (e.target as HTMLDetailsElement).open">
+        <summary class="collapsible-summary filter-summary" :aria-expanded="advancedOpen">
           Advanced filters
           <span v-if="advancedActive" class="filter-active-dot" aria-label="filters active"></span>
         </summary>
@@ -189,26 +202,26 @@
             <label class="form-label">Nutrition limits <span class="text-muted text-xs">(per recipe, optional)</span></label>
             <div class="nutrition-filters-grid mt-xs">
               <div class="form-group">
-                <label class="form-label">Max Calories</label>
-                <input type="number" class="form-input" min="0" placeholder="e.g. 600"
+                <label class="form-label" for="filter-max-cal">Max Calories</label>
+                <input id="filter-max-cal" type="number" class="form-input" min="0" placeholder="e.g. 600"
                   :value="recipesStore.nutritionFilters.max_calories ?? ''"
                   @input="onNutritionInput('max_calories', $event)" />
               </div>
               <div class="form-group">
-                <label class="form-label">Max Sugar (g)</label>
-                <input type="number" class="form-input" min="0" placeholder="e.g. 10"
+                <label class="form-label" for="filter-max-sugar">Max Sugar (g)</label>
+                <input id="filter-max-sugar" type="number" class="form-input" min="0" placeholder="e.g. 10"
                   :value="recipesStore.nutritionFilters.max_sugar_g ?? ''"
                   @input="onNutritionInput('max_sugar_g', $event)" />
               </div>
               <div class="form-group">
-                <label class="form-label">Max Carbs (g)</label>
-                <input type="number" class="form-input" min="0" placeholder="e.g. 50"
+                <label class="form-label" for="filter-max-carbs">Max Carbs (g)</label>
+                <input id="filter-max-carbs" type="number" class="form-input" min="0" placeholder="e.g. 50"
                   :value="recipesStore.nutritionFilters.max_carbs_g ?? ''"
                   @input="onNutritionInput('max_carbs_g', $event)" />
               </div>
               <div class="form-group">
-                <label class="form-label">Max Sodium (mg)</label>
-                <input type="number" class="form-input" min="0" placeholder="e.g. 800"
+                <label class="form-label" for="filter-max-sodium">Max Sodium (mg)</label>
+                <input id="filter-max-sodium" type="number" class="form-input" min="0" placeholder="e.g. 800"
                   :value="recipesStore.nutritionFilters.max_sodium_mg ?? ''"
                   @input="onNutritionInput('max_sodium_mg', $event)" />
               </div>
@@ -227,14 +240,16 @@
                 :key="style.id"
                 :class="['btn', 'btn-secondary', 'btn-sm', { active: recipesStore.styleId === style.id }]"
                 @click="recipesStore.styleId = recipesStore.styleId === style.id ? null : style.id"
+                :aria-pressed="recipesStore.styleId === style.id"
               >{{ style.label }}</button>
             </div>
           </div>
 
           <!-- Category Filter (Level 1–2 only) -->
           <div v-if="recipesStore.level <= 2" class="form-group">
-            <label class="form-label">Category <span class="text-muted text-xs">(optional)</span></label>
+            <label class="form-label" for="adv-category">Category <span class="text-muted text-xs">(optional)</span></label>
             <input
+              id="adv-category"
               class="form-input"
               v-model="categoryInput"
               placeholder="e.g. Breakfast, Asian, Chicken, &lt; 30 Mins"
@@ -272,26 +287,27 @@
     </div>
 
     <!-- Error -->
-    <div v-if="recipesStore.error" class="status-badge status-error mb-md">
+    <div v-if="recipesStore.error" role="alert" class="status-badge status-error mb-md">
       {{ recipesStore.error }}
     </div>
 
-    <!-- Screen reader announcement when results load -->
+    <!-- Screen reader announcement for loading + results -->
     <div aria-live="polite" aria-atomic="true" class="sr-only">
-      <span v-if="recipesStore.result && !recipesStore.loading">
+      <span v-if="recipesStore.loading">Finding recipes…</span>
+      <span v-else-if="recipesStore.result">
         {{ filteredSuggestions.length }} recipe{{ filteredSuggestions.length !== 1 ? 's' : '' }} found
       </span>
     </div>
 
     <!-- Results -->
-    <div v-if="recipesStore.result" class="results-section fade-in">
+    <div v-if="recipesStore.result" class="results-section fade-in" :aria-busy="recipesStore.loading">
       <!-- Rate limit warning -->
       <div
         v-if="recipesStore.result.rate_limited"
         class="status-badge status-warning rate-limit-banner mb-md"
       >
-        You've used your {{ recipesStore.result.rate_limit_count }} free suggestions today. Upgrade for
-        unlimited.
+        Today's free suggestions are used up. Your limit resets tomorrow, or
+        <a href="#" class="link-inline" @click.prevent="$emit('upgrade')">upgrade for unlimited access</a>.
       </div>
 
       <!-- Element gaps -->
@@ -320,22 +336,26 @@
               v-for="lvl in availableLevels"
               :key="lvl"
               :class="['filter-chip', { active: filterLevel === lvl }]"
+              :aria-pressed="filterLevel === lvl"
               @click="filterLevel = filterLevel === lvl ? null : lvl"
-            >Lv{{ lvl }}</button>
+            >{{ levelLabels[lvl] ?? `Level ${lvl}` }}</button>
           </template>
           <button
             :class="['filter-chip', { active: filterMissing === 0 }]"
+            :aria-pressed="filterMissing === 0"
             @click="filterMissing = filterMissing === 0 ? null : 0"
           >Can make now</button>
           <button
             :class="['filter-chip', { active: filterMissing === 2 }]"
+            :aria-pressed="filterMissing === 2"
             @click="filterMissing = filterMissing === 2 ? null : 2"
           >≤2 missing</button>
           <button
             v-if="hasActiveFilters"
             class="filter-chip filter-chip-clear"
+            aria-label="Clear all recipe filters"
             @click="clearFilters"
-          >✕ Clear</button>
+          ><span aria-hidden="true">✕</span> Clear</button>
         </div>
       </div>
 
@@ -348,7 +368,7 @@
           <p>No recipes match your filters.</p>
           <button class="btn btn-ghost btn-sm mt-xs" @click="clearFilters">Clear filters</button>
         </template>
-        <p v-else>No recipes found for your current pantry and settings. Try lowering the creativity level or adding more items.</p>
+        <p v-else>We didn't find matches at this level. Try <button class="btn btn-ghost btn-sm" @click="recipesStore.level = 1; handleSuggest()">Level 1 — Use What I Have</button> or adjust your filters.</p>
       </div>
 
       <!-- Recipe Cards -->
@@ -398,28 +418,28 @@
           <!-- Nutrition chips -->
           <div v-if="recipe.nutrition" class="nutrition-chips mb-sm">
             <span v-if="recipe.nutrition.calories != null" class="nutrition-chip">
-              🔥 {{ Math.round(recipe.nutrition.calories) }} kcal
+              <span aria-hidden="true">🔥</span><span class="sr-only">Calories:</span> {{ Math.round(recipe.nutrition.calories) }} kcal
             </span>
             <span v-if="recipe.nutrition.fat_g != null" class="nutrition-chip">
-              🧈 {{ recipe.nutrition.fat_g.toFixed(1) }}g fat
+              <span aria-hidden="true">🧈</span><span class="sr-only">Fat:</span> {{ recipe.nutrition.fat_g.toFixed(1) }}g fat
             </span>
             <span v-if="recipe.nutrition.protein_g != null" class="nutrition-chip">
-              💪 {{ recipe.nutrition.protein_g.toFixed(1) }}g protein
+              <span aria-hidden="true">💪</span><span class="sr-only">Protein:</span> {{ recipe.nutrition.protein_g.toFixed(1) }}g protein
             </span>
             <span v-if="recipe.nutrition.carbs_g != null" class="nutrition-chip">
-              🌾 {{ recipe.nutrition.carbs_g.toFixed(1) }}g carbs
+              <span aria-hidden="true">🌾</span><span class="sr-only">Carbs:</span> {{ recipe.nutrition.carbs_g.toFixed(1) }}g carbs
             </span>
             <span v-if="recipe.nutrition.fiber_g != null" class="nutrition-chip">
-              🌿 {{ recipe.nutrition.fiber_g.toFixed(1) }}g fiber
+              <span aria-hidden="true">🌿</span><span class="sr-only">Fiber:</span> {{ recipe.nutrition.fiber_g.toFixed(1) }}g fiber
             </span>
             <span v-if="recipe.nutrition.sugar_g != null" class="nutrition-chip nutrition-chip-sugar">
-              🍬 {{ recipe.nutrition.sugar_g.toFixed(1) }}g sugar
+              <span aria-hidden="true">🍬</span><span class="sr-only">Sugar:</span> {{ recipe.nutrition.sugar_g.toFixed(1) }}g sugar
             </span>
             <span v-if="recipe.nutrition.sodium_mg != null" class="nutrition-chip">
-              🧂 {{ Math.round(recipe.nutrition.sodium_mg) }}mg sodium
+              <span aria-hidden="true">🧂</span><span class="sr-only">Sodium:</span> {{ Math.round(recipe.nutrition.sodium_mg) }}mg sodium
             </span>
             <span v-if="recipe.nutrition.servings != null" class="nutrition-chip nutrition-chip-servings">
-              🍽️ {{ recipe.nutrition.servings }} serving{{ recipe.nutrition.servings !== 1 ? 's' : '' }}
+              <span aria-hidden="true">🍽️</span><span class="sr-only">Servings:</span> {{ recipe.nutrition.servings }} serving{{ recipe.nutrition.servings !== 1 ? 's' : '' }}
             </span>
             <span v-if="recipe.nutrition.estimated" class="nutrition-chip nutrition-chip-estimated" title="Estimated from ingredient profiles">
               ~ estimated
@@ -428,7 +448,7 @@
 
           <!-- Missing ingredients -->
           <div v-if="recipe.missing_ingredients.length > 0" class="mb-sm">
-            <p class="text-sm font-semibold text-warning">You'd need:</p>
+            <p class="text-sm font-semibold text-secondary">You'd need:</p>
             <div class="flex flex-wrap gap-xs mt-xs">
               <span
                 v-for="ing in recipe.missing_ingredients"
@@ -456,8 +476,12 @@
           </div>
 
           <!-- Swap candidates collapsible -->
-          <details v-if="recipe.swap_candidates.length > 0" class="collapsible mb-sm">
-            <summary class="text-sm font-semibold collapsible-summary">
+          <details
+            v-if="recipe.swap_candidates.length > 0"
+            class="collapsible mb-sm"
+            @toggle="(e: Event) => toggleSwapOpen(recipe.id, (e.target as HTMLDetailsElement).open)"
+          >
+            <summary class="text-sm font-semibold collapsible-summary" :aria-expanded="openSwapIds.has(recipe.id)">
               Possible swaps ({{ recipe.swap_candidates.length }})
             </summary>
             <div class="card-secondary mt-xs">
@@ -518,6 +542,16 @@
         </button>
       </div>
 
+      <!-- Soft Build Your Own nudge when corpus results are sparse -->
+      <div
+        v-if="!recipesStore.loading && filteredSuggestions.length <= 2 && recipesStore.result"
+        class="byo-nudge text-sm text-secondary mt-md"
+      >
+        Not finding what you want?
+        <button class="btn-link" @click="activeTab = 'build'">Try Build Your Own</button>
+        to make something from scratch.
+      </div>
+
     </div>
 
     <!-- Recipe detail panel — mounts as a full-screen overlay -->
@@ -544,6 +578,11 @@
 
     </div><!-- end Find tab -->
 
+    <!-- Recipe load error — announced to screen readers via aria-live -->
+    <div v-if="browserRecipeError" role="alert" class="status-badge status-error mb-sm">
+      {{ browserRecipeError }}
+    </div>
+
     <!-- Detail panel for browser/saved recipe lookups -->
     <RecipeDetailPanel
       v-if="browserSelectedRecipe"
@@ -556,13 +595,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRecipesStore } from '../stores/recipes'
 import { useInventoryStore } from '../stores/inventory'
 import RecipeDetailPanel from './RecipeDetailPanel.vue'
 import RecipeBrowserPanel from './RecipeBrowserPanel.vue'
 import SavedRecipesPanel from './SavedRecipesPanel.vue'
 import CommunityFeedPanel from './CommunityFeedPanel.vue'
+import BuildYourOwnTab from './BuildYourOwnTab.vue'
 import type { ForkResult } from '../stores/community'
 import type { RecipeSuggestion, GroceryLink } from '../services/api'
 import { recipesAPI } from '../services/api'
@@ -571,24 +611,37 @@ const recipesStore = useRecipesStore()
 const inventoryStore = useInventoryStore()
 
 // Tab state
-type TabId = 'find' | 'browse' | 'saved' | 'community'
+type TabId = 'find' | 'browse' | 'saved' | 'community' | 'build'
 const tabs: Array<{ id: TabId; label: string }> = [
   { id: 'find',      label: 'Find' },
   { id: 'browse',    label: 'Browse' },
   { id: 'saved',     label: 'Saved' },
   { id: 'community', label: 'Community' },
+  { id: 'build',     label: 'Build Your Own' },
 ]
 const activeTab = ref<TabId>('find')
+// Template ref for the Find-tab panel div (used for focus management on tab switch)
+const findPanelRef = ref<HTMLElement | null>(null)
 
 function onTabKeydown(e: KeyboardEvent) {
-  const tabIds: TabId[] = ['find', 'browse', 'saved', 'community']
+  const tabIds: TabId[] = ['find', 'browse', 'saved', 'community', 'build']
   const current = tabIds.indexOf(activeTab.value)
   if (e.key === 'ArrowRight') {
     e.preventDefault()
     activeTab.value = tabIds[(current + 1) % tabIds.length]!
+    nextTick(() => {
+      // Move focus to the newly active panel so keyboard users don't have to Tab
+      // through the entire tab bar again to reach the panel content
+      const panel = document.querySelector('[role="tabpanel"]') as HTMLElement | null
+      panel?.focus()
+    })
   } else if (e.key === 'ArrowLeft') {
     e.preventDefault()
     activeTab.value = tabIds[(current - 1 + tabIds.length) % tabIds.length]!
+    nextTick(() => {
+      const panel = document.querySelector('[role="tabpanel"]') as HTMLElement | null
+      panel?.focus()
+    })
   }
 }
 
@@ -600,12 +653,37 @@ function onPlanForked(_payload: ForkResult) {
 // Browser/saved tab recipe detail panel (fetches full recipe from API)
 const browserSelectedRecipe = ref<RecipeSuggestion | null>(null)
 
+const browserRecipeError = ref<string | null>(null)
+
 async function openRecipeById(recipeId: number) {
+  browserRecipeError.value = null
   try {
     browserSelectedRecipe.value = await recipesAPI.getRecipe(recipeId)
   } catch {
-    // silently ignore — recipe may not exist
+    browserRecipeError.value = 'Could not load this recipe. Please try again.'
   }
+}
+
+// Collapsible panel open state — kept in sync with DOM toggle event so
+// :aria-expanded on <summary> reflects the actual open/closed state
+const dietaryOpen = ref(false)
+const advancedOpen = ref(false)
+
+// Per-recipe swap section open tracking (Set of recipe IDs whose swap <details> are open)
+// Uses reassignment instead of .add()/.delete() so Vue's ref() detects the change
+const openSwapIds = ref<Set<number>>(new Set())
+function toggleSwapOpen(recipeId: number, isOpen: boolean) {
+  const next = new Set(openSwapIds.value)
+  isOpen ? next.add(recipeId) : next.delete(recipeId)
+  openSwapIds.value = next
+}
+
+// Human-readable level labels for filter chips (avoids "Lv1" etc. for screen readers)
+const levelLabels: Record<number, string> = {
+  1: 'Use What I Have',
+  2: 'Allow Swaps',
+  3: 'Get Creative',
+  4: 'Surprise Me',
 }
 
 // Local input state for tags
@@ -845,6 +923,20 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.byo-nudge {
+  padding: var(--spacing-sm) 0;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  font-size: inherit;
+}
+
 .tab-bar {
   border-bottom: 1px solid var(--color-border);
   padding-bottom: var(--spacing-sm);
@@ -939,7 +1031,10 @@ onMounted(async () => {
   background: transparent;
   border: none;
   cursor: pointer;
-  padding: 2px 6px;
+  /* WCAG 2.2 2.5.8: minimum 24×24px touch target */
+  min-width: 24px;
+  min-height: 24px;
+  padding: 4px 6px;
   font-size: 12px;
   line-height: 1;
   color: var(--color-text-muted);
@@ -958,7 +1053,10 @@ onMounted(async () => {
   background: transparent;
   border: none;
   cursor: pointer;
-  padding: 2px 6px;
+  /* WCAG 2.2 2.5.8: minimum 24×24px touch target */
+  min-width: 24px;
+  min-height: 24px;
+  padding: 4px 6px;
   font-size: 14px;
   line-height: 1;
   color: var(--color-text-muted);
