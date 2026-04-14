@@ -212,11 +212,27 @@ async def build_recipe(
                 for item in items
                 if item.get("product_name")
             }
-            return build_from_selection(
+            suggestion = build_from_selection(
                 template_slug=req.template_id,
                 role_overrides=req.role_overrides,
                 pantry_set=pantry_set,
             )
+            if suggestion is None:
+                return None
+            # Persist to recipes table so the result can be saved/bookmarked.
+            # external_id encodes template + selections for stable dedup.
+            import hashlib as _hl, json as _js
+            sel_hash = _hl.md5(
+                _js.dumps(req.role_overrides, sort_keys=True).encode()
+            ).hexdigest()[:8]
+            external_id = f"assembly:{req.template_id}:{sel_hash}"
+            real_id = store.upsert_built_recipe(
+                external_id=external_id,
+                title=suggestion.title,
+                ingredients=suggestion.matched_ingredients,
+                directions=suggestion.directions,
+            )
+            return suggestion.model_copy(update={"id": real_id})
         finally:
             store.close()
 

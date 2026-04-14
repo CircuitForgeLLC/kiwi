@@ -686,6 +686,44 @@ class Store:
     def get_recipe(self, recipe_id: int) -> dict | None:
         return self._fetch_one("SELECT * FROM recipes WHERE id = ?", (recipe_id,))
 
+    def upsert_built_recipe(
+        self,
+        external_id: str,
+        title: str,
+        ingredients: list[str],
+        directions: list[str],
+    ) -> int:
+        """Persist an assembly-built recipe and return its DB id.
+
+        Uses external_id as a stable dedup key so the same build slug doesn't
+        accumulate duplicate rows across multiple user sessions.
+        """
+        import json as _json
+        self.conn.execute(
+            """
+            INSERT OR IGNORE INTO recipes
+              (external_id, title, ingredients, ingredient_names, directions, source)
+            VALUES (?, ?, ?, ?, ?, 'assembly')
+            """,
+            (
+                external_id,
+                title,
+                _json.dumps(ingredients),
+                _json.dumps(ingredients),
+                _json.dumps(directions),
+            ),
+        )
+        # Update title in case the build was re-run with tweaked selections
+        self.conn.execute(
+            "UPDATE recipes SET title = ? WHERE external_id = ?",
+            (title, external_id),
+        )
+        self.conn.commit()
+        row = self._fetch_one(
+            "SELECT id FROM recipes WHERE external_id = ?", (external_id,)
+        )
+        return row["id"]  # type: ignore[index]
+
     def get_element_profiles(self, names: list[str]) -> dict[str, list[str]]:
         """Return {ingredient_name: [element_tag, ...]} for the given names.
 

@@ -995,6 +995,12 @@ def build_from_selection(
     effective_pantry = pantry_set | set(role_overrides.values())
     title = _personalized_title(tmpl, effective_pantry, seed + tmpl.id)
 
+    # Items in role_overrides that aren't in the user's pantry = shopping list
+    missing = [
+        item for item in role_overrides.values()
+        if item and item not in pantry_set
+    ]
+
     return RecipeSuggestion(
         id=tmpl.id,
         title=title,
@@ -1002,7 +1008,7 @@ def build_from_selection(
         element_coverage={},
         swap_candidates=[],
         matched_ingredients=all_matched,
-        missing_ingredients=[],
+        missing_ingredients=missing,
         directions=tmpl.directions,
         notes=tmpl.notes,
         level=1,

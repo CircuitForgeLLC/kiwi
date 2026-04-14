@@ -161,14 +161,21 @@
             <div class="add-pantry-col">
               <p v-if="addError" role="alert" aria-live="assertive" class="add-error text-xs">{{ addError }}</p>
               <p v-if="addedToPantry" role="status" aria-live="polite" class="add-success text-xs">✓ Added to pantry!</p>
-              <button
-                class="btn btn-accent flex-1"
-                :disabled="addingToPantry"
-                @click="addToPantry"
-              >
-                <span v-if="addingToPantry">Adding…</span>
-                <span v-else>Add {{ checkedCount }} to pantry</span>
-              </button>
+              <div class="grocery-actions">
+                <button
+                  class="btn btn-primary flex-1"
+                  @click="copyGroceryList"
+                >{{ groceryCopied ? '✓ Copied!' : `📋 Grocery list (${checkedCount})` }}</button>
+                <button
+                  class="btn btn-secondary"
+                  :disabled="addingToPantry"
+                  @click="addToPantry"
+                  :title="`Add ${checkedCount} item${checkedCount !== 1 ? 's' : ''} to your pantry`"
+                >
+                  <span v-if="addingToPantry">Adding…</span>
+                  <span v-else>+ Pantry</span>
+                </button>
+              </div>
             </div>
           </template>
           <button v-else class="btn btn-primary flex-1" @click="handleCook">
@@ -246,6 +253,7 @@ const checkedIngredients = ref<Set<string>>(new Set())
 const addingToPantry = ref(false)
 const addedToPantry = ref(false)
 const addError = ref<string | null>(null)
+const groceryCopied = ref(false)
 
 const checkedCount = computed(() => checkedIngredients.value.size)
 
@@ -297,6 +305,19 @@ async function shareList() {
     await navigator.clipboard.writeText(text)
     shareCopied.value = true
     setTimeout(() => { shareCopied.value = false }, 2000)
+  }
+}
+
+async function copyGroceryList() {
+  const items = [...checkedIngredients.value]
+  if (!items.length) return
+  const text = `Shopping list for ${props.recipe.title}:\n${items.map((i) => `• ${i}`).join('\n')}`
+  if (navigator.share) {
+    await navigator.share({ title: `Shopping list: ${props.recipe.title}`, text })
+  } else {
+    await navigator.clipboard.writeText(text)
+    groceryCopied.value = true
+    setTimeout(() => { groceryCopied.value = false }, 2000)
   }
 }
 
@@ -575,6 +596,12 @@ function handleCook() {
   flex-direction: column;
   flex: 1;
   gap: 2px;
+}
+
+.grocery-actions {
+  display: flex;
+  gap: var(--spacing-xs);
+  align-items: stretch;
 }
 
 .add-error {

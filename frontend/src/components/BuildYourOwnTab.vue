@@ -186,6 +186,13 @@
           @close="phase = 'select'"
           @cooked="phase = 'select'"
         />
+        <!-- Shopping list: items the user chose that aren't in their pantry -->
+        <div v-if="(builtRecipe.missing_ingredients ?? []).length > 0" class="cart-list card mb-sm">
+          <h3 class="text-sm font-semibold mb-xs">🛒 You'll need to pick up</h3>
+          <ul class="cart-items">
+            <li v-for="item in builtRecipe.missing_ingredients" :key="item" class="cart-item text-sm">{{ item }}</li>
+          </ul>
+        </div>
         <div class="byo-actions mt-sm">
           <button class="btn btn-secondary" @click="resetToTemplate">Try a different build</button>
           <button class="btn btn-secondary" @click="phase = 'wizard'">Adjust ingredients</button>
@@ -230,6 +237,8 @@ const selectedTags = ref<Set<string>>(new Set())
 const builtRecipe = ref<RecipeSuggestion | null>(null)
 const buildLoading = ref(false)
 const buildError = ref<string | null>(null)
+
+// Shopping list is derived from builtRecipe.missing_ingredients (computed by backend)
 
 const missingModes = [
   { label: 'Available only', value: 'hidden' },
@@ -281,6 +290,7 @@ function toggleIngredient(name: string) {
   const current = new Set(roleOverrides.value[role] ?? [])
   current.has(name) ? current.delete(name) : current.add(name)
   roleOverrides.value = { ...roleOverrides.value, [role]: [...current] }
+
 }
 
 function useCustomIngredient() {
@@ -288,9 +298,27 @@ function useCustomIngredient() {
   if (!name) return
   const role = currentRole.value?.display
   if (!role) return
+
+  // Add to role overrides so it's included in the build request
   const current = new Set(roleOverrides.value[role] ?? [])
   current.add(name)
   roleOverrides.value = { ...roleOverrides.value, [role]: [...current] }
+
+  // Inject into the local candidates list so it renders as a selected card.
+  // Mark in_pantry: true so it stays visible regardless of missing-ingredient mode.
+  if (candidates.value) {
+    const knownNames = new Set([
+      ...(candidates.value.compatible ?? []).map((i) => i.name.toLowerCase()),
+      ...(candidates.value.other ?? []).map((i) => i.name.toLowerCase()),
+    ])
+    if (!knownNames.has(name.toLowerCase())) {
+      candidates.value = {
+        ...candidates.value,
+        compatible: [{ name, in_pantry: true, tags: [] }, ...(candidates.value.compatible ?? [])],
+      }
+    }
+  }
+
   filterText.value = ''
 }
 
@@ -535,5 +563,24 @@ onMounted(async () => {
   cursor: pointer;
   padding: 0;
   text-decoration: underline;
+}
+
+.cart-list {
+  padding: var(--spacing-sm) var(--spacing-md);
+}
+
+.cart-items {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+  margin-top: var(--spacing-xs);
+}
+
+.cart-item {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 2px var(--spacing-sm);
 }
 </style>
