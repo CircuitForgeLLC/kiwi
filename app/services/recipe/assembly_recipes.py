@@ -870,3 +870,142 @@ def match_assembly_templates(
     # Sort by optional coverage descending — best-matched templates first
     results.sort(key=lambda s: s.match_count, reverse=True)
     return results
+
+
+def get_role_candidates(
+    template_slug: str,
+    role_display: str,
+    pantry_set: set[str],
+    prior_picks: list[str],
+    profile_index: dict[str, list[str]],
+) -> dict:
+    """Return ingredient candidates for one wizard step.
+
+    Splits candidates into 'compatible' (element overlap with prior picks)
+    and 'other' (valid for role but no overlap).
+
+    profile_index: {ingredient_name: [element_tag, ...]} -- pre-loaded from
+    Store.get_element_profiles() by the caller so this function stays DB-free.
+
+    Returns {"compatible": [...], "other": [...], "available_tags": [...]}
+    where each item is {"name": str, "in_pantry": bool, "tags": [str]}.
+    """
+    tmpl = _TEMPLATE_BY_SLUG.get(template_slug)
+    if tmpl is None:
+        return {"compatible": [], "other": [], "available_tags": []}
+
+    # Find the AssemblyRole for this display name
+    target_role: AssemblyRole | None = None
+    for role in tmpl.required + tmpl.optional:
+        if role.display == role_display:
+            target_role = role
+            break
+    if target_role is None:
+        return {"compatible": [], "other": [], "available_tags": []}
+
+    # Build prior-pick element set for compatibility scoring
+    prior_elements: set[str] = set()
+    for pick in prior_picks:
+        prior_elements.update(profile_index.get(pick, []))
+
+    # Find pantry items that match this role
+    pantry_matches = _matches_role(target_role, pantry_set)
+
+    # Build keyword-based "other" candidates from role keywords not in pantry
+    pantry_lower = {p.lower() for p in pantry_set}
+    other_names: list[str] = []
+    for kw in target_role.keywords:
+        if not any(kw in item.lower() for item in pantry_lower):
+            if len(kw) >= 4:
+                other_names.append(kw.title())
+
+    def _make_item(name: str, in_pantry: bool) -> dict:
+        tags = profile_index.get(name, profile_index.get(name.lower(), []))
+        return {"name": name, "in_pantry": in_pantry, "tags": tags}
+
+    # Score: compatible if shares any element with prior picks (or no prior picks yet)
+    compatible: list[dict] = []
+    other: list[dict] = []
+    for name in pantry_matches:
+        item_elements = set(profile_index.get(name, []))
+        item = _make_item(name, in_pantry=True)
+        if not prior_elements or item_elements & prior_elements:
+            compatible.append(item)
+        else:
+            other.append(item)
+
+    for name in other_names:
+        other.append(_make_item(name, in_pantry=False))
+
+    # available_tags: union of all tags in the full candidate set
+    all_tags: set[str] = set()
+    for item in compatible + other:
+        all_tags.update(item["tags"])
+
+    return {
+        "compatible": compatible,
+        "other": other,
+        "available_tags": sorted(all_tags),
+    }
+
+
+def build_from_selection(
+    template_slug: str,
+    role_overrides: dict[str, str],
+    pantry_set: set[str],
+) -> "RecipeSuggestion | None":
+    """Build a RecipeSuggestion from explicit role selections.
+
+    role_overrides: {role.display -> chosen pantry item name}
+
+    Returns None if template not found or any required role is uncovered.
+    """
+    tmpl = _TEMPLATE_BY_SLUG.get(template_slug)
+    if tmpl is None:
+        return None
+
+    seed = _pantry_hash(pantry_set)
+
+    # Validate required roles: covered by override OR pantry match
+    matched_required: list[str] = []
+    for role in tmpl.required:
+        chosen = role_overrides.get(role.display)
+        if chosen:
+            matched_required.append(chosen)
+        else:
+            hits = _matches_role(role, pantry_set)
+            if not hits:
+                return None
+            matched_required.append(_pick_one(hits, seed + tmpl.id))
+
+    # Collect optional matches (override preferred, then pantry match)
+    matched_optional: list[str] = []
+    for role in tmpl.optional:
+        chosen = role_overrides.get(role.display)
+        if chosen:
+            matched_optional.append(chosen)
+        else:
+            hits = _matches_role(role, pantry_set)
+            if hits:
+                matched_optional.append(_pick_one(hits, seed + tmpl.id))
+
+    all_matched = matched_required + matched_optional
+
+    # Build title: prefer override items for personalisation
+    effective_pantry = pantry_set | set(role_overrides.values())
+    title = _personalized_title(tmpl, effective_pantry, seed + tmpl.id)
+
+    return RecipeSuggestion(
+        id=tmpl.id,
+        title=title,
+        match_count=len(all_matched),
+        element_coverage={},
+        swap_candidates=[],
+        matched_ingredients=all_matched,
+        missing_ingredients=[],
+        directions=tmpl.directions,
+        notes=tmpl.notes,
+        level=1,
+        is_wildcard=False,
+        nutrition=None,
+    )

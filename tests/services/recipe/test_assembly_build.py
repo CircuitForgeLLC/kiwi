@@ -133,3 +133,84 @@ def test_get_templates_for_api_all_have_slugs():
     slugs = {t["id"] for t in templates}
     assert len(slugs) == 13
     assert all(isinstance(s, str) and len(s) > 3 for s in slugs)
+
+
+def test_get_role_candidates_splits_compatible_other():
+    from app.services.recipe.assembly_recipes import get_role_candidates
+    profile_index = {
+        "rice": ["Starch", "Structure"],
+        "chicken": ["Protein"],
+        "broccoli": ["Vegetable"],
+    }
+    result = get_role_candidates(
+        template_slug="stir_fry",
+        role_display="protein",
+        pantry_set={"rice", "chicken", "broccoli"},
+        prior_picks=["rice"],
+        profile_index=profile_index,
+    )
+    assert isinstance(result["compatible"], list)
+    assert isinstance(result["other"], list)
+    assert isinstance(result["available_tags"], list)
+    all_names = [c["name"] for c in result["compatible"] + result["other"]]
+    assert "chicken" in all_names
+
+
+def test_get_role_candidates_available_tags():
+    from app.services.recipe.assembly_recipes import get_role_candidates
+    profile_index = {
+        "chicken": ["Protein", "Umami"],
+        "tofu": ["Protein"],
+    }
+    result = get_role_candidates(
+        template_slug="stir_fry",
+        role_display="protein",
+        pantry_set={"chicken", "tofu"},
+        prior_picks=[],
+        profile_index=profile_index,
+    )
+    assert "Protein" in result["available_tags"]
+
+
+def test_get_role_candidates_unknown_template_returns_empty():
+    from app.services.recipe.assembly_recipes import get_role_candidates
+    result = get_role_candidates(
+        template_slug="nonexistent_template",
+        role_display="protein",
+        pantry_set={"chicken"},
+        prior_picks=[],
+        profile_index={},
+    )
+    assert result == {"compatible": [], "other": [], "available_tags": []}
+
+
+def test_build_from_selection_returns_recipe():
+    from app.services.recipe.assembly_recipes import build_from_selection
+    result = build_from_selection(
+        template_slug="burrito_taco",
+        role_overrides={"tortilla or wrap": "flour tortilla", "protein": "chicken"},
+        pantry_set={"flour tortilla", "chicken", "salsa"},
+    )
+    assert result is not None
+    assert len(result.directions) > 0
+    assert result.id == -1
+
+
+def test_build_from_selection_missing_required_role_returns_none():
+    from app.services.recipe.assembly_recipes import build_from_selection
+    result = build_from_selection(
+        template_slug="burrito_taco",
+        role_overrides={"protein": "chicken"},
+        pantry_set={"chicken"},
+    )
+    assert result is None
+
+
+def test_build_from_selection_unknown_template_returns_none():
+    from app.services.recipe.assembly_recipes import build_from_selection
+    result = build_from_selection(
+        template_slug="does_not_exist",
+        role_overrides={},
+        pantry_set={"chicken"},
+    )
+    assert result is None
