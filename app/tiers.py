@@ -19,6 +19,16 @@ KIWI_BYOK_UNLOCKABLE: frozenset[str] = frozenset({
     "community_fork_adapt",
 })
 
+# Sources subject to monthly cf-orch call caps. Subscription-based sources are uncapped.
+LIFETIME_SOURCES: frozenset[str] = frozenset({"lifetime", "founders"})
+
+# (source, tier) → monthly cf-orch call allowance
+LIFETIME_ORCH_CAPS: dict[tuple[str, str], int] = {
+    ("lifetime", "paid"):    60,
+    ("lifetime", "premium"): 180,
+    ("founders", "premium"): 300,
+}
+
 # Feature → minimum tier required
 KIWI_FEATURES: dict[str, str] = {
     # Free tier
