@@ -1,0 +1,24 @@
+# Kiwi gitleaks config — extends base CircuitForge config with local rules
+
+[extend]
+path = "/Library/Development/CircuitForge/circuitforge-hooks/gitleaks.toml"
+
+# ── Test fixture allowlists ───────────────────────────────────────────────────
+
+[[rules]]
+id = "cf-generic-env-token"
+description = "Generic KEY=<token> in env-style assignment — catches FORGEJO_API_TOKEN=hex etc."
+regex = '''(?i)(token|secret|key|password|passwd|pwd|api_key)\s*[=:]\s*['"]?[A-Za-z0-9\-_]{20,}['"]?'''
+[rules.allowlist]
+paths = [
+    '.*test.*',
+]
+regexes = [
+    'api_key:\s*ollama',
+    'api_key:\s*any',
+    'your-[a-z\-]+-here',
+    'replace-with-',
+    'xxxx',
+    'test-fixture-',
+    'CFG-KIWI-TEST-',
+]
