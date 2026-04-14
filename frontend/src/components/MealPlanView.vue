@@ -102,7 +102,7 @@ async function onNewPlan() {
   // Compute Monday of current week (getDay: 0=Sun, 1=Mon...)
   const monday = new Date(today)
   monday.setDate(today.getDate() - ((day + 6) % 7))
-  const weekStart = monday.toISOString().split('T')[0]
+  const weekStart = monday.toISOString().split('T')[0] ?? monday.toISOString().slice(0, 10)
   await store.createPlan(weekStart, ['dinner'])
 }
 
