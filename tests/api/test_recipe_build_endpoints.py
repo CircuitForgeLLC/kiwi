@@ -4,14 +4,14 @@ from fastapi.testclient import TestClient
 
 
 @pytest.fixture
-def client(tmp_path):
+def client(tmp_path, monkeypatch):
     """FastAPI test client with a seeded in-memory DB."""
     import os
-    os.environ["KIWI_DB_PATH"] = str(tmp_path / "test.db")
+    db_path = tmp_path / "test.db"
     os.environ["CLOUD_MODE"] = "false"
-    from app.main import app
+    # Seed DB before app imports so migrations run and data is present
     from app.db.store import Store
-    store = Store(tmp_path / "test.db")
+    store = Store(db_path)
     store.conn.execute(
         "INSERT INTO products (name, barcode) VALUES (?,?)", ("chicken breast", None)
     )
@@ -25,6 +25,11 @@ def client(tmp_path):
         "INSERT INTO inventory_items (product_id, location, status) VALUES (2,'pantry','available')"
     )
     store.conn.commit()
+    store.close()
+    # Patch the module-level DB path used by local-mode session resolution
+    import app.cloud_session as _cs
+    monkeypatch.setattr(_cs, "_LOCAL_KIWI_DB", db_path)
+    from app.main import app
     return TestClient(app)
 
 
@@ -65,7 +70,7 @@ def test_post_build_returns_recipe(client):
     })
     assert resp.status_code == 200
     data = resp.json()
-    assert data["id"] == -1
+    assert data["id"] > 0  # persisted to DB with real integer ID
     assert len(data["directions"]) > 0
 
 
