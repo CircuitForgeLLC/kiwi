@@ -56,6 +56,7 @@ class RecipeResult(BaseModel):
     grocery_links: list[GroceryLink] = Field(default_factory=list)
     rate_limited: bool = False
     rate_limit_count: int = 0
+    orch_fallback: bool = False  # True when orch budget exhausted; fell back to local LLM
 
 
 class NutritionFilters(BaseModel):
