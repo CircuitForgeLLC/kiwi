@@ -75,6 +75,8 @@
         <p v-if="activeLevel" class="level-description text-sm text-secondary mt-xs">
           {{ activeLevel.description }}
         </p>
+        <!-- Orch budget pill — only visible when user has opted in (Settings toggle) -->
+        <OrchUsagePill class="mt-xs" />
       </div>
 
       <!-- Surprise Me confirmation -->
@@ -604,6 +606,7 @@ import RecipeBrowserPanel from './RecipeBrowserPanel.vue'
 import SavedRecipesPanel from './SavedRecipesPanel.vue'
 import CommunityFeedPanel from './CommunityFeedPanel.vue'
 import BuildYourOwnTab from './BuildYourOwnTab.vue'
+import OrchUsagePill from './OrchUsagePill.vue'
 import type { ForkResult } from '../stores/community'
 import type { RecipeSuggestion, GroceryLink } from '../services/api'
 import { recipesAPI } from '../services/api'

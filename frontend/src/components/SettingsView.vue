@@ -63,6 +63,22 @@
           </button>
         </div>
       </section>
+
+      <!-- Display Preferences -->
+      <section class="mt-md">
+        <h3 class="text-lg font-semibold mb-xs">Display</h3>
+        <label class="orch-pill-toggle flex-start gap-sm text-sm">
+          <input
+            type="checkbox"
+            :checked="orchPillEnabled"
+            @change="setOrchPillEnabled(($event.target as HTMLInputElement).checked)"
+          />
+          Show cloud recipe call budget in Recipes
+        </label>
+        <p class="text-xs text-muted mt-xs">
+          Displays your remaining cloud recipe calls near the level selector. Only visible if you have a lifetime or founders key.
+        </p>
+      </section>
     </div>
     <div class="card mt-md">
       <h2 class="section-title text-xl mb-md">Cook History</h2>
@@ -159,9 +175,11 @@ import { ref, computed, onMounted } from 'vue'
 import { useSettingsStore } from '../stores/settings'
 import { useRecipesStore } from '../stores/recipes'
 import { householdAPI, type HouseholdStatus } from '../services/api'
+import { useOrchUsage } from '../composables/useOrchUsage'
 
 const settingsStore = useSettingsStore()
 const recipesStore = useRecipesStore()
+const { enabled: orchPillEnabled, setEnabled: setOrchPillEnabled } = useOrchUsage()
 
 const sortedCookLog = computed(() =>
   [...recipesStore.cookLog].sort((a, b) => b.cookedAt - a.cookedAt)
@@ -449,5 +467,18 @@ onMounted(async () => {
   flex: 1;
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
+}
+
+.orch-pill-toggle {
+  cursor: pointer;
+  align-items: center;
+  color: var(--color-text);
+}
+
+.orch-pill-toggle input[type="checkbox"] {
+  accent-color: var(--color-primary);
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
 }
 </style>
