@@ -30,7 +30,7 @@ from app.services.recipe.browser_domains import (
 )
 from app.services.recipe.recipe_engine import RecipeEngine
 from app.services.heimdall_orch import check_orch_budget
-from app.tiers import LIFETIME_SOURCES, can_use
+from app.tiers import can_use
 
 router = APIRouter()
 
