@@ -10,6 +10,8 @@ Scan barcodes, photograph receipts, and get recipe ideas based on what you alrea
 
 **Status:** Beta · CircuitForge LLC
 
+**[Documentation](https://docs.circuitforge.tech/kiwi/)** · [circuitforge.tech](https://circuitforge.tech)
+
 ---
 
 ## What it does
