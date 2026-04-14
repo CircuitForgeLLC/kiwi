@@ -571,6 +571,7 @@ class Store:
         max_carbs_g: float | None = None,
         max_sodium_mg: float | None = None,
         excluded_ids: list[int] | None = None,
+        exclude_generic: bool = False,
     ) -> list[dict]:
         """Find recipes containing any of the given ingredient names.
         Scores by match count and returns highest-scoring first.
@@ -580,6 +581,9 @@ class Store:
 
         Nutrition filters use NULL-passthrough: rows without nutrition data
         always pass (they may be estimated or absent entirely).
+
+        exclude_generic: when True, skips recipes marked is_generic=1.
+        Pass True for Level 1 ("Use What I Have") to suppress catch-all recipes.
         """
         if not ingredient_names:
             return []
@@ -605,6 +609,8 @@ class Store:
             placeholders = ",".join("?" * len(excluded_ids))
             extra_clauses.append(f"r.id NOT IN ({placeholders})")
             extra_params.extend(excluded_ids)
+        if exclude_generic:
+            extra_clauses.append("r.is_generic = 0")
         where_extra = (" AND " + " AND ".join(extra_clauses)) if extra_clauses else ""
 
         if self._fts_ready():
@@ -679,6 +685,29 @@ class Store:
 
     def get_recipe(self, recipe_id: int) -> dict | None:
         return self._fetch_one("SELECT * FROM recipes WHERE id = ?", (recipe_id,))
+
+    def get_element_profiles(self, names: list[str]) -> dict[str, list[str]]:
+        """Return {ingredient_name: [element_tag, ...]} for the given names.
+
+        Only names present in ingredient_profiles are returned -- missing names
+        are silently omitted so callers can distinguish "no profile" from "empty
+        elements list".
+        """
+        if not names:
+            return {}
+        placeholders = ",".join("?" * len(names))
+        rows = self._fetch_all(
+            f"SELECT name, elements FROM ingredient_profiles WHERE name IN ({placeholders})",
+            tuple(names),
+        )
+        result: dict[str, list[str]] = {}
+        for row in rows:
+            try:
+                elements = json.loads(row["elements"]) if row["elements"] else []
+            except (json.JSONDecodeError, TypeError):
+                elements = []
+            result[row["name"]] = elements
+        return result
 
     # ── rate limits ───────────────────────────────────────────────────────
 
