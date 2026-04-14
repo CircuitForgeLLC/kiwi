@@ -104,3 +104,32 @@ def test_build_request_defaults():
     req = BuildRequest(template_id="test_template")
     assert req.template_id == "test_template"
     assert req.role_overrides == {}
+
+
+def test_get_templates_for_api_returns_13():
+    from app.services.recipe.assembly_recipes import get_templates_for_api
+    templates = get_templates_for_api()
+    assert len(templates) == 13
+
+
+def test_get_templates_for_api_shape():
+    from app.services.recipe.assembly_recipes import get_templates_for_api
+    templates = get_templates_for_api()
+    t = next(t for t in templates if t["id"] == "burrito_taco")
+    assert t["title"] == "Burrito / Taco"
+    assert t["icon"] == "🌯"
+    assert isinstance(t["role_sequence"], list)
+    assert len(t["role_sequence"]) >= 1
+    role = t["role_sequence"][0]
+    assert "display" in role
+    assert "required" in role
+    assert "keywords" in role
+    assert "hint" in role
+
+
+def test_get_templates_for_api_all_have_slugs():
+    from app.services.recipe.assembly_recipes import get_templates_for_api
+    templates = get_templates_for_api()
+    slugs = {t["id"] for t in templates}
+    assert len(slugs) == 13
+    assert all(isinstance(s, str) and len(s) > 3 for s in slugs)

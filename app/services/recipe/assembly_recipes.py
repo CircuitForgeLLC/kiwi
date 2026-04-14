@@ -42,11 +42,21 @@ class AssemblyRole:
 class AssemblyTemplate:
     """A template assembly dish."""
     id: int
+    slug: str           # URL-safe identifier, e.g. "burrito_taco"
+    icon: str           # emoji
+    descriptor: str     # one-line description shown in template grid
     title: str
     required: list[AssemblyRole]
     optional: list[AssemblyRole]
     directions: list[str]
     notes: str = ""
+    # Per-role hints shown in the wizard picker header
+    # keys match role.display values; missing keys fall back to ""
+    role_hints: dict[str, str] = None  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        if self.role_hints is None:
+            self.role_hints = {}
 
 
 def _matches_role(role: AssemblyRole, pantry_set: set[str]) -> list[str]:
@@ -138,6 +148,9 @@ def _personalized_title(tmpl: AssemblyTemplate, pantry_set: set[str], seed: int)
 ASSEMBLY_TEMPLATES: list[AssemblyTemplate] = [
     AssemblyTemplate(
         id=-1,
+        slug="burrito_taco",
+        icon="🌯",
+        descriptor="Protein, veg, and sauce in a tortilla or over rice",
         title="Burrito / Taco",
         required=[
             AssemblyRole("tortilla or wrap", [
@@ -170,9 +183,21 @@ ASSEMBLY_TEMPLATES: list[AssemblyTemplate] = [
             "Fold in the sides and roll tightly. Optionally toast seam-side down 1-2 minutes.",
         ],
         notes="Works as a burrito (rolled), taco (folded), or quesadilla (cheese only, pressed flat).",
+        role_hints={
+            "tortilla or wrap": "The foundation -- what holds everything",
+            "protein": "The main filling",
+            "rice or starch": "Optional base layer",
+            "cheese": "Optional -- melts into the filling",
+            "salsa or sauce": "Optional -- adds moisture and heat",
+            "sour cream or yogurt": "Optional -- cool contrast to heat",
+            "vegetables": "Optional -- adds texture and colour",
+        },
     ),
     AssemblyTemplate(
         id=-2,
+        slug="fried_rice",
+        icon="🍳",
+        descriptor="Rice + egg + whatever's in the fridge",
         title="Fried Rice",
         required=[
             AssemblyRole("cooked rice", [
@@ -205,9 +230,21 @@ ASSEMBLY_TEMPLATES: list[AssemblyTemplate] = [
             "Season with soy sauce and any other sauces. Toss to combine.",
         ],
         notes="Add a fried egg on top. A drizzle of sesame oil at the end adds a lot.",
+        role_hints={
+            "cooked rice": "Day-old cold rice works best",
+            "protein": "Pre-cooked or raw -- cook before adding rice",
+            "soy sauce or seasoning": "The primary flavour driver",
+            "oil": "High smoke-point oil for high heat",
+            "egg": "Scrambled in the same pan",
+            "vegetables": "Add crunch and colour",
+            "garlic or ginger": "Aromatic base -- add first",
+        },
     ),
     AssemblyTemplate(
         id=-3,
+        slug="omelette_scramble",
+        icon="🥚",
+        descriptor="Eggs with fillings, pan-cooked",
         title="Omelette / Scramble",
         required=[
             AssemblyRole("eggs", ["egg"]),
@@ -238,9 +275,19 @@ ASSEMBLY_TEMPLATES: list[AssemblyTemplate] = [
             "Season and serve immediately.",
         ],
         notes="Works for breakfast, lunch, or a quick dinner. Any leftover vegetables work well.",
+        role_hints={
+            "eggs": "The base -- beat with a splash of water",
+            "cheese": "Fold in just before serving",
+            "vegetables": "Saute first, then add eggs",
+            "protein": "Cook through before adding eggs",
+            "herbs or seasoning": "Season at the end",
+        },
     ),
     AssemblyTemplate(
         id=-4,
+        slug="stir_fry",
+        icon="🥢",
+        descriptor="High-heat protein + veg in sauce",
         title="Stir Fry",
         required=[
             AssemblyRole("vegetables", [
@@ -271,9 +318,20 @@ ASSEMBLY_TEMPLATES: list[AssemblyTemplate] = [
             "Serve over rice or noodles.",
         ],
         notes="High heat is the key. Do not crowd the pan -- cook in batches if needed.",
+        role_hints={
+            "vegetables": "Cut to similar size for even cooking",
+            "starch base": "Serve under or toss with the stir fry",
+            "protein": "Cook first, remove, add back at end",
+            "sauce": "Add last -- toss for 1-2 minutes only",
+            "garlic or ginger": "Add early for aromatic base",
+            "oil": "High smoke-point oil only",
+        },
     ),
     AssemblyTemplate(
         id=-5,
+        slug="pasta",
+        icon="🍝",
+        descriptor="Pantry pasta with flexible sauce",
         title="Pasta with Whatever You Have",
         required=[
             AssemblyRole("pasta", [
@@ -307,9 +365,20 @@ ASSEMBLY_TEMPLATES: list[AssemblyTemplate] = [
             "Toss cooked pasta with sauce. Finish with cheese if using.",
         ],
         notes="Pasta water is the secret -- the starch thickens and binds any sauce.",
+        role_hints={
+            "pasta": "The base -- cook al dente, reserve pasta water",
+            "sauce base": "Simmer 5 min; pasta water loosens it",
+            "protein": "Cook through before adding sauce",
+            "cheese": "Finish off heat to avoid graininess",
+            "vegetables": "Saute until tender before adding sauce",
+            "garlic": "Saute in oil first -- the flavour foundation",
+        },
     ),
     AssemblyTemplate(
         id=-6,
+        slug="sandwich_wrap",
+        icon="🥪",
+        descriptor="Protein + veg between bread or in a wrap",
         title="Sandwich / Wrap",
         required=[
             AssemblyRole("bread or wrap", [
@@ -341,9 +410,19 @@ ASSEMBLY_TEMPLATES: list[AssemblyTemplate] = [
             "Press together and cut diagonally.",
         ],
         notes="Leftovers, deli meat, canned fish -- nearly anything works between bread.",
+        role_hints={
+            "bread or wrap": "Toast for better texture",
+            "protein": "Layer on first after condiments",
+            "cheese": "Goes on top of protein",
+            "condiment": "Spread on both inner surfaces",
+            "vegetables": "Top layer -- keeps bread from getting soggy",
+        },
     ),
     AssemblyTemplate(
         id=-7,
+        slug="grain_bowl",
+        icon="🥗",
+        descriptor="Grain base + protein + toppings + dressing",
         title="Grain Bowl",
         required=[
             AssemblyRole("grain base", [
@@ -377,9 +456,19 @@ ASSEMBLY_TEMPLATES: list[AssemblyTemplate] = [
             "Drizzle with dressing and add toppings.",
         ],
         notes="Great for meal prep -- cook grains and proteins in bulk, assemble bowls all week.",
+        role_hints={
+            "grain base": "Season while cooking -- bland grains sink the bowl",
+            "protein": "Slice or shred; arrange on top",
+            "vegetables": "Roast or saute for best flavour",
+            "dressing or sauce": "Drizzle last -- ties everything together",
+            "toppings": "Add crunch and contrast",
+        },
     ),
     AssemblyTemplate(
         id=-8,
+        slug="soup_stew",
+        icon="🥣",
+        descriptor="Liquid-based, flexible ingredients",
         title="Soup / Stew",
         required=[
             # Narrow to dedicated soup bases — tomato sauce and coconut milk are
@@ -415,9 +504,19 @@ ASSEMBLY_TEMPLATES: list[AssemblyTemplate] = [
             "Season to taste and simmer at least 20 minutes for flavors to develop.",
         ],
         notes="Soups and stews improve overnight in the fridge. Almost any combination works.",
+        role_hints={
+            "broth or stock": "The liquid base -- determines overall flavour",
+            "protein": "Brown first for deeper flavour",
+            "vegetables": "Dense veg first; quick-cooking veg last",
+            "starch thickener": "Adds body and turns soup into stew",
+            "seasoning": "Taste and adjust after 20 min simmer",
+        },
     ),
     AssemblyTemplate(
         id=-9,
+        slug="casserole_bake",
+        icon="🫙",
+        descriptor="Oven bake with protein, veg, starch",
         title="Casserole / Bake",
         required=[
             AssemblyRole("starch or base", [
@@ -457,9 +556,20 @@ ASSEMBLY_TEMPLATES: list[AssemblyTemplate] = [
             "Bake covered 25 minutes, then uncovered 15 minutes until golden and bubbly.",
         ],
         notes="Classic pantry dump dinner. Cream of anything soup is the universal binder.",
+        role_hints={
+            "starch or base": "Cook slightly underdone -- finishes in oven",
+            "binder or sauce": "Coats everything and holds the bake together",
+            "protein": "Pre-cook before mixing in",
+            "vegetables": "Chop small for even distribution",
+            "cheese topping": "Goes on last -- browns in the final 15 min",
+            "seasoning": "Casseroles need more salt than you think",
+        },
     ),
     AssemblyTemplate(
         id=-10,
+        slug="pancakes_quickbread",
+        icon="🥞",
+        descriptor="Batter-based; sweet or savory",
         title="Pancakes / Waffles / Quick Bread",
         required=[
             AssemblyRole("flour or baking mix", [
@@ -495,9 +605,20 @@ ASSEMBLY_TEMPLATES: list[AssemblyTemplate] = [
             "For muffins or quick bread: pour into greased pan, bake at 375 F until a toothpick comes out clean.",
         ],
         notes="Overmixing develops gluten and makes pancakes tough. Stop when just combined.",
+        role_hints={
+            "flour or baking mix": "Whisk dry ingredients together first",
+            "leavening or egg": "Activates rise -- don't skip",
+            "liquid": "Add to dry ingredients; lumps are fine",
+            "fat": "Adds richness and prevents sticking",
+            "sweetener": "Mix into wet ingredients",
+            "mix-ins": "Fold in last -- gently",
+        },
     ),
     AssemblyTemplate(
         id=-11,
+        slug="porridge_oatmeal",
+        icon="🌾",
+        descriptor="Oat or grain base with toppings",
         title="Porridge / Oatmeal",
         required=[
             AssemblyRole("oats or grain porridge", [
@@ -520,9 +641,20 @@ ASSEMBLY_TEMPLATES: list[AssemblyTemplate] = [
             "Top with fruit, nuts, or seeds and serve immediately.",
         ],
         notes="Overnight oats: skip cooking — soak oats in cold milk overnight in the fridge.",
+        role_hints={
+            "oats or grain porridge": "1 part oats to 2 parts liquid",
+            "liquid": "Use milk for creamier result",
+            "sweetener": "Stir in after cooking",
+            "fruit": "Add fresh on top or simmer dried fruit in",
+            "toppings": "Add last for crunch",
+            "spice": "Stir in with sweetener",
+        },
     ),
     AssemblyTemplate(
         id=-12,
+        slug="pie_pot_pie",
+        icon="🥧",
+        descriptor="Pastry or biscuit crust with filling",
         title="Pie / Pot Pie",
         required=[
             AssemblyRole("pastry or crust", [
@@ -561,9 +693,20 @@ ASSEMBLY_TEMPLATES: list[AssemblyTemplate] = [
             "For sweet pie: fill unbaked crust with fruit filling, top with second crust or crumble, bake similarly.",
         ],
         notes="Puff pastry from the freezer is the shortcut to impressive pot pies. Thaw in the fridge overnight.",
+        role_hints={
+            "pastry or crust": "Thaw puff pastry overnight in fridge",
+            "protein filling": "Cook through before adding to filling",
+            "vegetables": "Chop small; cook until just tender",
+            "sauce or binder": "Holds the filling together in the crust",
+            "seasoning": "Fillings need generous seasoning",
+            "sweet filling": "For dessert pies -- fruit + sugar",
+        },
     ),
     AssemblyTemplate(
         id=-13,
+        slug="pudding_custard",
+        icon="🍮",
+        descriptor="Dairy-based set dessert",
         title="Pudding / Custard",
         required=[
             AssemblyRole("dairy or dairy-free milk", [
@@ -601,8 +744,56 @@ ASSEMBLY_TEMPLATES: list[AssemblyTemplate] = [
             "Pour into dishes and refrigerate at least 2 hours to set.",
         ],
         notes="UK-style pudding is broad — bread pudding, rice pudding, spotted dick, treacle sponge all count.",
+        role_hints={
+            "dairy or dairy-free milk": "Heat until steaming before adding to eggs",
+            "thickener or set": "Cornstarch for stovetop; eggs for baked custard",
+            "sweetener or flavouring": "Signals dessert intent -- required",
+            "sweetener": "Adjust to taste",
+            "flavouring": "Add off-heat to preserve aroma",
+            "starchy base": "For bread pudding or rice pudding",
+            "fruit": "Layer in or fold through before setting",
+        },
     ),
 ]
+
+
+# Slug to template lookup (built once at import time)
+_TEMPLATE_BY_SLUG: dict[str, AssemblyTemplate] = {
+    t.slug: t for t in ASSEMBLY_TEMPLATES
+}
+
+
+def get_templates_for_api() -> list[dict]:
+    """Serialise all 13 templates for GET /api/recipes/templates.
+
+    Combines required and optional roles into a single ordered role_sequence
+    with required roles first.
+    """
+    out = []
+    for tmpl in ASSEMBLY_TEMPLATES:
+        roles = []
+        for role in tmpl.required:
+            roles.append({
+                "display": role.display,
+                "required": True,
+                "keywords": role.keywords,
+                "hint": tmpl.role_hints.get(role.display, ""),
+            })
+        for role in tmpl.optional:
+            roles.append({
+                "display": role.display,
+                "required": False,
+                "keywords": role.keywords,
+                "hint": tmpl.role_hints.get(role.display, ""),
+            })
+        out.append({
+            "id": tmpl.slug,
+            "title": tmpl.title,
+            "icon": tmpl.icon,
+            "descriptor": tmpl.descriptor,
+            "role_sequence": roles,
+        })
+    return out
 
 
 # ---------------------------------------------------------------------------
