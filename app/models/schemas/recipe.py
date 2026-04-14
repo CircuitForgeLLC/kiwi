@@ -82,3 +82,48 @@ class RecipeRequest(BaseModel):
     nutrition_filters: NutritionFilters = Field(default_factory=NutritionFilters)
     excluded_ids: list[int] = Field(default_factory=list)
     shopping_mode: bool = False
+
+
+# ── Build Your Own schemas ──────────────────────────────────────────────────
+
+
+class AssemblyRoleOut(BaseModel):
+    """One role slot in a template, as returned by GET /api/recipes/templates."""
+
+    display: str
+    required: bool
+    keywords: list[str]
+    hint: str = ""
+
+
+class AssemblyTemplateOut(BaseModel):
+    """One assembly template, as returned by GET /api/recipes/templates."""
+
+    id: str  # slug, e.g. "burrito_taco"
+    title: str
+    icon: str
+    descriptor: str
+    role_sequence: list[AssemblyRoleOut]
+
+
+class RoleCandidateItem(BaseModel):
+    """One candidate ingredient for a wizard picker step."""
+
+    name: str
+    in_pantry: bool
+    tags: list[str] = Field(default_factory=list)
+
+
+class RoleCandidatesResponse(BaseModel):
+    """Response from GET /api/recipes/template-candidates."""
+
+    compatible: list[RoleCandidateItem] = Field(default_factory=list)
+    other: list[RoleCandidateItem] = Field(default_factory=list)
+    available_tags: list[str] = Field(default_factory=list)
+
+
+class BuildRequest(BaseModel):
+    """Request body for POST /api/recipes/build."""
+
+    template_id: str
+    role_overrides: dict[str, str] = Field(default_factory=dict)
