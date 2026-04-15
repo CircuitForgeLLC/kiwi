@@ -60,7 +60,7 @@
             </button>
 
             <!-- Stars display -->
-            <div v-if="recipe.rating !== null" class="stars-display flex gap-xs" aria-label="Rating">
+            <div v-if="recipe.rating !== null" class="stars-display flex gap-xs" :aria-label="`Rating: ${recipe.rating} out of 5`">
               <span
                 v-for="n in 5"
                 :key="n"
@@ -88,6 +88,7 @@
             <button
               v-if="recipe.notes.length > 120"
               class="btn-link text-sm"
+              :aria-expanded="expandedNotes.has(recipe.id)"
               @click="toggleNotes(recipe.id)"
             >
               {{ expandedNotes.has(recipe.id) ? 'Show less' : 'Show more' }}

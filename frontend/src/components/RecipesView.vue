@@ -1068,6 +1068,11 @@ watch(
   color: inherit;
   opacity: 0.7;
   transition: opacity 0.15s;
+  min-width: 24px;
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .chip-remove:hover {
@@ -1534,5 +1539,10 @@ details[open] .collapsible-summary::before {
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
+}
+
+.undo-toast .btn-link {
+  min-height: 24px;
+  padding: 2px 4px;
 }
 </style>
