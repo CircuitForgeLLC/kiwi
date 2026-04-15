@@ -601,11 +601,22 @@
       @close="browserSelectedRecipe = null"
       @cooked="browserSelectedRecipe = null"
     />
+
+    <!-- Undo toast for "I cooked this" dismiss -->
+    <div
+      v-if="lastCookedRecipe"
+      class="undo-toast"
+      role="status"
+      aria-live="polite"
+    >
+      Dismissed from suggestions.
+      <button class="btn-link" @click="undoCooked">Undo</button>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRecipesStore } from '../stores/recipes'
 import { useInventoryStore } from '../stores/inventory'
 import { useSavedRecipesStore } from '../stores/savedRecipes'
@@ -763,10 +774,27 @@ function openRecipe(recipe: RecipeSuggestion) {
   selectedRecipe.value = recipe
 }
 
+const lastCookedRecipe = ref<{ id: number; title: string } | null>(null)
+let undoTimer: ReturnType<typeof setTimeout> | null = null
+
 function onCooked(recipe: RecipeSuggestion) {
   recipesStore.logCook(recipe.id, recipe.title)
   recipesStore.dismiss(recipe.id)
+  lastCookedRecipe.value = { id: recipe.id, title: recipe.title }
+  if (undoTimer) clearTimeout(undoTimer)
+  undoTimer = setTimeout(() => {
+    lastCookedRecipe.value = null
+  }, 12000)
 }
+
+function undoCooked() {
+  if (!lastCookedRecipe.value) return
+  recipesStore.undismiss(lastCookedRecipe.value.id)
+  if (undoTimer) clearTimeout(undoTimer)
+  lastCookedRecipe.value = null
+}
+
+onUnmounted(() => { if (undoTimer) clearTimeout(undoTimer) })
 
 const levels = [
   { value: 1, label: 'Use What I Have',  description: 'Finds recipes you can make right now using exactly what\'s in your pantry.' },
@@ -1489,5 +1517,22 @@ details[open] .collapsible-summary::before {
   .nutrition-filters-grid {
     grid-template-columns: 1fr;
   }
+}
+
+.undo-toast {
+  position: fixed;
+  bottom: var(--spacing-lg);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  box-shadow: var(--shadow-md);
+  font-size: var(--font-size-sm);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
 }
 </style>

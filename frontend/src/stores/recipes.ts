@@ -238,6 +238,11 @@ export const useRecipesStore = defineStore('recipes', () => {
     }
   }
 
+  function undismiss(id: number) {
+    dismissedIds.value = new Set([...dismissedIds.value].filter((d) => d !== id))
+    saveDismissed(dismissedIds.value)
+  }
+
   function clearDismissed() {
     dismissedIds.value = new Set()
     localStorage.removeItem(DISMISSED_KEY)
@@ -318,6 +323,7 @@ export const useRecipesStore = defineStore('recipes', () => {
     suggest,
     loadMore,
     dismiss,
+    undismiss,
     clearDismissed,
     clearResult,
   }
