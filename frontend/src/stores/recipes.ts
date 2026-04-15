@@ -21,6 +21,35 @@ const BOOKMARKS_MAX = 50
 const MISSING_MODE_KEY = 'kiwi:builder_missing_mode'
 const FILTER_MODE_KEY = 'kiwi:builder_filter_mode'
 
+const CONSTRAINTS_KEY = 'kiwi:constraints'
+const ALLERGIES_KEY = 'kiwi:allergies'
+
+function loadConstraints(): string[] {
+  try {
+    const raw = localStorage.getItem(CONSTRAINTS_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
+function saveConstraints(vals: string[]) {
+  localStorage.setItem(CONSTRAINTS_KEY, JSON.stringify(vals))
+}
+
+function loadAllergies(): string[] {
+  try {
+    const raw = localStorage.getItem(ALLERGIES_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
+function saveAllergies(vals: string[]) {
+  localStorage.setItem(ALLERGIES_KEY, JSON.stringify(vals))
+}
+
 type MissingIngredientMode = 'hidden' | 'greyed' | 'add-to-cart'
 type BuilderFilterMode = 'text' | 'tags'
 
@@ -95,8 +124,8 @@ export const useRecipesStore = defineStore('recipes', () => {
 
   // Request parameters
   const level = ref(1)
-  const constraints = ref<string[]>([])
-  const allergies = ref<string[]>([])
+  const constraints = ref<string[]>(loadConstraints())
+  const allergies = ref<string[]>(loadAllergies())
   const hardDayMode = ref(false)
   const maxMissing = ref<number | null>(null)
   const styleId = ref<string | null>(null)
@@ -126,6 +155,8 @@ export const useRecipesStore = defineStore('recipes', () => {
   // Persist wizard prefs on change
   watch(missingIngredientMode, (val) => localStorage.setItem(MISSING_MODE_KEY, val))
   watch(builderFilterMode, (val) => localStorage.setItem(FILTER_MODE_KEY, val))
+  watch(constraints, (val) => saveConstraints(val))
+  watch(allergies, (val) => saveAllergies(val))
 
   const dismissedCount = computed(() => dismissedIds.value.size)
 
@@ -241,6 +272,16 @@ export const useRecipesStore = defineStore('recipes', () => {
     localStorage.removeItem(BOOKMARKS_KEY)
   }
 
+  function clearConstraints() {
+    constraints.value = []
+    localStorage.removeItem(CONSTRAINTS_KEY)
+  }
+
+  function clearAllergies() {
+    allergies.value = []
+    localStorage.removeItem(ALLERGIES_KEY)
+  }
+
   function clearResult() {
     result.value = null
     error.value = null
@@ -270,6 +311,8 @@ export const useRecipesStore = defineStore('recipes', () => {
     isBookmarked,
     toggleBookmark,
     clearBookmarks,
+    clearConstraints,
+    clearAllergies,
     missingIngredientMode,
     builderFilterMode,
     suggest,
