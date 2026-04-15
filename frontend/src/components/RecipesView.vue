@@ -389,13 +389,13 @@
               <span v-if="recipe.is_wildcard" class="status-badge status-warning">Wildcard</span>
               <button
                 v-if="recipe.id"
-                :class="['btn-bookmark', { active: recipesStore.isBookmarked(recipe.id) }]"
+                :class="['btn-icon', 'btn-bookmark', { active: recipesStore.isBookmarked(recipe.id) }]"
                 @click="recipesStore.toggleBookmark(recipe)"
                 :aria-label="recipesStore.isBookmarked(recipe.id) ? 'Remove bookmark: ' + recipe.title : 'Bookmark: ' + recipe.title"
               >{{ recipesStore.isBookmarked(recipe.id) ? '★' : '☆' }}</button>
               <button
                 v-if="recipe.id"
-                class="btn-dismiss"
+                class="btn-icon btn-dismiss"
                 @click="recipesStore.dismiss(recipe.id)"
                 :aria-label="'Hide recipe: ' + recipe.title"
               >✕</button>
