@@ -155,8 +155,8 @@ export const useRecipesStore = defineStore('recipes', () => {
   // Persist wizard prefs on change
   watch(missingIngredientMode, (val) => localStorage.setItem(MISSING_MODE_KEY, val))
   watch(builderFilterMode, (val) => localStorage.setItem(FILTER_MODE_KEY, val))
-  watch(constraints, (val) => saveConstraints(val))
-  watch(allergies, (val) => saveAllergies(val))
+  watch(constraints, (val) => saveConstraints(val), { deep: true })
+  watch(allergies, (val) => saveAllergies(val), { deep: true })
 
   const dismissedCount = computed(() => dismissedIds.value.size)
 
