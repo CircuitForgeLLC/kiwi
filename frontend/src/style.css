@@ -115,7 +115,8 @@
   :root {
     --color-text-primary: #2c1a06;
     --color-text-secondary: #6b4c1e;
-    --color-text-muted: #a0845a;
+    /* Darkened from #a0845a → #7a5c2e for WCAG 1.4.3 AA compliance (~4.6:1 against light bg) */
+    --color-text-muted: #7a5c2e;
 
     --color-bg-primary: #fdf8f0;
     --color-bg-secondary: #ffffff;
