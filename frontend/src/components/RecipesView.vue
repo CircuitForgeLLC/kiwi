@@ -11,7 +11,7 @@
         :aria-selected="activeTab === tab.id"
         :tabindex="activeTab === tab.id ? 0 : -1"
         :class="['btn', 'tab-btn', activeTab === tab.id ? 'btn-primary' : 'btn-secondary']"
-        @click="activeTab = tab.id"
+        @click="activateTab(tab.id)"
         @keydown="onTabKeydown"
       >{{ tab.label }}</button>
     </div>
@@ -32,6 +32,7 @@
       aria-labelledby="tab-saved"
       tabindex="0"
       @open-recipe="openRecipeById"
+      @go-to-tab="(tab: string) => activateTab(tab as TabId)"
     />
 
     <!-- Community tab -->
@@ -80,8 +81,8 @@
       </div>
 
       <!-- Surprise Me confirmation -->
-      <div v-if="recipesStore.level === 4" class="status-badge status-warning wildcard-warning">
-        <span id="wildcard-warning-desc">The AI will freestyle recipes from whatever you have. Results can be unusual — that's part of the fun.</span>
+      <div v-if="recipesStore.level === 4" class="status-badge status-info wildcard-warning">
+        <span id="wildcard-warning-desc">Wildcard mode lets the AI get creative with whatever you have on hand. Results might surprise you.</span>
         <label class="flex-start gap-sm mt-xs">
           <input type="checkbox" v-model="recipesStore.wildcardConfirmed" aria-describedby="wildcard-warning-desc" />
           <span>I understand, go for it</span>
@@ -97,6 +98,9 @@
         🌿 Hard Day Mode
         <span class="hard-day-sub">{{ recipesStore.hardDayMode ? 'on — quick &amp; simple only' : 'quick, simple recipes only' }}</span>
       </button>
+      <p v-if="recipesStore.hardDayMode && recipesStore.result && recipesStore.result.suggestions.length > 0" class="text-muted text-sm mt-xs">
+        Tap "Find recipes" again to apply.
+      </p>
 
       <!-- Dietary Preferences (collapsible) -->
       <details class="collapsible form-group" @toggle="(e: Event) => dietaryOpen = (e.target as HTMLDetailsElement).open">
@@ -125,6 +129,7 @@
               aria-describedby="constraint-hint"
               @keydown="onConstraintKey"
               @blur="commitConstraintInput"
+              autocomplete="off"
             />
             <span id="constraint-hint" class="form-hint">Press Enter or comma to add.</span>
           </div>
@@ -159,6 +164,7 @@
               aria-describedby="allergy-hint"
               @keydown="onAllergyKey"
               @blur="commitAllergyInput"
+              autocomplete="off"
             />
             <span id="allergy-hint" class="form-hint">No recipes containing these ingredients will appear.</span>
           </div>
@@ -194,7 +200,7 @@
       <!-- Advanced Filters (collapsible) -->
       <details class="collapsible form-group" @toggle="(e: Event) => advancedOpen = (e.target as HTMLDetailsElement).open">
         <summary class="collapsible-summary filter-summary" :aria-expanded="advancedOpen">
-          Advanced filters
+          Nutrition Filters{{ activeNutritionFilterCount > 0 ? ` (${activeNutritionFilterCount} active)` : '' }}
           <span v-if="advancedActive" class="filter-active-dot" aria-label="filters active"></span>
         </summary>
 
@@ -313,13 +319,13 @@
       </div>
 
       <!-- Element gaps -->
-      <div v-if="recipesStore.result.element_gaps.length > 0" class="card card-warning mb-md">
-        <p class="text-sm font-semibold">Your pantry is missing some flavor elements:</p>
+      <div v-if="recipesStore.result.element_gaps.length > 0" class="card card-secondary mb-md">
+        <p class="text-sm font-semibold">These would expand your options:</p>
         <div class="flex flex-wrap gap-xs mt-xs">
           <span
             v-for="gap in recipesStore.result.element_gaps"
             :key="gap"
-            class="status-badge status-warning"
+            class="status-badge status-info"
           >{{ gap }}</span>
         </div>
       </div>
@@ -331,6 +337,7 @@
           v-model="filterText"
           placeholder="Search recipes or ingredients…"
           aria-label="Filter recipes"
+          autocomplete="off"
         />
         <div class="filter-chips">
           <template v-if="availableLevels.length > 1">
@@ -386,16 +393,16 @@
             <div class="flex flex-wrap gap-xs" style="align-items:center">
               <span class="status-badge status-success">{{ recipe.match_count }} matched</span>
               <span class="status-badge status-info">Level {{ recipe.level }}</span>
-              <span v-if="recipe.is_wildcard" class="status-badge status-warning">Wildcard</span>
+              <span v-if="recipe.is_wildcard" class="status-badge status-info">Wildcard</span>
               <button
                 v-if="recipe.id"
-                :class="['btn-bookmark', { active: recipesStore.isBookmarked(recipe.id) }]"
+                :class="['btn-icon', 'btn-bookmark', { active: recipesStore.isBookmarked(recipe.id) }]"
                 @click="recipesStore.toggleBookmark(recipe)"
                 :aria-label="recipesStore.isBookmarked(recipe.id) ? 'Remove bookmark: ' + recipe.title : 'Bookmark: ' + recipe.title"
               >{{ recipesStore.isBookmarked(recipe.id) ? '★' : '☆' }}</button>
               <button
                 v-if="recipe.id"
-                class="btn-dismiss"
+                class="btn-icon btn-dismiss"
                 @click="recipesStore.dismiss(recipe.id)"
                 :aria-label="'Hide recipe: ' + recipe.title"
               >✕</button>
@@ -450,12 +457,12 @@
 
           <!-- Missing ingredients -->
           <div v-if="recipe.missing_ingredients.length > 0" class="mb-sm">
-            <p class="text-sm font-semibold text-secondary">You'd need:</p>
+            <p class="text-sm font-semibold text-secondary">To complete this recipe:</p>
             <div class="flex flex-wrap gap-xs mt-xs">
               <span
                 v-for="ing in recipe.missing_ingredients"
                 :key="ing"
-                class="status-badge status-warning"
+                class="status-badge status-info"
               >{{ ing }}</span>
             </div>
           </div>
@@ -471,13 +478,34 @@
                 target="_blank"
                 rel="noopener noreferrer"
                 class="grocery-link status-badge status-info"
+                title="This is an affiliate link"
               >
                 {{ link.ingredient }} @ {{ link.retailer }} ↗
               </a>
             </div>
           </div>
 
-          <!-- Swap candidates collapsible -->
+          <!-- Prep notes -->
+          <div v-if="recipe.prep_notes && recipe.prep_notes.length > 0" class="prep-notes mb-sm">
+            <p class="text-sm font-semibold">Before you start:</p>
+            <ul class="prep-notes-list mt-xs">
+              <li v-for="note in recipe.prep_notes" :key="note" class="text-sm prep-note-item">
+                {{ note }}
+              </li>
+            </ul>
+          </div>
+
+          <!-- Directions — always visible; this is the content people came for -->
+          <div v-if="recipe.directions.length > 0" class="directions-section">
+            <p class="text-sm font-semibold directions-label">Steps</p>
+            <ol class="directions-list mt-xs">
+              <li v-for="(step, idx) in recipe.directions" :key="idx" class="text-sm direction-step">
+                {{ step }}
+              </li>
+            </ol>
+          </div>
+
+          <!-- Swap candidates collapsible — shown after directions per M8 -->
           <details
             v-if="recipe.swap_candidates.length > 0"
             class="collapsible mb-sm"
@@ -500,26 +528,6 @@
               </div>
             </div>
           </details>
-
-          <!-- Prep notes -->
-          <div v-if="recipe.prep_notes && recipe.prep_notes.length > 0" class="prep-notes mb-sm">
-            <p class="text-sm font-semibold">Before you start:</p>
-            <ul class="prep-notes-list mt-xs">
-              <li v-for="note in recipe.prep_notes" :key="note" class="text-sm prep-note-item">
-                {{ note }}
-              </li>
-            </ul>
-          </div>
-
-          <!-- Directions — always visible; this is the content people came for -->
-          <div v-if="recipe.directions.length > 0" class="directions-section">
-            <p class="text-sm font-semibold directions-label">Steps</p>
-            <ol class="directions-list mt-xs">
-              <li v-for="(step, idx) in recipe.directions" :key="idx" class="text-sm direction-step">
-                {{ step }}
-              </li>
-            </ol>
-          </div>
 
           <!-- Primary action: open detail panel -->
           <div class="card-actions">
@@ -593,11 +601,22 @@
       @close="browserSelectedRecipe = null"
       @cooked="browserSelectedRecipe = null"
     />
+
+    <!-- Undo toast for "I cooked this" dismiss -->
+    <div
+      v-if="lastCookedRecipe"
+      class="undo-toast"
+      role="status"
+      aria-live="polite"
+    >
+      Dismissed from suggestions.
+      <button class="btn-link" @click="undoCooked">Undo</button>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRecipesStore } from '../stores/recipes'
 import { useInventoryStore } from '../stores/inventory'
 import { useSavedRecipesStore } from '../stores/savedRecipes'
@@ -633,20 +652,25 @@ function onTabKeydown(e: KeyboardEvent) {
   const current = tabIds.indexOf(activeTab.value)
   if (e.key === 'ArrowRight') {
     e.preventDefault()
-    activeTab.value = tabIds[(current + 1) % tabIds.length]!
-    nextTick(() => {
-      // Move focus to the newly active panel so keyboard users don't have to Tab
-      // through the entire tab bar again to reach the panel content
-      const panel = document.querySelector('[role="tabpanel"]') as HTMLElement | null
-      panel?.focus()
-    })
+    activateTab(tabIds[(current + 1) % tabIds.length]!)
   } else if (e.key === 'ArrowLeft') {
     e.preventDefault()
-    activeTab.value = tabIds[(current - 1 + tabIds.length) % tabIds.length]!
-    nextTick(() => {
-      const panel = document.querySelector('[role="tabpanel"]') as HTMLElement | null
-      panel?.focus()
-    })
+    activateTab(tabIds[(current - 1 + tabIds.length) % tabIds.length]!)
+  }
+}
+
+async function activateTab(tab: TabId) {
+  activeTab.value = tab
+  await nextTick()
+  // Move focus to the newly active panel so keyboard users don't have to Tab
+  // through the entire tab bar again to reach the panel content.
+  // findPanelRef handles the Find tab (a plain div); other tabs are child
+  // components so we locate their panel via querySelector.
+  if (tab === 'find' && findPanelRef.value) {
+    findPanelRef.value.focus()
+  } else {
+    const panel = document.querySelector('[role="tabpanel"]') as HTMLElement | null
+    panel?.focus()
   }
 }
 
@@ -750,10 +774,27 @@ function openRecipe(recipe: RecipeSuggestion) {
   selectedRecipe.value = recipe
 }
 
+const lastCookedRecipe = ref<{ id: number; title: string } | null>(null)
+let undoTimer: ReturnType<typeof setTimeout> | null = null
+
 function onCooked(recipe: RecipeSuggestion) {
   recipesStore.logCook(recipe.id, recipe.title)
   recipesStore.dismiss(recipe.id)
+  lastCookedRecipe.value = { id: recipe.id, title: recipe.title }
+  if (undoTimer) clearTimeout(undoTimer)
+  undoTimer = setTimeout(() => {
+    lastCookedRecipe.value = null
+  }, 12000)
 }
+
+function undoCooked() {
+  if (!lastCookedRecipe.value) return
+  recipesStore.undismiss(lastCookedRecipe.value.id)
+  if (undoTimer) clearTimeout(undoTimer)
+  lastCookedRecipe.value = null
+}
+
+onUnmounted(() => { if (undoTimer) clearTimeout(undoTimer) })
 
 const levels = [
   { value: 1, label: 'Use What I Have',  description: 'Finds recipes you can make right now using exactly what\'s in your pantry.' },
@@ -812,6 +853,11 @@ const advancedActive = computed(() =>
   recipesStore.maxMissing !== null ||
   !!recipesStore.category ||
   !!recipesStore.styleId
+)
+
+// #46 — count of active nutrition filters so the summary is informative when collapsed
+const activeNutritionFilterCount = computed(() =>
+  Object.values(recipesStore.nutritionFilters ?? {}).filter((v) => v !== null).length
 )
 
 const activeLevel = computed(() => levels.find(l => l.value === recipesStore.level))
@@ -1022,6 +1068,11 @@ watch(
   color: inherit;
   opacity: 0.7;
   transition: opacity 0.15s;
+  min-width: 24px;
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .chip-remove:hover {
@@ -1471,5 +1522,27 @@ details[open] .collapsible-summary::before {
   .nutrition-filters-grid {
     grid-template-columns: 1fr;
   }
+}
+
+.undo-toast {
+  position: fixed;
+  bottom: var(--spacing-lg);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  box-shadow: var(--shadow-md);
+  font-size: var(--font-size-sm);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.undo-toast .btn-link {
+  min-height: 24px;
+  padding: 2px 4px;
 }
 </style>
