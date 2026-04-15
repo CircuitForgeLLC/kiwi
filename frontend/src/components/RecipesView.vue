@@ -32,6 +32,7 @@
       aria-labelledby="tab-saved"
       tabindex="0"
       @open-recipe="openRecipeById"
+      @go-to-tab="(tab: string) => activateTab(tab as TabId)"
     />
 
     <!-- Community tab -->

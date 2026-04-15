@@ -3,7 +3,14 @@
     <!-- Empty state -->
     <div v-if="!store.loading && store.saved.length === 0" class="empty-state card text-center">
       <p class="text-secondary">No saved recipes yet.</p>
-      <p class="text-sm text-secondary mt-xs">Bookmark a recipe from Find or Browse and it will appear here.</p>
+      <div class="flex gap-sm mt-sm" style="justify-content: center;">
+        <button class="btn btn-secondary btn-sm" @click="$emit('go-to-tab', 'find')">
+          Find recipes for my pantry
+        </button>
+        <button class="btn btn-secondary btn-sm" @click="$emit('go-to-tab', 'browse')">
+          Browse recipes
+        </button>
+      </div>
     </div>
 
     <template v-else>
@@ -72,15 +79,29 @@
             >{{ tag }}</span>
           </div>
 
-          <!-- Notes preview -->
-          <p v-if="recipe.notes" class="notes-preview text-sm text-secondary mt-xs">
-            {{ recipe.notes }}
-          </p>
+          <!-- Notes preview with expand/collapse -->
+          <div v-if="recipe.notes" class="mt-xs">
+            <div
+              class="notes-preview text-sm text-secondary"
+              :class="{ expanded: expandedNotes.has(recipe.id) }"
+            >{{ recipe.notes }}</div>
+            <button
+              v-if="recipe.notes.length > 120"
+              class="btn-link text-sm"
+              @click="toggleNotes(recipe.id)"
+            >
+              {{ expandedNotes.has(recipe.id) ? 'Show less' : 'Show more' }}
+            </button>
+          </div>
 
           <!-- Actions -->
           <div class="flex gap-xs mt-sm">
             <button class="btn btn-secondary btn-xs" @click="editRecipe(recipe)">Edit</button>
-            <button class="btn btn-secondary btn-xs" @click="unsave(recipe)">Remove</button>
+            <template v-if="confirmingRemove === recipe.id">
+              <button class="btn btn-danger btn-xs" @click="confirmRemove(recipe.id)">Yes, remove</button>
+              <button class="btn btn-secondary btn-xs" @click="cancelRemove">Cancel</button>
+            </template>
+            <button v-else class="btn btn-ghost btn-xs" @click="startRemove(recipe.id)">Remove</button>
           </div>
         </div>
       </div>
@@ -127,13 +148,40 @@ import { useSavedRecipesStore } from '../stores/savedRecipes'
 import type { SavedRecipe } from '../services/api'
 import SaveRecipeModal from './SaveRecipeModal.vue'
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'open-recipe', recipeId: number): void
+  (e: 'go-to-tab', tab: string): void
 }>()
 
 const store = useSavedRecipesStore()
 const editingRecipe = ref<SavedRecipe | null>(null)
 const showNewCollection = ref(false)
+
+// #44: two-step remove confirmation
+const confirmingRemove = ref<number | null>(null)
+
+function startRemove(id: number) {
+  confirmingRemove.value = id
+}
+
+function cancelRemove() {
+  confirmingRemove.value = null
+}
+
+function confirmRemove(id: number) {
+  const recipe = store.saved.find(r => r.id === id)
+  if (recipe) void unsave(recipe)
+  confirmingRemove.value = null
+}
+
+// #48: notes expand/collapse
+const expandedNotes = ref<Set<number>>(new Set())
+
+function toggleNotes(id: number) {
+  const next = new Set(expandedNotes.value)
+  next.has(id) ? next.delete(id) : next.add(id)
+  expandedNotes.value = next
+}
 const newColDialogRef = ref<HTMLElement | null>(null)
 let newColPreviousFocus: HTMLElement | null = null
 
@@ -245,10 +293,30 @@ async function createCollection() {
 }
 
 .notes-preview {
-  white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
+  max-height: 3.6em;
+  transition: max-height 0.2s ease;
+}
+
+.notes-preview.expanded {
+  max-height: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notes-preview { transition: none; }
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-primary);
+  padding: 0;
+  text-decoration: underline;
+}
+
+.btn-link:hover {
+  text-decoration: none;
 }
 
 .tag-chip {
