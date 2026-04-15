@@ -11,7 +11,7 @@
         :aria-selected="activeTab === tab.id"
         :tabindex="activeTab === tab.id ? 0 : -1"
         :class="['btn', 'tab-btn', activeTab === tab.id ? 'btn-primary' : 'btn-secondary']"
-        @click="activeTab = tab.id"
+        @click="activateTab(tab.id)"
         @keydown="onTabKeydown"
       >{{ tab.label }}</button>
     </div>
@@ -633,20 +633,25 @@ function onTabKeydown(e: KeyboardEvent) {
   const current = tabIds.indexOf(activeTab.value)
   if (e.key === 'ArrowRight') {
     e.preventDefault()
-    activeTab.value = tabIds[(current + 1) % tabIds.length]!
-    nextTick(() => {
-      // Move focus to the newly active panel so keyboard users don't have to Tab
-      // through the entire tab bar again to reach the panel content
-      const panel = document.querySelector('[role="tabpanel"]') as HTMLElement | null
-      panel?.focus()
-    })
+    activateTab(tabIds[(current + 1) % tabIds.length]!)
   } else if (e.key === 'ArrowLeft') {
     e.preventDefault()
-    activeTab.value = tabIds[(current - 1 + tabIds.length) % tabIds.length]!
-    nextTick(() => {
-      const panel = document.querySelector('[role="tabpanel"]') as HTMLElement | null
-      panel?.focus()
-    })
+    activateTab(tabIds[(current - 1 + tabIds.length) % tabIds.length]!)
+  }
+}
+
+async function activateTab(tab: TabId) {
+  activeTab.value = tab
+  await nextTick()
+  // Move focus to the newly active panel so keyboard users don't have to Tab
+  // through the entire tab bar again to reach the panel content.
+  // findPanelRef handles the Find tab (a plain div); other tabs are child
+  // components so we locate their panel via querySelector.
+  if (tab === 'find' && findPanelRef.value) {
+    findPanelRef.value.focus()
+  } else {
+    const panel = document.querySelector('[role="tabpanel"]') as HTMLElement | null
+    panel?.focus()
   }
 }
 
