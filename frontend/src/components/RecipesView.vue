@@ -80,8 +80,8 @@
       </div>
 
       <!-- Surprise Me confirmation -->
-      <div v-if="recipesStore.level === 4" class="status-badge status-warning wildcard-warning">
-        <span id="wildcard-warning-desc">The AI will freestyle recipes from whatever you have. Results can be unusual — that's part of the fun.</span>
+      <div v-if="recipesStore.level === 4" class="status-badge status-info wildcard-warning">
+        <span id="wildcard-warning-desc">Wildcard mode lets the AI get creative with whatever you have on hand. Results might surprise you.</span>
         <label class="flex-start gap-sm mt-xs">
           <input type="checkbox" v-model="recipesStore.wildcardConfirmed" aria-describedby="wildcard-warning-desc" />
           <span>I understand, go for it</span>
@@ -97,6 +97,9 @@
         🌿 Hard Day Mode
         <span class="hard-day-sub">{{ recipesStore.hardDayMode ? 'on — quick &amp; simple only' : 'quick, simple recipes only' }}</span>
       </button>
+      <p v-if="recipesStore.hardDayMode && recipesStore.result && recipesStore.result.suggestions.length > 0" class="text-muted text-sm mt-xs">
+        Tap "Find recipes" again to apply.
+      </p>
 
       <!-- Dietary Preferences (collapsible) -->
       <details class="collapsible form-group" @toggle="(e: Event) => dietaryOpen = (e.target as HTMLDetailsElement).open">
@@ -125,6 +128,7 @@
               aria-describedby="constraint-hint"
               @keydown="onConstraintKey"
               @blur="commitConstraintInput"
+              autocomplete="off"
             />
             <span id="constraint-hint" class="form-hint">Press Enter or comma to add.</span>
           </div>
@@ -159,6 +163,7 @@
               aria-describedby="allergy-hint"
               @keydown="onAllergyKey"
               @blur="commitAllergyInput"
+              autocomplete="off"
             />
             <span id="allergy-hint" class="form-hint">No recipes containing these ingredients will appear.</span>
           </div>
@@ -194,7 +199,7 @@
       <!-- Advanced Filters (collapsible) -->
       <details class="collapsible form-group" @toggle="(e: Event) => advancedOpen = (e.target as HTMLDetailsElement).open">
         <summary class="collapsible-summary filter-summary" :aria-expanded="advancedOpen">
-          Advanced filters
+          Nutrition Filters{{ activeNutritionFilterCount > 0 ? ` (${activeNutritionFilterCount} active)` : '' }}
           <span v-if="advancedActive" class="filter-active-dot" aria-label="filters active"></span>
         </summary>
 
@@ -313,13 +318,13 @@
       </div>
 
       <!-- Element gaps -->
-      <div v-if="recipesStore.result.element_gaps.length > 0" class="card card-warning mb-md">
-        <p class="text-sm font-semibold">Your pantry is missing some flavor elements:</p>
+      <div v-if="recipesStore.result.element_gaps.length > 0" class="card card-secondary mb-md">
+        <p class="text-sm font-semibold">These would expand your options:</p>
         <div class="flex flex-wrap gap-xs mt-xs">
           <span
             v-for="gap in recipesStore.result.element_gaps"
             :key="gap"
-            class="status-badge status-warning"
+            class="status-badge status-info"
           >{{ gap }}</span>
         </div>
       </div>
@@ -331,6 +336,7 @@
           v-model="filterText"
           placeholder="Search recipes or ingredients…"
           aria-label="Filter recipes"
+          autocomplete="off"
         />
         <div class="filter-chips">
           <template v-if="availableLevels.length > 1">
@@ -386,7 +392,7 @@
             <div class="flex flex-wrap gap-xs" style="align-items:center">
               <span class="status-badge status-success">{{ recipe.match_count }} matched</span>
               <span class="status-badge status-info">Level {{ recipe.level }}</span>
-              <span v-if="recipe.is_wildcard" class="status-badge status-warning">Wildcard</span>
+              <span v-if="recipe.is_wildcard" class="status-badge status-info">Wildcard</span>
               <button
                 v-if="recipe.id"
                 :class="['btn-icon', 'btn-bookmark', { active: recipesStore.isBookmarked(recipe.id) }]"
@@ -450,12 +456,12 @@
 
           <!-- Missing ingredients -->
           <div v-if="recipe.missing_ingredients.length > 0" class="mb-sm">
-            <p class="text-sm font-semibold text-secondary">You'd need:</p>
+            <p class="text-sm font-semibold text-secondary">To complete this recipe:</p>
             <div class="flex flex-wrap gap-xs mt-xs">
               <span
                 v-for="ing in recipe.missing_ingredients"
                 :key="ing"
-                class="status-badge status-warning"
+                class="status-badge status-info"
               >{{ ing }}</span>
             </div>
           </div>
@@ -471,13 +477,34 @@
                 target="_blank"
                 rel="noopener noreferrer"
                 class="grocery-link status-badge status-info"
+                title="This is an affiliate link"
               >
                 {{ link.ingredient }} @ {{ link.retailer }} ↗
               </a>
             </div>
           </div>
 
-          <!-- Swap candidates collapsible -->
+          <!-- Prep notes -->
+          <div v-if="recipe.prep_notes && recipe.prep_notes.length > 0" class="prep-notes mb-sm">
+            <p class="text-sm font-semibold">Before you start:</p>
+            <ul class="prep-notes-list mt-xs">
+              <li v-for="note in recipe.prep_notes" :key="note" class="text-sm prep-note-item">
+                {{ note }}
+              </li>
+            </ul>
+          </div>
+
+          <!-- Directions — always visible; this is the content people came for -->
+          <div v-if="recipe.directions.length > 0" class="directions-section">
+            <p class="text-sm font-semibold directions-label">Steps</p>
+            <ol class="directions-list mt-xs">
+              <li v-for="(step, idx) in recipe.directions" :key="idx" class="text-sm direction-step">
+                {{ step }}
+              </li>
+            </ol>
+          </div>
+
+          <!-- Swap candidates collapsible — shown after directions per M8 -->
           <details
             v-if="recipe.swap_candidates.length > 0"
             class="collapsible mb-sm"
@@ -500,26 +527,6 @@
               </div>
             </div>
           </details>
-
-          <!-- Prep notes -->
-          <div v-if="recipe.prep_notes && recipe.prep_notes.length > 0" class="prep-notes mb-sm">
-            <p class="text-sm font-semibold">Before you start:</p>
-            <ul class="prep-notes-list mt-xs">
-              <li v-for="note in recipe.prep_notes" :key="note" class="text-sm prep-note-item">
-                {{ note }}
-              </li>
-            </ul>
-          </div>
-
-          <!-- Directions — always visible; this is the content people came for -->
-          <div v-if="recipe.directions.length > 0" class="directions-section">
-            <p class="text-sm font-semibold directions-label">Steps</p>
-            <ol class="directions-list mt-xs">
-              <li v-for="(step, idx) in recipe.directions" :key="idx" class="text-sm direction-step">
-                {{ step }}
-              </li>
-            </ol>
-          </div>
 
           <!-- Primary action: open detail panel -->
           <div class="card-actions">
@@ -817,6 +824,11 @@ const advancedActive = computed(() =>
   recipesStore.maxMissing !== null ||
   !!recipesStore.category ||
   !!recipesStore.styleId
+)
+
+// #46 — count of active nutrition filters so the summary is informative when collapsed
+const activeNutritionFilterCount = computed(() =>
+  Object.values(recipesStore.nutritionFilters ?? {}).filter((v) => v !== null).length
 )
 
 const activeLevel = computed(() => levels.find(l => l.value === recipesStore.level))
