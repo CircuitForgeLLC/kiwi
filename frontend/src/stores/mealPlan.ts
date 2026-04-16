@@ -124,6 +124,14 @@ export const useMealPlanStore = defineStore('mealPlan', () => {
     }
   }
 
+  async function addMealType(mealType: string): Promise<void> {
+    if (!activePlan.value) return
+    const current = activePlan.value.meal_types
+    if (current.includes(mealType)) return
+    const updated = await mealPlanAPI.updateMealTypes(activePlan.value.id, [...current, mealType])
+    activePlan.value = updated
+  }
+
   async function updatePrepTask(taskId: number, data: Partial<Pick<PrepTask, 'duration_minutes' | 'sequence_order' | 'notes' | 'equipment'>>): Promise<void> {
     if (!activePlan.value || !prepSession.value) return
     const updated = await mealPlanAPI.updatePrepTask(activePlan.value.id, taskId, data)
@@ -144,6 +152,6 @@ export const useMealPlanStore = defineStore('mealPlan', () => {
     plans, activePlan, shoppingList, prepSession,
     loading, shoppingListLoading, prepLoading, slots,
     getSlot, loadPlans, autoSelectPlan, createPlan, setActivePlan,
-    upsertSlot, clearSlot, loadShoppingList, loadPrepSession, updatePrepTask,
+    addMealType, upsertSlot, clearSlot, loadShoppingList, loadPrepSession, updatePrepTask,
   }
 })

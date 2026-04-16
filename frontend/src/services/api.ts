@@ -827,6 +827,11 @@ export const mealPlanAPI = {
     return resp.data
   },
 
+  async updateMealTypes(planId: number, mealTypes: string[]): Promise<MealPlan> {
+    const resp = await api.patch<MealPlan>(`/meal-plans/${planId}`, { meal_types: mealTypes })
+    return resp.data
+  },
+
   async upsertSlot(planId: number, dayOfWeek: number, mealType: string, data: { recipe_id?: number | null; servings?: number; custom_label?: string | null }): Promise<MealPlanSlot> {
     const resp = await api.put<MealPlanSlot>(`/meal-plans/${planId}/slots/${dayOfWeek}/${mealType}`, data)
     return resp.data

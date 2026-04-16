@@ -29,6 +29,70 @@
         @add-meal-type="onAddMealType"
       />
 
+      <!-- Slot editor panel -->
+      <div v-if="slotEditing" class="slot-editor card">
+        <div class="slot-editor-header">
+          <span class="slot-editor-title">
+            {{ DAY_LABELS[slotEditing.dayOfWeek] }} · {{ slotEditing.mealType }}
+          </span>
+          <button class="close-btn" @click="slotEditing = null" aria-label="Close">✕</button>
+        </div>
+
+        <!-- Custom label -->
+        <div class="form-group">
+          <label class="form-label">Custom label</label>
+          <input
+            v-model="slotCustomLabel"
+            class="form-input"
+            type="text"
+            placeholder="e.g. Taco night, Leftovers…"
+            maxlength="80"
+          />
+        </div>
+
+        <!-- Pick from saved recipes -->
+        <div v-if="savedStore.saved.length" class="form-group">
+          <label class="form-label">Or pick a saved recipe</label>
+          <select class="week-select" v-model="slotRecipeId">
+            <option :value="null">— None —</option>
+            <option v-for="r in savedStore.saved" :key="r.recipe_id" :value="r.recipe_id">
+              {{ r.title }}
+            </option>
+          </select>
+        </div>
+        <p v-else class="slot-hint">Save recipes from the Recipes tab to pick them here.</p>
+
+        <div class="slot-editor-actions">
+          <button class="btn-secondary" @click="slotEditing = null">Cancel</button>
+          <button
+            v-if="currentSlot"
+            class="btn-danger-subtle"
+            @click="onClearSlot"
+            :disabled="slotSaving"
+          >Clear slot</button>
+          <button
+            class="btn-primary"
+            @click="onSaveSlot"
+            :disabled="slotSaving"
+          >{{ slotSaving ? 'Saving…' : 'Save' }}</button>
+        </div>
+      </div>
+
+      <!-- Meal type picker -->
+      <div v-if="addingMealType" class="meal-type-picker card">
+        <span class="slot-editor-title">Add meal type</span>
+        <div class="chip-row">
+          <button
+            v-for="t in availableMealTypes"
+            :key="t"
+            class="btn-chip"
+            :disabled="mealTypeAdding"
+            @click="onPickMealType(t)"
+          >{{ t }}</button>
+        </div>
+        <button class="close-link" @click="addingMealType = false">Cancel</button>
+      </div>
+
       <!-- Panel tabs: Shopping List | Prep Schedule -->
       <div class="panel-tabs" role="tablist" aria-label="Plan outputs">
         <button
@@ -78,23 +142,48 @@
 import { ref, computed, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useMealPlanStore } from '../stores/mealPlan'
+import { useSavedRecipesStore } from '../stores/savedRecipes'
 import MealPlanGrid from './MealPlanGrid.vue'
 import ShoppingListPanel from './ShoppingListPanel.vue'
 import PrepSessionView from './PrepSessionView.vue'
+import type { MealPlanSlot } from '../services/api'
 
 const TABS = [
   { id: 'shopping', label: 'Shopping List' },
   { id: 'prep',     label: 'Prep Schedule' },
 ] as const
 
+const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const ALL_MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack']
+
 type TabId = typeof TABS[number]['id']
 
 const store = useMealPlanStore()
+const savedStore = useSavedRecipesStore()
 const { plans, activePlan, loading } = storeToRefs(store)
 
 const activeTab = ref<TabId>('shopping')
 const planError = ref<string | null>(null)
 const planCreating = ref(false)
+
+// ── slot editor ───────────────────────────────────────────────────────────────
+const slotEditing = ref<{ dayOfWeek: number; mealType: string } | null>(null)
+const slotCustomLabel = ref('')
+const slotRecipeId = ref<number | null>(null)
+const slotSaving = ref(false)
+
+const currentSlot = computed((): MealPlanSlot | undefined => {
+  if (!slotEditing.value) return undefined
+  return store.getSlot(slotEditing.value.dayOfWeek, slotEditing.value.mealType)
+})
+
+// ── meal type picker ──────────────────────────────────────────────────────────
+const addingMealType = ref(false)
+const mealTypeAdding = ref(false)
+
+const availableMealTypes = computed(() =>
+  ALL_MEAL_TYPES.filter(t => !activePlan.value?.meal_types.includes(t))
+)
 
 // canAddMealType is a UI hint — backend enforces the paid gate authoritatively
 const canAddMealType = computed(() =>
@@ -102,7 +191,7 @@ const canAddMealType = computed(() =>
 )
 
 onMounted(async () => {
-  await store.loadPlans()
+  await Promise.all([store.loadPlans(), savedStore.load()])
   store.autoSelectPlan(mondayOfCurrentWeek())
 })
 
@@ -125,11 +214,8 @@ async function onNewPlan() {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
     if (msg.includes('409') || msg.toLowerCase().includes('already exists')) {
-      // Plan for this week exists — just activate it instead of erroring
       const existing = plans.value.find(p => p.week_start === weekStart)
-      if (existing) {
-        await store.setActivePlan(existing.id)
-      }
+      if (existing) await store.setActivePlan(existing.id)
     } else {
       planError.value = `Couldn't create plan: ${msg}`
     }
@@ -142,12 +228,50 @@ async function onSelectPlan(planId: number) {
   if (planId) await store.setActivePlan(planId)
 }
 
-function onSlotClick(_: { dayOfWeek: number; mealType: string }) {
-  // Recipe picker integration filed as follow-up
+function onSlotClick(payload: { dayOfWeek: number; mealType: string }) {
+  slotEditing.value = payload
+  const existing = store.getSlot(payload.dayOfWeek, payload.mealType)
+  slotCustomLabel.value = existing?.custom_label ?? ''
+  slotRecipeId.value = existing?.recipe_id ?? null
+}
+
+async function onSaveSlot() {
+  if (!slotEditing.value) return
+  slotSaving.value = true
+  try {
+    await store.upsertSlot(slotEditing.value.dayOfWeek, slotEditing.value.mealType, {
+      recipe_id: slotRecipeId.value,
+      custom_label: slotCustomLabel.value.trim() || null,
+    })
+    slotEditing.value = null
+  } finally {
+    slotSaving.value = false
+  }
+}
+
+async function onClearSlot() {
+  if (!slotEditing.value) return
+  slotSaving.value = true
+  try {
+    await store.clearSlot(slotEditing.value.dayOfWeek, slotEditing.value.mealType)
+    slotEditing.value = null
+  } finally {
+    slotSaving.value = false
+  }
 }
 
 function onAddMealType() {
-  // Add meal type picker — Paid gate enforced by backend
+  addingMealType.value = true
+}
+
+async function onPickMealType(mealType: string) {
+  mealTypeAdding.value = true
+  try {
+    await store.addMealType(mealType)
+    addingMealType.value = false
+  } finally {
+    mealTypeAdding.value = false
+  }
 }
 </script>
 
@@ -166,6 +290,29 @@ function onAddMealType() {
   border: 1px solid var(--color-accent); cursor: pointer; white-space: nowrap;
 }
 .new-plan-btn:hover { background: var(--color-accent); color: white; }
+
+/* Slot editor */
+.slot-editor, .meal-type-picker {
+  padding: 1rem; border-radius: 8px;
+  border: 1px solid var(--color-border); background: var(--color-surface);
+  display: flex; flex-direction: column; gap: 0.75rem;
+}
+.slot-editor-header { display: flex; align-items: center; justify-content: space-between; }
+.slot-editor-title { font-size: 0.85rem; font-weight: 600; }
+.close-btn {
+  background: none; border: none; cursor: pointer; font-size: 0.9rem;
+  color: var(--color-text-secondary); padding: 0.1rem 0.3rem; border-radius: 4px;
+}
+.close-btn:hover { background: var(--color-surface-2); }
+.slot-hint { font-size: 0.8rem; opacity: 0.55; margin: 0; }
+.slot-editor-actions { display: flex; gap: 0.5rem; justify-content: flex-end; flex-wrap: wrap; }
+
+.chip-row { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.close-link {
+  background: none; border: none; cursor: pointer; font-size: 0.8rem;
+  color: var(--color-text-secondary); align-self: flex-start; padding: 0;
+}
+.close-link:hover { text-decoration: underline; }
 
 .panel-tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--color-border); padding-bottom: 0; }
 .panel-tab {

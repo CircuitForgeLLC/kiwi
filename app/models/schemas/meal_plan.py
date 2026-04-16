@@ -22,6 +22,10 @@ class CreatePlanRequest(BaseModel):
         return v
 
 
+class UpdatePlanRequest(BaseModel):
+    meal_types: list[str]
+
+
 class UpsertSlotRequest(BaseModel):
     recipe_id: int | None = None
     servings: float = Field(2.0, gt=0)

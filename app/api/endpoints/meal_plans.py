@@ -19,6 +19,7 @@ from app.models.schemas.meal_plan import (
     PrepTaskSummary,
     ShoppingListResponse,
     SlotSummary,
+    UpdatePlanRequest,
     UpdatePrepTaskRequest,
     UpsertSlotRequest,
     VALID_MEAL_TYPES,
@@ -111,6 +112,28 @@ async def list_plans(
         slots = await asyncio.to_thread(store.get_plan_slots, p["id"])
         result.append(_plan_summary(p, slots))
     return result
+
+
+@router.patch("/{plan_id}", response_model=PlanSummary)
+async def update_plan(
+    plan_id: int,
+    req: UpdatePlanRequest,
+    session: CloudUser = Depends(get_session),
+    store: Store = Depends(get_store),
+) -> PlanSummary:
+    plan = await asyncio.to_thread(store.get_meal_plan, plan_id)
+    if plan is None:
+        raise HTTPException(status_code=404, detail="Plan not found.")
+    # Free tier stays dinner-only; paid+ may add meal types
+    if can_use("meal_plan_config", session.tier):
+        meal_types = [t for t in req.meal_types if t in VALID_MEAL_TYPES] or ["dinner"]
+    else:
+        meal_types = ["dinner"]
+    updated = await asyncio.to_thread(store.update_meal_plan_types, plan_id, meal_types)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Plan not found.")
+    slots = await asyncio.to_thread(store.get_plan_slots, plan_id)
+    return _plan_summary(updated, slots)
 
 
 @router.get("/{plan_id}", response_model=PlanSummary)

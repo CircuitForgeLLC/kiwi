@@ -1119,6 +1119,12 @@ class Store:
     def get_meal_plan(self, plan_id: int) -> dict | None:
         return self._fetch_one("SELECT * FROM meal_plans WHERE id = ?", (plan_id,))
 
+    def update_meal_plan_types(self, plan_id: int, meal_types: list[str]) -> dict | None:
+        return self._fetch_one(
+            "UPDATE meal_plans SET meal_types = ? WHERE id = ? RETURNING *",
+            (json.dumps(meal_types), plan_id),
+        )
+
     def list_meal_plans(self) -> list[dict]:
         return self._fetch_all("SELECT * FROM meal_plans ORDER BY week_start DESC")
 
