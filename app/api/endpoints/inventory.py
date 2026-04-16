@@ -361,6 +361,7 @@ async def scan_barcode_text(
     else:
         result_product = None
 
+    product_found = product_info is not None
     return BarcodeScanResponse(
         success=True,
         barcodes_found=1,
@@ -370,7 +371,8 @@ async def scan_barcode_text(
             "product": result_product,
             "inventory_item": InventoryItemResponse.model_validate(inventory_item) if inventory_item else None,
             "added_to_inventory": inventory_item is not None,
-            "message": "Added to inventory" if inventory_item else "Product not found in database",
+            "needs_manual_entry": not product_found,
+            "message": "Added to inventory" if inventory_item else "Not found in any product database — add manually",
         }],
         message="Barcode processed",
     )

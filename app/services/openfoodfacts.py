@@ -15,64 +15,68 @@ logger = logging.getLogger(__name__)
 
 class OpenFoodFactsService:
     """
-    Service for interacting with the OpenFoodFacts API.
+    Service for interacting with the Open*Facts family of databases.
 
-    OpenFoodFacts is a free, open database of food products with
-    ingredients, allergens, and nutrition facts.
+    Primary: OpenFoodFacts (food products).
+    Fallback chain: Open Beauty Facts (personal care) → Open Products Facts (household).
+    All three databases share the same API path and JSON format.
     """
 
     BASE_URL = "https://world.openfoodfacts.org/api/v2"
     USER_AGENT = "Kiwi/0.1.0 (https://circuitforge.tech)"
 
+    # Fallback databases tried in order when OFFs returns no match.
+    # Same API format as OFFs — only the host differs.
+    _FALLBACK_DATABASES = [
+        "https://world.openbeautyfacts.org/api/v2",
+        "https://world.openproductsfacts.org/api/v2",
+    ]
+
+    async def _lookup_in_database(self, barcode: str, base_url: str) -> Optional[Dict[str, Any]]:
+        """Try one Open*Facts database. Returns parsed product dict or None."""
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"{base_url}/product/{barcode}.json",
+                    headers={"User-Agent": self.USER_AGENT},
+                    timeout=10.0,
+                )
+                if response.status_code == 404:
+                    return None
+                response.raise_for_status()
+                data = response.json()
+                if data.get("status") != 1:
+                    return None
+                return self._parse_product_data(data, barcode)
+        except httpx.HTTPError as e:
+            logger.debug("HTTP error for %s at %s: %s", barcode, base_url, e)
+            return None
+        except Exception as e:
+            logger.debug("Lookup failed for %s at %s: %s", barcode, base_url, e)
+            return None
+
     async def lookup_product(self, barcode: str) -> Optional[Dict[str, Any]]:
         """
-        Look up a product by barcode in the OpenFoodFacts database.
+        Look up a product by barcode, trying OFFs then fallback databases.
 
         Args:
             barcode: UPC/EAN barcode (8-13 digits)
 
         Returns:
-            Dictionary with product information, or None if not found
-
-        Example response:
-        {
-            "name": "Organic Milk",
-            "brand": "Horizon",
-            "categories": ["Dairy", "Milk"],
-            "image_url": "https://...",
-            "nutrition_data": {...},
-            "raw_data": {...}  # Full API response
-        }
+            Dictionary with product information, or None if not found in any database.
         """
-        try:
-            async with httpx.AsyncClient() as client:
-                url = f"{self.BASE_URL}/product/{barcode}.json"
+        result = await self._lookup_in_database(barcode, self.BASE_URL)
+        if result:
+            return result
 
-                response = await client.get(
-                    url,
-                    headers={"User-Agent": self.USER_AGENT},
-                    timeout=10.0,
-                )
+        for db_url in self._FALLBACK_DATABASES:
+            result = await self._lookup_in_database(barcode, db_url)
+            if result:
+                logger.info("Barcode %s found in fallback database: %s", barcode, db_url)
+                return result
 
-                if response.status_code == 404:
-                    logger.info(f"Product not found in OpenFoodFacts: {barcode}")
-                    return None
-
-                response.raise_for_status()
-                data = response.json()
-
-                if data.get("status") != 1:
-                    logger.info(f"Product not found in OpenFoodFacts: {barcode}")
-                    return None
-
-                return self._parse_product_data(data, barcode)
-
-        except httpx.HTTPError as e:
-            logger.error(f"HTTP error looking up barcode {barcode}: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"Error looking up barcode {barcode}: {e}")
-            return None
+        logger.info("Barcode %s not found in any Open*Facts database", barcode)
+        return None
 
     def _parse_product_data(self, data: Dict[str, Any], barcode: str) -> Dict[str, Any]:
         """

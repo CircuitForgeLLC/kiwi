@@ -450,7 +450,7 @@ import { storeToRefs } from 'pinia'
 import { useInventoryStore } from '../stores/inventory'
 import { useSettingsStore } from '../stores/settings'
 import { inventoryAPI } from '../services/api'
-import type { InventoryItem } from '../services/api'
+import type { InventoryItem, BarcodeScanResponse } from '../services/api'
 import { formatQuantity } from '../utils/units'
 import EditItemModal from './EditItemModal.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
@@ -710,13 +710,20 @@ async function handleScannerGunInput() {
       true
     )
 
-    if (result.success && result.barcodes_found > 0) {
-      const item = result.results[0]
+    const item = result.results[0]
+    if (item?.added_to_inventory) {
       scannerResults.value.push({
         type: 'success',
-        message: `Added: ${item.product_name || 'item'} to ${scannerLocation.value}`,
+        message: `Added: ${item.product?.name || 'item'} to ${scannerLocation.value}`,
       })
       await refreshItems()
+    } else if (item?.needs_manual_entry) {
+      // Barcode not found in any database — guide user to manual entry
+      scannerResults.value.push({
+        type: 'warning',
+        message: `Barcode ${barcode} not found. Fill in the details below.`,
+      })
+      scanMode.value = 'manual'
     } else {
       scannerResults.value.push({
         type: 'error',
@@ -731,7 +738,7 @@ async function handleScannerGunInput() {
   } finally {
     scannerLoading.value = false
     scannerBarcode.value = ''
-    scannerGunInput.value?.focus()
+    if (scanMode.value === 'gun') scannerGunInput.value?.focus()
   }
 }
 
@@ -1376,6 +1383,12 @@ function getItemClass(item: InventoryItem): string {
   background: var(--color-info-bg);
   color: var(--color-info-light);
   border: 1px solid var(--color-info-border);
+}
+
+.result-warning {
+  background: var(--color-warning-bg, #fffbeb);
+  color: var(--color-warning-dark, #92400e);
+  border: 1px solid var(--color-warning-border, #fcd34d);
 }
 
 /* ============================================

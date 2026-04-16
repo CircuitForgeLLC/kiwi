@@ -101,6 +101,23 @@ export interface InventoryItem {
   updated_at: string
 }
 
+export interface BarcodeScanResult {
+  barcode: string
+  barcode_type: string
+  product: Product | null
+  inventory_item: InventoryItem | null
+  added_to_inventory: boolean
+  needs_manual_entry: boolean
+  message: string
+}
+
+export interface BarcodeScanResponse {
+  success: boolean
+  barcodes_found: number
+  results: BarcodeScanResult[]
+  message: string
+}
+
 export interface InventoryItemUpdate {
   quantity?: number
   unit?: string
@@ -225,7 +242,7 @@ export const inventoryAPI = {
     location: string = 'pantry',
     quantity: number = 1.0,
     autoAdd: boolean = true
-  ): Promise<any> {
+  ): Promise<BarcodeScanResponse> {
     const response = await api.post('/inventory/scan/text', {
       barcode,
       location,

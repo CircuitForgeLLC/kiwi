@@ -136,6 +136,7 @@ class BarcodeScanResult(BaseModel):
     product: Optional[ProductResponse]
     inventory_item: Optional[InventoryItemResponse]
     added_to_inventory: bool
+    needs_manual_entry: bool = False
     message: str
 
 
