@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.endpoints import health, receipts, export, inventory, ocr, recipes, settings, staples, feedback, household, saved_recipes, imitate, meal_plans, orch_usage
+from app.api.endpoints import health, receipts, export, inventory, ocr, recipes, settings, staples, feedback, feedback_attach, household, saved_recipes, imitate, meal_plans, orch_usage
 from app.api.endpoints.community import router as community_router
 
 api_router = APIRouter()
@@ -13,7 +13,8 @@ api_router.include_router(saved_recipes.router,  prefix="/recipes/saved",  tags=
 api_router.include_router(recipes.router,        prefix="/recipes",        tags=["recipes"])
 api_router.include_router(settings.router,       prefix="/settings",       tags=["settings"])
 api_router.include_router(staples.router,        prefix="/staples",        tags=["staples"])
-api_router.include_router(feedback.router,       prefix="/feedback",       tags=["feedback"])
+api_router.include_router(feedback.router,        prefix="/feedback",       tags=["feedback"])
+api_router.include_router(feedback_attach.router, prefix="/feedback",       tags=["feedback"])
 api_router.include_router(household.router,      prefix="/household",      tags=["household"])
 api_router.include_router(imitate.router,        prefix="/imitate",        tags=["imitate"])
 api_router.include_router(meal_plans.router,     prefix="/meal-plans",     tags=["meal-plans"])

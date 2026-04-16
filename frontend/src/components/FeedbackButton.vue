@@ -75,6 +75,21 @@
               />
             </div>
 
+            <div class="form-group">
+              <label class="form-label">Screenshot <span class="text-muted text-xs">(optional, max 5 MB)</span></label>
+              <input
+                type="file"
+                accept="image/*"
+                class="form-input-file"
+                @change="onScreenshotChange"
+                ref="fileInput"
+              />
+              <div v-if="screenshotPreview" class="screenshot-preview">
+                <img :src="screenshotPreview" alt="Screenshot preview" />
+                <button class="screenshot-remove btn-link" type="button" @click="clearScreenshot" aria-label="Remove screenshot">Remove</button>
+              </div>
+            </div>
+
             <p v-if="stepError" class="feedback-error">{{ stepError }}</p>
           </div>
 
@@ -140,6 +155,30 @@ import { ref, computed, onMounted } from 'vue'
 
 const props = defineProps<{ currentTab?: string }>()
 
+const fileInput = ref<HTMLInputElement | null>(null)
+const screenshotB64 = ref<string | null>(null)
+const screenshotPreview = ref<string | null>(null)
+const screenshotFilename = ref('screenshot.png')
+
+function onScreenshotChange(event: Event) {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  if (!file) return
+  screenshotFilename.value = file.name
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    const result = e.target?.result as string
+    screenshotB64.value = result
+    screenshotPreview.value = result
+  }
+  reader.readAsDataURL(file)
+}
+
+function clearScreenshot() {
+  screenshotB64.value = null
+  screenshotPreview.value = null
+  if (fileInput.value) fileInput.value.value = ''
+}
+
 const apiBase = (import.meta.env.VITE_API_BASE as string) ?? ''
 
 // Probe once on mount — hidden until confirmed enabled so button never flashes
@@ -192,6 +231,7 @@ function reset() {
   submitted.value = false
   issueUrl.value = ''
   form.value = { type: 'bug', title: '', description: '', repro: '', submitter: '' }
+  clearScreenshot()
 }
 
 function nextStep() {
@@ -226,6 +266,23 @@ async function submit() {
     }
     const data = await res.json()
     issueUrl.value = data.issue_url
+
+    // Upload screenshot if provided
+    if (screenshotB64.value) {
+      try {
+        await fetch(`${apiBase}/api/v1/feedback/attach`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            issue_number: data.issue_number,
+            filename: screenshotFilename.value,
+            image_b64: screenshotB64.value,
+          }),
+        })
+        // Non-fatal: if attach fails, the issue was still filed
+      } catch { /* ignore attach errors */ }
+    }
+
     submitted.value = true
   } catch (e) {
     submitError.value = 'Network error — please try again.'
@@ -516,6 +573,57 @@ async function submit() {
 .text-sm      { font-size: var(--font-size-sm); line-height: 1.5; }
 .text-xs      { font-size: 0.75rem; line-height: 1.5; }
 .font-semibold { font-weight: 600; }
+
+/* ── Screenshot attachment ────────────────────────────────────────────── */
+.form-input-file {
+  display: block;
+  width: 100%;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: var(--color-bg-secondary);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  font-family: var(--font-body);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  box-sizing: border-box;
+}
+.form-input-file:focus { outline: 2px solid var(--color-border-focus); outline-offset: 2px; }
+
+.screenshot-preview {
+  margin-top: var(--spacing-xs);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+}
+.screenshot-preview img {
+  max-width: 160px;
+  max-height: 100px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  object-fit: cover;
+}
+.screenshot-remove {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  min-height: 24px;
+}
+.screenshot-remove:hover { color: var(--color-error); }
+
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  cursor: pointer;
+  padding: 0;
+  font-family: var(--font-body);
+  font-size: inherit;
+  text-decoration: underline;
+}
 
 /* Transition */
 .modal-fade-enter-active, .modal-fade-leave-active { transition: opacity 0.2s ease; }
