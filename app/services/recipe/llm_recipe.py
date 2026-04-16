@@ -143,12 +143,14 @@ class LLMRecipeGenerator:
 
         return "\n".join(lines)
 
-    _MODEL_CANDIDATES: list[str] = ["Ouro-2.6B-Thinking", "Ouro-1.4B"]
+    _SERVICE_TYPE = "cf-text"
+    _TTL_S = 300.0
+    _CALLER = "kiwi-recipe"
 
     def _get_llm_context(self):
         """Return a sync context manager that yields an Allocation or None.
 
-        When CF_ORCH_URL is set, uses CFOrchClient to acquire a vLLM allocation
+        When CF_ORCH_URL is set, uses CFOrchClient to acquire a cf-text allocation
         (which handles service lifecycle and VRAM). Falls back to nullcontext(None)
         when the env var is absent or CFOrchClient raises on construction.
         """
@@ -158,10 +160,9 @@ class LLMRecipeGenerator:
                 from circuitforge_orch.client import CFOrchClient
                 client = CFOrchClient(cf_orch_url)
                 return client.allocate(
-                    service="vllm",
-                    model_candidates=self._MODEL_CANDIDATES,
-                    ttl_s=300.0,
-                    caller="kiwi-recipe",
+                    service=self._SERVICE_TYPE,
+                    ttl_s=self._TTL_S,
+                    caller=self._CALLER,
                 )
             except Exception as exc:
                 logger.debug("CFOrchClient init failed, falling back to direct URL: %s", exc)
