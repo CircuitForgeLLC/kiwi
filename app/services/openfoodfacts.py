@@ -114,6 +114,9 @@ class OpenFoodFactsService:
         allergens = product.get("allergens_tags", [])
         labels = product.get("labels_tags", [])
 
+        # Pack size detection: prefer explicit unit_count, fall back to serving count
+        pack_quantity, pack_unit = self._extract_pack_size(product)
+
         return {
             "name": name,
             "brand": brand,
@@ -124,8 +127,46 @@ class OpenFoodFactsService:
             "nutrition_data": nutrition_data,
             "allergens": allergens,
             "labels": labels,
+            "pack_quantity": pack_quantity,
+            "pack_unit": pack_unit,
             "raw_data": product,  # Store full response for debugging
         }
+
+    def _extract_pack_size(self, product: Dict[str, Any]) -> tuple[float | None, str | None]:
+        """Return (quantity, unit) for multi-pack products, or (None, None).
+
+        OFFs fields tried in order:
+          1. `number_of_units` (explicit count, highest confidence)
+          2. `serving_quantity` + `product_quantity_unit` (e.g. 6 x 150g yoghurt)
+          3. Parse `quantity` string like "4 x 113 g" or "6 pack"
+
+        Returns None, None when data is absent, ambiguous, or single-unit.
+        """
+        import re
+
+        # Field 1: explicit unit count
+        unit_count = product.get("number_of_units")
+        if unit_count:
+            try:
+                n = float(unit_count)
+                if n > 1:
+                    return n, product.get("serving_size_unit") or "unit"
+            except (ValueError, TypeError):
+                pass
+
+        # Field 2: parse quantity string for "N x ..." pattern
+        qty_str = product.get("quantity", "")
+        if qty_str:
+            m = re.match(r"^(\d+(?:\.\d+)?)\s*[xX×]\s*", qty_str.strip())
+            if m:
+                n = float(m.group(1))
+                if n > 1:
+                    # Try to get a sensible sub-unit label from the rest
+                    rest = qty_str[m.end():].strip()
+                    unit_label = re.sub(r"[\d.,\s]+", "", rest).strip()[:20] or "unit"
+                    return n, unit_label
+
+        return None, None
 
     def _extract_nutrition_data(self, product: Dict[str, Any]) -> Dict[str, Any]:
         """

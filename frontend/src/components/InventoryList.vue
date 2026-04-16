@@ -354,9 +354,26 @@
                   <circle cx="10" cy="13" r="1.5" fill="currentColor"/>
                 </svg>
               </button>
-              <button @click="markAsConsumed(item)" class="btn-icon btn-icon-success" aria-label="Mark consumed">
+              <button
+                v-if="item.status === 'available'"
+                @click="markAsConsumed(item)"
+                class="btn-icon btn-icon-success"
+                :aria-label="item.quantity > 1 ? `Use some (${item.quantity} ${item.unit})` : 'Mark as used'"
+                :title="item.quantity > 1 ? `Use some or all (${item.quantity} ${item.unit})` : 'Mark as used'"
+              >
                 <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
                   <polyline points="4 10 8 14 16 6"/>
+                </svg>
+              </button>
+              <button
+                v-if="item.status === 'available'"
+                @click="markAsDiscarded(item)"
+                class="btn-icon btn-icon-discard"
+                aria-label="Mark as not used"
+                title="I didn't use this (went bad, too much, etc)"
+              >
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                  <path d="M4 4l12 12M4 16L16 4"/>
                 </svg>
               </button>
               <button @click="confirmDelete(item)" class="btn-icon btn-icon-danger" aria-label="Delete">
@@ -400,6 +417,22 @@
       @cancel="confirmDialog.show = false"
     />
 
+    <!-- Action Dialog (partial consume / discard reason) -->
+    <ActionDialog
+      :show="actionDialog.show"
+      :title="actionDialog.title"
+      :message="actionDialog.message"
+      :type="actionDialog.type"
+      :confirm-text="actionDialog.confirmText"
+      :input-type="actionDialog.inputType"
+      :input-label="actionDialog.inputLabel"
+      :input-max="actionDialog.inputMax"
+      :input-unit="actionDialog.inputUnit"
+      :input-options="actionDialog.inputOptions"
+      @confirm="(v) => { actionDialog.onConfirm(v); actionDialog.show = false }"
+      @cancel="actionDialog.show = false"
+    />
+
     <!-- Toast Notification -->
     <ToastNotification
       :show="toast.show"
@@ -421,6 +454,7 @@ import type { InventoryItem } from '../services/api'
 import { formatQuantity } from '../utils/units'
 import EditItemModal from './EditItemModal.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
+import ActionDialog from './ActionDialog.vue'
 import ToastNotification from './ToastNotification.vue'
 
 const store = useInventoryStore()
@@ -464,6 +498,20 @@ const confirmDialog = reactive({
   type: 'primary' as 'primary' | 'danger' | 'warning',
   confirmText: 'Confirm',
   onConfirm: () => {},
+})
+
+const actionDialog = reactive({
+  show: false,
+  title: '',
+  message: '',
+  type: 'primary' as 'primary' | 'danger' | 'warning' | 'secondary',
+  confirmText: 'Confirm',
+  inputType: null as 'quantity' | 'select' | null,
+  inputLabel: '',
+  inputMax: 1,
+  inputUnit: '',
+  inputOptions: [] as string[],
+  onConfirm: (_v: number | string | undefined) => {},
 })
 
 // Toast Notification
@@ -585,24 +633,65 @@ async function markAsOpened(item: InventoryItem) {
   }
 }
 
-async function markAsConsumed(item: InventoryItem) {
-  showConfirm(
-    `Mark ${item.product_name || 'item'} as consumed?`,
-    async () => {
+function markAsConsumed(item: InventoryItem) {
+  const isMulti = item.quantity > 1
+  const label = item.product_name || 'item'
+  Object.assign(actionDialog, {
+    show: true,
+    title: 'Mark as Used',
+    message: isMulti
+      ? `How much of ${label} did you use?`
+      : `Mark ${label} as used?`,
+    type: 'primary',
+    confirmText: isMulti ? 'Use' : 'Mark as Used',
+    inputType: isMulti ? 'quantity' : null,
+    inputLabel: 'Amount used:',
+    inputMax: item.quantity,
+    inputUnit: item.unit,
+    inputOptions: [],
+    onConfirm: async (val: number | string | undefined) => {
+      const qty = isMulti ? (val as number) : undefined
       try {
-        await inventoryAPI.consumeItem(item.id)
+        await inventoryAPI.consumeItem(item.id, qty)
         await refreshItems()
-        showToast(`${item.product_name || 'item'} marked as consumed`, 'success')
-      } catch (err) {
-        showToast('Failed to mark item as consumed', 'error')
+        const verb = qty !== undefined && qty < item.quantity ? 'partially used' : 'marked as used'
+        showToast(`${label} ${verb}`, 'success')
+      } catch {
+        showToast('Could not update item', 'error')
       }
     },
-    {
-      title: 'Mark as Consumed',
-      type: 'primary',
-      confirmText: 'Mark as Consumed',
-    }
-  )
+  })
+}
+
+function markAsDiscarded(item: InventoryItem) {
+  const label = item.product_name || 'item'
+  Object.assign(actionDialog, {
+    show: true,
+    title: 'Item Not Used',
+    message: `${label} — what happened to it?`,
+    type: 'secondary',
+    confirmText: 'Log It',
+    inputType: 'select',
+    inputLabel: 'Reason (optional):',
+    inputMax: 1,
+    inputUnit: '',
+    inputOptions: [
+      'went bad before I could use it',
+      'too much — had excess',
+      'changed my mind',
+      'other',
+    ],
+    onConfirm: async (val: number | string | undefined) => {
+      const reason = typeof val === 'string' && val ? val : undefined
+      try {
+        await inventoryAPI.discardItem(item.id, reason)
+        await refreshItems()
+        showToast(`${label} logged as not used`, 'info')
+      } catch {
+        showToast('Could not update item', 'error')
+      }
+    },
+  })
 }
 
 // Scanner Gun Functions
@@ -1199,6 +1288,16 @@ function getItemClass(item: InventoryItem): string {
 
 .btn-icon-open:hover {
   background: var(--color-warning-bg);
+}
+
+/* "Item not used" discard button — muted, not alarming */
+.btn-icon-discard {
+  color: var(--color-text-tertiary);
+}
+
+.btn-icon-discard:hover {
+  color: var(--color-text-secondary);
+  background: var(--color-bg-secondary);
 }
 
 /* Opened badge — distinct icon prefix signals this is after-open expiry */

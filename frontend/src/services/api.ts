@@ -96,6 +96,7 @@ export interface InventoryItem {
   status: string
   source: string
   notes: string | null
+  disposal_reason: string | null
   created_at: string
   updated_at: string
 }
@@ -235,10 +236,21 @@ export const inventoryAPI = {
   },
 
   /**
-   * Mark item as consumed
+   * Mark item as consumed fully or partially.
+   * Pass quantity to decrement; omit to consume all.
    */
-  async consumeItem(itemId: number): Promise<void> {
-    await api.post(`/inventory/items/${itemId}/consume`)
+  async consumeItem(itemId: number, quantity?: number): Promise<InventoryItem> {
+    const body = quantity !== undefined ? { quantity } : undefined
+    const response = await api.post(`/inventory/items/${itemId}/consume`, body)
+    return response.data
+  },
+
+  /**
+   * Mark item as discarded (not used, spoiled, etc).
+   */
+  async discardItem(itemId: number, reason?: string): Promise<InventoryItem> {
+    const response = await api.post(`/inventory/items/${itemId}/discard`, { reason: reason ?? null })
+    return response.data
   },
 
   /**

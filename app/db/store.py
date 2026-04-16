@@ -218,7 +218,8 @@ class Store:
 
     def update_inventory_item(self, item_id: int, **kwargs) -> dict[str, Any] | None:
         allowed = {"quantity", "unit", "location", "sublocation",
-                   "expiration_date", "opened_date", "status", "notes", "consumed_at"}
+                   "expiration_date", "opened_date", "status", "notes", "consumed_at",
+                   "disposal_reason"}
         updates = {k: v for k, v in kwargs.items() if k in allowed}
         if not updates:
             return self.get_inventory_item(item_id)
@@ -228,6 +229,32 @@ class Store:
             f"UPDATE inventory_items SET {sets}, updated_at = datetime('now') WHERE id = ?",
             values,
         )
+        self.conn.commit()
+        return self.get_inventory_item(item_id)
+
+    def partial_consume_item(
+        self,
+        item_id: int,
+        consume_qty: float,
+        consumed_at: str,
+    ) -> dict[str, Any] | None:
+        """Decrement quantity by consume_qty. Mark consumed when quantity reaches 0."""
+        row = self.get_inventory_item(item_id)
+        if row is None:
+            return None
+        remaining = max(0.0, round(row["quantity"] - consume_qty, 6))
+        if remaining <= 0:
+            self.conn.execute(
+                "UPDATE inventory_items SET quantity = 0, status = 'consumed',"
+                " consumed_at = ?, updated_at = datetime('now') WHERE id = ?",
+                (consumed_at, item_id),
+            )
+        else:
+            self.conn.execute(
+                "UPDATE inventory_items SET quantity = ?, updated_at = datetime('now')"
+                " WHERE id = ?",
+                (remaining, item_id),
+            )
         self.conn.commit()
         return self.get_inventory_item(item_id)
 

@@ -22,10 +22,12 @@ from app.models.schemas.inventory import (
     BulkAddByNameRequest,
     BulkAddByNameResponse,
     BulkAddItemResult,
+    DiscardRequest,
     InventoryItemCreate,
     InventoryItemResponse,
     InventoryItemUpdate,
     InventoryStats,
+    PartialConsumeRequest,
     ProductCreate,
     ProductResponse,
     ProductUpdate,
@@ -239,13 +241,52 @@ async def mark_item_opened(item_id: int, store: Store = Depends(get_store)):
 
 
 @router.post("/items/{item_id}/consume", response_model=InventoryItemResponse)
-async def consume_item(item_id: int, store: Store = Depends(get_store)):
+async def consume_item(
+    item_id: int,
+    body: Optional[PartialConsumeRequest] = None,
+    store: Store = Depends(get_store),
+):
+    """Consume an inventory item fully or partially.
+
+    When body.quantity is provided, decrements by that amount and only marks
+    status=consumed when quantity reaches zero. Omit body to consume all.
+    """
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+    if body is not None:
+        item = await asyncio.to_thread(
+            store.partial_consume_item, item_id, body.quantity, now
+        )
+    else:
+        item = await asyncio.to_thread(
+            store.update_inventory_item,
+            item_id,
+            status="consumed",
+            consumed_at=now,
+        )
+    if not item:
+        raise HTTPException(status_code=404, detail="Inventory item not found")
+    return InventoryItemResponse.model_validate(_enrich_item(item))
+
+
+@router.post("/items/{item_id}/discard", response_model=InventoryItemResponse)
+async def discard_item(
+    item_id: int,
+    body: DiscardRequest = DiscardRequest(),
+    store: Store = Depends(get_store),
+):
+    """Mark an item as discarded (not used, spoiled, etc).
+
+    Optional reason field accepts free text or a preset label
+    ('not used', 'spoiled', 'excess', 'other').
+    """
     from datetime import datetime, timezone
     item = await asyncio.to_thread(
         store.update_inventory_item,
         item_id,
-        status="consumed",
+        status="discarded",
         consumed_at=datetime.now(timezone.utc).isoformat(),
+        disposal_reason=body.reason,
     )
     if not item:
         raise HTTPException(status_code=404, detail="Inventory item not found")
@@ -305,10 +346,14 @@ async def scan_barcode_text(
             tier=session.tier,
             has_byok=session.has_byok,
         )
+        # Use OFFs pack size when detected; caller-supplied quantity is a fallback
+        resolved_qty = product_info.get("pack_quantity") or body.quantity
+        resolved_unit = product_info.get("pack_unit") or "count"
         inventory_item = await asyncio.to_thread(
             store.add_inventory_item,
             product["id"], body.location,
-            quantity=body.quantity,
+            quantity=resolved_qty,
+            unit=resolved_unit,
             expiration_date=str(exp) if exp else None,
             source="barcode_scan",
         )
@@ -383,10 +428,13 @@ async def scan_barcode_image(
                     tier=session.tier,
             has_byok=session.has_byok,
                 )
+                resolved_qty = product_info.get("pack_quantity") or quantity
+                resolved_unit = product_info.get("pack_unit") or "count"
                 inventory_item = await asyncio.to_thread(
                     store.add_inventory_item,
                     product["id"], location,
-                    quantity=quantity,
+                    quantity=resolved_qty,
+                    unit=resolved_unit,
                     expiration_date=str(exp) if exp else None,
                     source="barcode_scan",
                 )

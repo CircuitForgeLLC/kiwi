@@ -93,6 +93,15 @@ class InventoryItemUpdate(BaseModel):
     opened_date: Optional[date] = None
     status: Optional[str] = None
     notes: Optional[str] = None
+    disposal_reason: Optional[str] = None
+
+
+class PartialConsumeRequest(BaseModel):
+    quantity: float = Field(..., gt=0, description="Amount to consume from this item")
+
+
+class DiscardRequest(BaseModel):
+    reason: Optional[str] = Field(None, max_length=200)
 
 
 class InventoryItemResponse(BaseModel):
@@ -111,6 +120,7 @@ class InventoryItemResponse(BaseModel):
     opened_expiry_date: Optional[str] = None
     status: str
     notes: Optional[str]
+    disposal_reason: Optional[str] = None
     source: str
     created_at: str
     updated_at: str
