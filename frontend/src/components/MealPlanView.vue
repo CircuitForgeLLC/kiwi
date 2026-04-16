@@ -101,7 +101,10 @@ const canAddMealType = computed(() =>
   (activePlan.value?.meal_types.length ?? 0) < 4
 )
 
-onMounted(() => store.loadPlans())
+onMounted(async () => {
+  await store.loadPlans()
+  store.autoSelectPlan(mondayOfCurrentWeek())
+})
 
 function mondayOfCurrentWeek(): string {
   const today = new Date()
@@ -116,15 +119,20 @@ function mondayOfCurrentWeek(): string {
 async function onNewPlan() {
   planError.value = null
   planCreating.value = true
+  const weekStart = mondayOfCurrentWeek()
   try {
-    const weekStart = mondayOfCurrentWeek()
     await store.createPlan(weekStart, ['dinner'])
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err)
-    // 409 means a plan for this week already exists — surface it helpfully
-    planError.value = msg.includes('409') || msg.toLowerCase().includes('already exists')
-      ? 'A plan for this week already exists. Select it from the dropdown above.'
-      : `Couldn't create plan: ${msg}`
+    if (msg.includes('409') || msg.toLowerCase().includes('already exists')) {
+      // Plan for this week exists — just activate it instead of erroring
+      const existing = plans.value.find(p => p.week_start === weekStart)
+      if (existing) {
+        await store.setActivePlan(existing.id)
+      }
+    } else {
+      planError.value = `Couldn't create plan: ${msg}`
+    }
   } finally {
     planCreating.value = false
   }

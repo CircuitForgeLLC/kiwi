@@ -40,6 +40,20 @@ export const useMealPlanStore = defineStore('mealPlan', () => {
     }
   }
 
+  /**
+   * Auto-select the best available plan without a round-trip.
+   * Prefers the plan whose week_start matches preferredWeekStart (current week's Monday).
+   * Falls back to the first plan in the list (most recent, since list is DESC).
+   * No-ops if a plan is already active or no plans exist.
+   */
+  function autoSelectPlan(preferredWeekStart?: string) {
+    if (activePlan.value || plans.value.length === 0) return
+    const match = preferredWeekStart
+      ? (plans.value.find(p => p.week_start === preferredWeekStart) ?? plans.value[0])
+      : plans.value[0]
+    if (match) activePlan.value = match ?? null
+  }
+
   async function createPlan(weekStart: string, mealTypes: string[]): Promise<MealPlan> {
     const plan = await mealPlanAPI.create(weekStart, mealTypes)
     plans.value = [plan, ...plans.value]
@@ -129,7 +143,7 @@ export const useMealPlanStore = defineStore('mealPlan', () => {
   return {
     plans, activePlan, shoppingList, prepSession,
     loading, shoppingListLoading, prepLoading, slots,
-    getSlot, loadPlans, createPlan, setActivePlan,
+    getSlot, loadPlans, autoSelectPlan, createPlan, setActivePlan,
     upsertSlot, clearSlot, loadShoppingList, loadPrepSession, updatePrepTask,
   }
 })
