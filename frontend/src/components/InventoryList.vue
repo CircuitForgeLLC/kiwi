@@ -392,10 +392,14 @@
     <!-- Export -->
     <div class="card export-card">
       <h2 class="section-title">Export</h2>
-      <div class="flex gap-sm" style="margin-top: var(--spacing-sm)">
+      <div class="flex gap-sm flex-wrap" style="margin-top: var(--spacing-sm)">
+        <button @click="exportJSON" class="btn btn-primary">Download JSON (full backup)</button>
         <button @click="exportCSV" class="btn btn-secondary">Download CSV</button>
         <button @click="exportExcel" class="btn btn-secondary">Download Excel</button>
       </div>
+      <p class="text-sm text-secondary" style="margin-top: var(--spacing-xs)">
+        JSON includes pantry + saved recipes. Import it into another Kiwi instance any time.
+      </p>
     </div>
 
     <!-- Edit Modal -->
@@ -845,6 +849,11 @@ function exportCSV() {
 function exportExcel() {
   const apiUrl = import.meta.env.VITE_API_URL || '/api/v1'
   window.open(`${apiUrl}/export/inventory/excel`, '_blank')
+}
+
+function exportJSON() {
+  const apiUrl = import.meta.env.VITE_API_URL || '/api/v1'
+  window.open(`${apiUrl}/export/json`, '_blank')
 }
 
 // Full date string for tooltip (accessible label)
