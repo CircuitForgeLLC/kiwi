@@ -533,6 +533,7 @@ export interface RecipeRequest {
   nutrition_filters: NutritionFilters
   excluded_ids: number[]
   shopping_mode: boolean
+  pantry_match_only: boolean
 }
 
 export interface Staple {

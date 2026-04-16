@@ -132,6 +132,7 @@ export const useRecipesStore = defineStore('recipes', () => {
   const category = ref<string | null>(null)
   const wildcardConfirmed = ref(false)
   const shoppingMode = ref(false)
+  const pantryMatchOnly = ref(false)
   const nutritionFilters = ref<NutritionFilters>({
     max_calories: null,
     max_sugar_g: null,
@@ -176,6 +177,7 @@ export const useRecipesStore = defineStore('recipes', () => {
       nutrition_filters: nutritionFilters.value,
       excluded_ids: [...excluded],
       shopping_mode: shoppingMode.value,
+      pantry_match_only: pantryMatchOnly.value,
     }
   }
 
@@ -306,6 +308,7 @@ export const useRecipesStore = defineStore('recipes', () => {
     category,
     wildcardConfirmed,
     shoppingMode,
+    pantryMatchOnly,
     nutritionFilters,
     dismissedIds,
     dismissedCount,

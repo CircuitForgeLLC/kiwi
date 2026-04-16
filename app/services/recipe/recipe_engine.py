@@ -699,6 +699,11 @@ class RecipeEngine:
             if not req.shopping_mode and effective_max_missing is not None and len(missing) > effective_max_missing:
                 continue
 
+            # "Can make now" toggle: drop any recipe that still has missing ingredients
+            # after swaps are applied. Swapped items count as covered.
+            if req.pantry_match_only and missing:
+                continue
+
             # L1 match ratio gate: drop results where less than 60% of the recipe's
             # ingredients are in the pantry. Prevents low-signal results like a
             # 10-ingredient recipe matching on only one common item.

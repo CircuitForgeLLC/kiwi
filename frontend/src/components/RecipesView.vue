@@ -169,6 +169,17 @@
             <span id="allergy-hint" class="form-hint">No recipes containing these ingredients will appear.</span>
           </div>
 
+          <!-- Can Make Now toggle -->
+          <div class="form-group">
+            <label class="flex-start gap-sm shopping-toggle">
+              <input type="checkbox" v-model="recipesStore.pantryMatchOnly" :disabled="recipesStore.shoppingMode" />
+              <span class="form-label" style="margin-bottom: 0;">Can make now (no missing ingredients)</span>
+            </label>
+            <p v-if="recipesStore.pantryMatchOnly && !recipesStore.shoppingMode" class="text-sm text-secondary mt-xs">
+              Only recipes where every ingredient is in your pantry — no substitutions, no shopping.
+            </p>
+          </div>
+
           <!-- Shopping Mode (temporary home — moves to Shopping tab in #71) -->
           <div class="form-group">
             <label class="flex-start gap-sm shopping-toggle">
@@ -180,8 +191,8 @@
             </p>
           </div>
 
-          <!-- Max Missing — hidden in shopping mode -->
-          <div v-if="!recipesStore.shoppingMode" class="form-group">
+          <!-- Max Missing — hidden in shopping mode or pantry-match-only mode -->
+          <div v-if="!recipesStore.shoppingMode && !recipesStore.pantryMatchOnly" class="form-group">
             <label class="form-label" for="max-missing">Max Missing Ingredients <span class="text-muted text-xs">(optional)</span></label>
             <input
               id="max-missing"

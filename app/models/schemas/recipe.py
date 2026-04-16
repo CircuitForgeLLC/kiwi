@@ -83,6 +83,7 @@ class RecipeRequest(BaseModel):
     nutrition_filters: NutritionFilters = Field(default_factory=NutritionFilters)
     excluded_ids: list[int] = Field(default_factory=list)
     shopping_mode: bool = False
+    pantry_match_only: bool = False  # when True, only return recipes with zero missing ingredients
     unit_system: str = "metric"  # "metric" | "imperial"
 
 
