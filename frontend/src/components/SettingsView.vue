@@ -64,6 +64,41 @@
         </div>
       </section>
 
+      <!-- Units -->
+      <section class="mt-md">
+        <h3 class="text-lg font-semibold mb-xs">Units</h3>
+        <p class="text-sm text-secondary mb-sm">
+          Choose how quantities and temperatures are displayed in your pantry and recipes.
+        </p>
+        <div class="flex-start gap-sm mb-sm" role="group" aria-label="Unit system">
+          <button
+            :class="['btn', 'btn-sm', settingsStore.unitSystem === 'metric' ? 'btn-primary' : 'btn-secondary']"
+            :aria-pressed="settingsStore.unitSystem === 'metric'"
+            @click="settingsStore.unitSystem = 'metric'"
+          >
+            Metric (g, ml, °C)
+          </button>
+          <button
+            :class="['btn', 'btn-sm', settingsStore.unitSystem === 'imperial' ? 'btn-primary' : 'btn-secondary']"
+            :aria-pressed="settingsStore.unitSystem === 'imperial'"
+            @click="settingsStore.unitSystem = 'imperial'"
+          >
+            Imperial (oz, cups, °F)
+          </button>
+        </div>
+        <div class="flex-start gap-sm">
+          <button
+            class="btn btn-primary btn-sm"
+            :disabled="settingsStore.loading"
+            @click="settingsStore.save()"
+          >
+            <span v-if="settingsStore.loading">Saving…</span>
+            <span v-else-if="settingsStore.saved">✓ Saved!</span>
+            <span v-else>Save</span>
+          </button>
+        </div>
+      </section>
+
       <!-- Display Preferences -->
       <section class="mt-md">
         <h3 class="text-lg font-semibold mb-xs">Display</h3>

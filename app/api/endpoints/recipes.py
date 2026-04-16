@@ -8,6 +8,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.cloud_session import CloudUser, get_session
+from app.db.session import get_store
 from app.db.store import Store
 from app.models.schemas.recipe import (
     AssemblyTemplateOut,
@@ -54,9 +55,12 @@ def _suggest_in_thread(db_path: Path, req: RecipeRequest) -> RecipeResult:
 async def suggest_recipes(
     req: RecipeRequest,
     session: CloudUser = Depends(get_session),
+    store: Store = Depends(get_store),
 ) -> RecipeResult:
     # Inject session-authoritative tier/byok immediately — client-supplied values are ignored.
-    req = req.model_copy(update={"tier": session.tier, "has_byok": session.has_byok})
+    # Also read stored unit_system preference; default to metric if not set.
+    unit_system = store.get_setting("unit_system") or "metric"
+    req = req.model_copy(update={"tier": session.tier, "has_byok": session.has_byok, "unit_system": unit_system})
     if req.level == 4 and not req.wildcard_confirmed:
         raise HTTPException(
             status_code=400,

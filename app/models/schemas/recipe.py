@@ -83,6 +83,7 @@ class RecipeRequest(BaseModel):
     nutrition_filters: NutritionFilters = Field(default_factory=NutritionFilters)
     excluded_ids: list[int] = Field(default_factory=list)
     shopping_mode: bool = False
+    unit_system: str = "metric"  # "metric" | "imperial"
 
 
 # ── Build Your Own schemas ──────────────────────────────────────────────────

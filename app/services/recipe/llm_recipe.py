@@ -84,7 +84,13 @@ class LLMRecipeGenerator:
                 if template.aromatics:
                     lines.append(f"Preferred aromatics: {', '.join(template.aromatics[:4])}")
 
+        unit_line = (
+            "Use metric units (grams, ml, Celsius) for all quantities and temperatures."
+            if req.unit_system == "metric"
+            else "Use imperial units (oz, cups, Fahrenheit) for all quantities and temperatures."
+        )
         lines += [
+            unit_line,
             "",
             "Reply using EXACTLY this plain-text format — no markdown, no bold, no extra commentary:",
             "Title: <name of the dish>",
@@ -118,8 +124,14 @@ class LLMRecipeGenerator:
         if allergy_list:
             lines.append(f"Must NOT contain: {', '.join(allergy_list)}")
 
+        unit_line = (
+            "Use metric units (grams, ml, Celsius) for all quantities and temperatures."
+            if req.unit_system == "metric"
+            else "Use imperial units (oz, cups, Fahrenheit) for all quantities and temperatures."
+        )
         lines += [
             "Treat any mystery ingredient as a wildcard — use your imagination.",
+            unit_line,
             "Reply using EXACTLY this plain-text format — no markdown, no bold:",
             "Title: <name of the dish>",
             "Ingredients: <comma-separated list>",

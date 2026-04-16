@@ -7,10 +7,12 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { settingsAPI } from '../services/api'
+import type { UnitSystem } from '../utils/units'
 
 export const useSettingsStore = defineStore('settings', () => {
   // State
   const cookingEquipment = ref<string[]>([])
+  const unitSystem = ref<UnitSystem>('metric')
   const loading = ref(false)
   const saved = ref(false)
 
@@ -18,9 +20,15 @@ export const useSettingsStore = defineStore('settings', () => {
   async function load() {
     loading.value = true
     try {
-      const raw = await settingsAPI.getSetting('cooking_equipment')
-      if (raw) {
-        cookingEquipment.value = JSON.parse(raw)
+      const [rawEquipment, rawUnits] = await Promise.allSettled([
+        settingsAPI.getSetting('cooking_equipment'),
+        settingsAPI.getSetting('unit_system'),
+      ])
+      if (rawEquipment.status === 'fulfilled' && rawEquipment.value) {
+        cookingEquipment.value = JSON.parse(rawEquipment.value)
+      }
+      if (rawUnits.status === 'fulfilled' && rawUnits.value) {
+        unitSystem.value = rawUnits.value as UnitSystem
       }
     } catch (err: unknown) {
       console.error('Failed to load settings:', err)
@@ -32,7 +40,10 @@ export const useSettingsStore = defineStore('settings', () => {
   async function save() {
     loading.value = true
     try {
-      await settingsAPI.setSetting('cooking_equipment', JSON.stringify(cookingEquipment.value))
+      await Promise.all([
+        settingsAPI.setSetting('cooking_equipment', JSON.stringify(cookingEquipment.value)),
+        settingsAPI.setSetting('unit_system', unitSystem.value),
+      ])
       saved.value = true
       setTimeout(() => {
         saved.value = false
@@ -47,6 +58,7 @@ export const useSettingsStore = defineStore('settings', () => {
   return {
     // State
     cookingEquipment,
+    unitSystem,
     loading,
     saved,
 

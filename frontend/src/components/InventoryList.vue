@@ -321,7 +321,7 @@
 
           <!-- Right side: qty + expiry + actions -->
           <div class="inv-row-right">
-            <span class="inv-qty">{{ item.quantity }}<span class="inv-unit"> {{ item.unit }}</span></span>
+            <span class="inv-qty">{{ formatQuantity(item.quantity, item.unit, settingsStore.unitSystem) }}</span>
 
             <span
               v-if="item.expiration_date"
@@ -395,13 +395,16 @@
 import { ref, computed, onMounted, reactive } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useInventoryStore } from '../stores/inventory'
+import { useSettingsStore } from '../stores/settings'
 import { inventoryAPI } from '../services/api'
 import type { InventoryItem } from '../services/api'
+import { formatQuantity } from '../utils/units'
 import EditItemModal from './EditItemModal.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
 import ToastNotification from './ToastNotification.vue'
 
 const store = useInventoryStore()
+const settingsStore = useSettingsStore()
 const { items, stats, loading, locationFilter, statusFilter } = storeToRefs(store)
 
 const filteredItems = computed(() => store.filteredItems)
