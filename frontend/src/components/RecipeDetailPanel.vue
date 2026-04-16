@@ -36,6 +36,20 @@
       <!-- Scrollable body -->
       <div class="detail-body">
 
+        <!-- Serving multiplier -->
+        <div class="serving-scale-row">
+          <span class="serving-scale-label text-sm text-muted">Scale:</span>
+          <div class="serving-scale-btns" role="group" aria-label="Serving multiplier">
+            <button
+              v-for="n in [1, 2, 3, 4]"
+              :key="n"
+              :class="['scale-btn', { active: servingScale === n }]"
+              :aria-pressed="servingScale === n"
+              @click="servingScale = n"
+            >{{ n }}×</button>
+          </div>
+        </div>
+
         <!-- Ingredients: have vs. need in a two-column layout -->
         <div class="ingredients-grid">
           <div v-if="recipe.matched_ingredients?.length > 0" class="ingredient-col ingredient-col-have">
@@ -43,7 +57,7 @@
             <ul class="ingredient-list">
               <li v-for="ing in recipe.matched_ingredients" :key="ing" class="ing-row">
                 <span class="ing-icon ing-icon-have">✓</span>
-                <span>{{ ing }}</span>
+                <span>{{ scaleIngredient(ing, servingScale) }}</span>
               </li>
             </ul>
           </div>
@@ -66,7 +80,7 @@
                     :checked="checkedIngredients.has(ing)"
                     @change="toggleIngredient(ing)"
                   />
-                  <span class="ing-name">{{ ing }}</span>
+                  <span class="ing-name">{{ scaleIngredient(ing, servingScale) }}</span>
                 </label>
                 <a
                   v-if="groceryLinkFor(ing)"
@@ -248,6 +262,69 @@ const isSaved = computed(() => savedStore.isSaved(props.recipe.id))
 const cookDone = ref(false)
 const shareCopied = ref(false)
 
+// Serving scale multiplier: 1×, 2×, 3×, 4×
+const servingScale = ref(1)
+
+/**
+ * Scale a freeform ingredient string by a multiplier.
+ * Handles integers, decimals, and simple fractions (1/2, 1/4, 3/4, etc.).
+ * Ranges like "2-3" are scaled on both ends.
+ * Returns the original string unchanged if no leading number is found.
+ */
+function scaleIngredient(ing: string, scale: number): string {
+  if (scale === 1) return ing
+
+  // Match an optional leading fraction OR decimal OR integer,
+  // optionally followed by a space and another fraction (mixed number like "1 1/2")
+  const numPat = String.raw`(\d+\s+\d+\/\d+|\d+\/\d+|\d+(?:\.\d+)?)`
+  const rangePat = new RegExp(`^${numPat}(?:\\s*-\\s*${numPat})?`)
+
+  const m = ing.match(rangePat)
+  if (!m) return ing
+
+  function parseFrac(s: string): number {
+    const mixed = s.match(/^(\d+)\s+(\d+)\/(\d+)$/)
+    if (mixed) return parseInt(mixed[1]) + parseInt(mixed[2]) / parseInt(mixed[3])
+    const frac = s.match(/^(\d+)\/(\d+)$/)
+    if (frac) return parseInt(frac[1]) / parseInt(frac[2])
+    return parseFloat(s)
+  }
+
+  function fmtNum(n: number): string {
+    // Try to express as a simple fraction for common baking values
+    const fracs: [number, string][] = [
+      [0.125, '1/8'], [0.25, '1/4'], [0.333, '1/3'], [0.5, '1/2'],
+      [0.667, '2/3'], [0.75, '3/4'],
+    ]
+    for (const [val, str] of fracs) {
+      if (Math.abs(n - Math.round(n / val) * val) < 0.01 && n < 1) return str
+    }
+    // Mixed numbers
+    const whole = Math.floor(n)
+    const remainder = n - whole
+    if (whole > 0 && remainder > 0.05) {
+      for (const [val, str] of fracs) {
+        if (Math.abs(remainder - val) < 0.05) return `${whole} ${str}`
+      }
+    }
+    // Round to reasonable precision
+    return whole > 0 && remainder < 0.05 ? `${whole}` : n.toFixed(1).replace(/\.0$/, '')
+  }
+
+  const low = parseFrac(m[1])
+  const scaledLow = fmtNum(low * scale)
+
+  let scaled: string
+  if (m[2] !== undefined) {
+    const high = parseFrac(m[2])
+    scaled = `${scaledLow}-${fmtNum(high * scale)}`
+  } else {
+    scaled = scaledLow
+  }
+
+  return scaled + ing.slice(m[0].length)
+}
+
 // Shopping: add purchased ingredients to pantry
 const checkedIngredients = ref<Set<string>>(new Set())
 const addingToPantry = ref(false)
@@ -327,6 +404,7 @@ function groceryLinkFor(ingredient: string): GroceryLink | undefined {
 }
 
 function handleCook() {
+  recipesStore.logCook(props.recipe.id, props.recipe.title)
   cookDone.value = true
   emit('cooked', props.recipe)
 }
@@ -443,6 +521,40 @@ function handleCook() {
   overflow-y: auto;
   padding: var(--spacing-md);
   -webkit-overflow-scrolling: touch;
+}
+
+/* ── Serving scale row ──────────────────────────────────── */
+.serving-scale-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+}
+
+.serving-scale-label {
+  white-space: nowrap;
+}
+
+.serving-scale-btns {
+  display: flex;
+  gap: var(--spacing-xs);
+}
+
+.scale-btn {
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+
+.scale-btn.active {
+  background: var(--color-primary);
+  color: var(--color-on-primary, #fff);
+  border-color: var(--color-primary);
 }
 
 /* ── Ingredients grid ───────────────────────────────────── */

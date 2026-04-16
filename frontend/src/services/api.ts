@@ -91,6 +91,8 @@ export interface InventoryItem {
   sublocation: string | null
   purchase_date: string | null
   expiration_date: string | null
+  opened_date: string | null
+  opened_expiry_date: string | null
   status: string
   source: string
   notes: string | null
@@ -237,6 +239,14 @@ export const inventoryAPI = {
    */
   async consumeItem(itemId: number): Promise<void> {
     await api.post(`/inventory/items/${itemId}/consume`)
+  },
+
+  /**
+   * Mark item as opened today — starts secondary shelf-life tracking
+   */
+  async openItem(itemId: number): Promise<InventoryItem> {
+    const response = await api.post(`/inventory/items/${itemId}/open`)
+    return response.data
   },
 
   /**

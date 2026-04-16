@@ -79,6 +79,11 @@
             >{{ tag }}</span>
           </div>
 
+          <!-- Last cooked hint -->
+          <div v-if="lastCookedLabel(recipe.recipe_id)" class="last-cooked-hint text-xs text-muted mt-xs">
+            {{ lastCookedLabel(recipe.recipe_id) }}
+          </div>
+
           <!-- Notes preview with expand/collapse -->
           <div v-if="recipe.notes" class="mt-xs">
             <div
@@ -146,6 +151,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useSavedRecipesStore } from '../stores/savedRecipes'
+import { useRecipesStore } from '../stores/recipes'
 import type { SavedRecipe } from '../services/api'
 import SaveRecipeModal from './SaveRecipeModal.vue'
 
@@ -155,7 +161,24 @@ const emit = defineEmits<{
 }>()
 
 const store = useSavedRecipesStore()
+const recipesStore = useRecipesStore()
 const editingRecipe = ref<SavedRecipe | null>(null)
+
+function lastCookedLabel(recipeId: number): string | null {
+  const entries = recipesStore.cookLog.filter((e) => e.id === recipeId)
+  if (entries.length === 0) return null
+  const latestMs = Math.max(...entries.map((e) => e.cookedAt))
+  const diffMs = Date.now() - latestMs
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+  if (diffDays === 0) return 'Last made: today'
+  if (diffDays === 1) return 'Last made: yesterday'
+  if (diffDays < 7) return `Last made: ${diffDays} days ago`
+  if (diffDays < 14) return 'Last made: 1 week ago'
+  const diffWeeks = Math.floor(diffDays / 7)
+  if (diffDays < 60) return `Last made: ${diffWeeks} weeks ago`
+  const diffMonths = Math.floor(diffDays / 30)
+  return `Last made: ${diffMonths} month${diffMonths !== 1 ? 's' : ''} ago`
+}
 const showNewCollection = ref(false)
 
 // #44: two-step remove confirmation
@@ -338,6 +361,11 @@ async function createCollection() {
 
 .empty-state {
   padding: var(--spacing-xl);
+}
+
+.last-cooked-hint {
+  font-style: italic;
+  opacity: 0.75;
 }
 
 .modal-overlay {

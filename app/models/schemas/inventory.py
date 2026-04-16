@@ -90,6 +90,7 @@ class InventoryItemUpdate(BaseModel):
     location: Optional[str] = None
     sublocation: Optional[str] = None
     expiration_date: Optional[date] = None
+    opened_date: Optional[date] = None
     status: Optional[str] = None
     notes: Optional[str] = None
 
@@ -106,6 +107,8 @@ class InventoryItemResponse(BaseModel):
     sublocation: Optional[str]
     purchase_date: Optional[str]
     expiration_date: Optional[str]
+    opened_date: Optional[str] = None
+    opened_expiry_date: Optional[str] = None
     status: str
     notes: Optional[str]
     source: str

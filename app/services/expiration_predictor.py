@@ -116,6 +116,53 @@ class ExpirationPredictor:
         'prepared_foods': {'fridge': 4, 'freezer': 90},
     }
 
+    # Secondary shelf life in days after a package is opened.
+    # Sources: USDA FoodKeeper app, FDA consumer guides.
+    # Only categories where opening significantly shortens shelf life are listed.
+    # Items not listed default to None (no secondary window tracked).
+    SHELF_LIFE_AFTER_OPENING: dict[str, int] = {
+        # Dairy — once opened, clock ticks fast
+        'dairy': 5,
+        'milk': 5,
+        'cream': 3,
+        'yogurt': 7,
+        'cheese': 14,
+        'butter': 30,
+        # Condiments — refrigerated after opening
+        'condiments': 30,
+        'ketchup': 30,
+        'mustard': 30,
+        'mayo': 14,
+        'salad_dressing': 30,
+        'soy_sauce': 90,
+        # Canned goods — once opened, very short
+        'canned_goods': 4,
+        # Beverages
+        'juice': 7,
+        'soda': 4,
+        # Bread / Bakery
+        'bread': 5,
+        'bakery': 3,
+        # Produce
+        'leafy_greens': 3,
+        'berries': 3,
+        # Pantry staples (open bag)
+        'chips': 14,
+        'cookies': 14,
+        'cereal': 30,
+        'flour': 90,
+    }
+
+    def days_after_opening(self, category: str | None) -> int | None:
+        """Return days of shelf life remaining once a package is opened.
+
+        Returns None if the category is unknown or not tracked after opening
+        (e.g. frozen items, raw meat — category check irrelevant once opened).
+        """
+        if not category:
+            return None
+        return self.SHELF_LIFE_AFTER_OPENING.get(category.lower())
+
     # Keyword lists are checked in declaration order — most specific first.
     # Rules:
     #  - canned/processed goods BEFORE raw-meat terms (canned chicken != raw chicken)

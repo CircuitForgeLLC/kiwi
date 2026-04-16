@@ -323,15 +323,35 @@
           <div class="inv-row-right">
             <span class="inv-qty">{{ formatQuantity(item.quantity, item.unit, settingsStore.unitSystem) }}</span>
 
+            <!-- Opened expiry takes priority over sell-by date -->
             <span
-              v-if="item.expiration_date"
+              v-if="item.opened_expiry_date"
+              :class="['expiry-badge', 'expiry-opened', getExpiryBadgeClass(item.opened_expiry_date)]"
+              :title="`Opened · ${formatDateFull(item.opened_expiry_date)}`"
+            >📂 {{ formatDateShort(item.opened_expiry_date) }}</span>
+            <span
+              v-else-if="item.expiration_date"
               :class="['expiry-badge', getExpiryBadgeClass(item.expiration_date)]"
+              :title="formatDateFull(item.expiration_date)"
             >{{ formatDateShort(item.expiration_date) }}</span>
 
             <div class="inv-actions">
               <button @click="editItem(item)" class="btn-icon" aria-label="Edit">
                 <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
                   <path d="M13.586 3.586a2 2 0 112.828 2.828L7 14.828 4 16l1.172-3L13.586 3.586z"/>
+                </svg>
+              </button>
+              <button
+                v-if="!item.opened_date && item.status === 'available'"
+                @click="markAsOpened(item)"
+                class="btn-icon btn-icon-open"
+                aria-label="Mark as opened today"
+                title="I opened this today"
+              >
+                <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                  <path d="M5 8V6a7 7 0 0114 0v2"/>
+                  <rect x="3" y="8" width="14" height="10" rx="2"/>
+                  <circle cx="10" cy="13" r="1.5" fill="currentColor"/>
                 </svg>
               </button>
               <button @click="markAsConsumed(item)" class="btn-icon btn-icon-success" aria-label="Mark consumed">
@@ -555,6 +575,16 @@ async function confirmDelete(item: InventoryItem) {
   )
 }
 
+async function markAsOpened(item: InventoryItem) {
+  try {
+    await inventoryAPI.openItem(item.id)
+    await refreshItems()
+    showToast(`${item.product_name || 'Item'} marked as opened — tracking freshness`, 'info')
+  } catch {
+    showToast('Could not mark item as opened', 'error')
+  }
+}
+
 async function markAsConsumed(item: InventoryItem) {
   showConfirm(
     `Mark ${item.product_name || 'item'} as consumed?`,
@@ -721,20 +751,35 @@ function exportExcel() {
   window.open(`${apiUrl}/export/inventory/excel`, '_blank')
 }
 
-// Short date for compact row display
-function formatDateShort(dateStr: string): string {
+// Full date string for tooltip (accessible label)
+function formatDateFull(dateStr: string): string {
   const date = new Date(dateStr)
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const expiry = new Date(dateStr)
   expiry.setHours(0, 0, 0, 0)
   const diffDays = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  const cal = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  if (diffDays < 0) return `Expired ${cal}`
+  if (diffDays === 0) return `Expires today (${cal})`
+  if (diffDays === 1) return `Expires tomorrow (${cal})`
+  return `Expires in ${diffDays} days (${cal})`
+}
+
+// Short date for compact row display
+function formatDateShort(dateStr: string): string {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const expiry = new Date(dateStr)
+  expiry.setHours(0, 0, 0, 0)
+  const diffDays = Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+  const cal = new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 
   if (diffDays < 0) return `${Math.abs(diffDays)}d ago`
   if (diffDays === 0) return 'today'
-  if (diffDays === 1) return 'tmrw'
-  if (diffDays <= 14) return `${diffDays}d`
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  if (diffDays === 1) return `tmrw · ${cal}`
+  if (diffDays <= 14) return `${diffDays}d · ${cal}`
+  return cal
 }
 
 function getExpiryBadgeClass(expiryStr: string): string {
@@ -1145,6 +1190,20 @@ function getItemClass(item: InventoryItem): string {
   color: var(--color-text-muted);
   border: 1px solid rgba(100, 100, 100, 0.25);
   text-decoration: line-through;
+}
+
+/* "I opened this today" button */
+.btn-icon-open {
+  color: var(--color-warning);
+}
+
+.btn-icon-open:hover {
+  background: var(--color-warning-bg);
+}
+
+/* Opened badge — distinct icon prefix signals this is after-open expiry */
+.expiry-opened {
+  letter-spacing: 0;
 }
 
 /* Action icons inline */

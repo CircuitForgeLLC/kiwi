@@ -13,6 +13,9 @@ from pydantic import BaseModel
 
 from app.cloud_session import CloudUser, get_session
 from app.db.session import get_store
+from app.services.expiration_predictor import ExpirationPredictor
+
+_predictor = ExpirationPredictor()
 from app.db.store import Store
 from app.models.schemas.inventory import (
     BarcodeScanResponse,
@@ -31,6 +34,25 @@ from app.models.schemas.inventory import (
 )
 
 router = APIRouter()
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _enrich_item(item: dict) -> dict:
+    """Attach computed opened_expiry_date when opened_date is set."""
+    from datetime import date, timedelta
+    opened = item.get("opened_date")
+    if opened:
+        days = _predictor.days_after_opening(item.get("category"))
+        if days is not None:
+            try:
+                opened_expiry = date.fromisoformat(opened) + timedelta(days=days)
+                item = {**item, "opened_expiry_date": str(opened_expiry)}
+            except ValueError:
+                pass
+    if "opened_expiry_date" not in item:
+        item = {**item, "opened_expiry_date": None}
+    return item
 
 
 # ── Products ──────────────────────────────────────────────────────────────────
@@ -168,13 +190,13 @@ async def list_inventory_items(
     store: Store = Depends(get_store),
 ):
     items = await asyncio.to_thread(store.list_inventory, location, item_status)
-    return [InventoryItemResponse.model_validate(i) for i in items]
+    return [InventoryItemResponse.model_validate(_enrich_item(i)) for i in items]
 
 
 @router.get("/items/expiring", response_model=List[InventoryItemResponse])
 async def get_expiring_items(days: int = 7, store: Store = Depends(get_store)):
     items = await asyncio.to_thread(store.expiring_soon, days)
-    return [InventoryItemResponse.model_validate(i) for i in items]
+    return [InventoryItemResponse.model_validate(_enrich_item(i)) for i in items]
 
 
 @router.get("/items/{item_id}", response_model=InventoryItemResponse)
@@ -182,7 +204,7 @@ async def get_inventory_item(item_id: int, store: Store = Depends(get_store)):
     item = await asyncio.to_thread(store.get_inventory_item, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Inventory item not found")
-    return InventoryItemResponse.model_validate(item)
+    return InventoryItemResponse.model_validate(_enrich_item(item))
 
 
 @router.patch("/items/{item_id}", response_model=InventoryItemResponse)
@@ -194,10 +216,26 @@ async def update_inventory_item(
         updates["purchase_date"] = str(updates["purchase_date"])
     if "expiration_date" in updates and updates["expiration_date"]:
         updates["expiration_date"] = str(updates["expiration_date"])
+    if "opened_date" in updates and updates["opened_date"]:
+        updates["opened_date"] = str(updates["opened_date"])
     item = await asyncio.to_thread(store.update_inventory_item, item_id, **updates)
     if not item:
         raise HTTPException(status_code=404, detail="Inventory item not found")
-    return InventoryItemResponse.model_validate(item)
+    return InventoryItemResponse.model_validate(_enrich_item(item))
+
+
+@router.post("/items/{item_id}/open", response_model=InventoryItemResponse)
+async def mark_item_opened(item_id: int, store: Store = Depends(get_store)):
+    """Record that this item was opened today, triggering secondary shelf-life tracking."""
+    from datetime import date
+    item = await asyncio.to_thread(
+        store.update_inventory_item,
+        item_id,
+        opened_date=str(date.today()),
+    )
+    if not item:
+        raise HTTPException(status_code=404, detail="Inventory item not found")
+    return InventoryItemResponse.model_validate(_enrich_item(item))
 
 
 @router.post("/items/{item_id}/consume", response_model=InventoryItemResponse)
@@ -211,7 +249,7 @@ async def consume_item(item_id: int, store: Store = Depends(get_store)):
     )
     if not item:
         raise HTTPException(status_code=404, detail="Inventory item not found")
-    return InventoryItemResponse.model_validate(item)
+    return InventoryItemResponse.model_validate(_enrich_item(item))
 
 
 @router.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)

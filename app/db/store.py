@@ -218,7 +218,7 @@ class Store:
 
     def update_inventory_item(self, item_id: int, **kwargs) -> dict[str, Any] | None:
         allowed = {"quantity", "unit", "location", "sublocation",
-                   "expiration_date", "status", "notes", "consumed_at"}
+                   "expiration_date", "opened_date", "status", "notes", "consumed_at"}
         updates = {k: v for k, v in kwargs.items() if k in allowed}
         if not updates:
             return self.get_inventory_item(item_id)
