@@ -81,13 +81,21 @@ async def create_plan(
     session: CloudUser = Depends(get_session),
     store: Store = Depends(get_store),
 ) -> PlanSummary:
+    import sqlite3
+
     # Free tier is locked to dinner-only; paid+ may configure meal types
     if can_use("meal_plan_config", session.tier):
         meal_types = [t for t in req.meal_types if t in VALID_MEAL_TYPES] or ["dinner"]
     else:
         meal_types = ["dinner"]
 
-    plan = await asyncio.to_thread(store.create_meal_plan, str(req.week_start), meal_types)
+    try:
+        plan = await asyncio.to_thread(store.create_meal_plan, str(req.week_start), meal_types)
+    except sqlite3.IntegrityError:
+        raise HTTPException(
+            status_code=409,
+            detail=f"A meal plan for the week of {req.week_start} already exists.",
+        )
     slots = await asyncio.to_thread(store.get_plan_slots, plan["id"])
     return _plan_summary(plan, slots)
 

@@ -14,8 +14,11 @@
           Week of {{ p.week_start }}
         </option>
       </select>
-      <button class="new-plan-btn" @click="onNewPlan">+ New week</button>
+      <button class="new-plan-btn" @click="onNewPlan" :disabled="planCreating">
+        {{ planCreating ? 'Creating…' : '+ New week' }}
+      </button>
     </div>
+    <p v-if="planError" class="plan-error">{{ planError }}</p>
 
     <template v-if="activePlan">
       <!-- Compact expandable week grid (always visible) -->
@@ -64,7 +67,9 @@
 
     <div v-else-if="!loading" class="empty-plan-state">
       <p>No meal plan yet for this week.</p>
-      <button class="new-plan-btn" @click="onNewPlan">Start planning</button>
+      <button class="new-plan-btn" @click="onNewPlan" :disabled="planCreating">
+        {{ planCreating ? 'Creating…' : 'Start planning' }}
+      </button>
     </div>
   </div>
 </template>
@@ -88,6 +93,8 @@ const store = useMealPlanStore()
 const { plans, activePlan, loading } = storeToRefs(store)
 
 const activeTab = ref<TabId>('shopping')
+const planError = ref<string | null>(null)
+const planCreating = ref(false)
 
 // canAddMealType is a UI hint — backend enforces the paid gate authoritatively
 const canAddMealType = computed(() =>
@@ -96,14 +103,31 @@ const canAddMealType = computed(() =>
 
 onMounted(() => store.loadPlans())
 
-async function onNewPlan() {
+function mondayOfCurrentWeek(): string {
   const today = new Date()
-  const day = today.getDay()
-  // Compute Monday of current week (getDay: 0=Sun, 1=Mon...)
-  const monday = new Date(today)
-  monday.setDate(today.getDate() - ((day + 6) % 7))
-  const weekStart = monday.toISOString().split('T')[0] ?? monday.toISOString().slice(0, 10)
-  await store.createPlan(weekStart, ['dinner'])
+  const day = today.getDay() // 0=Sun, 1=Mon...
+  // Build date string from local parts to avoid UTC-offset day drift
+  const d = new Date(today)
+  d.setDate(today.getDate() - ((day + 6) % 7))
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+async function onNewPlan() {
+  planError.value = null
+  planCreating.value = true
+  try {
+    const weekStart = mondayOfCurrentWeek()
+    await store.createPlan(weekStart, ['dinner'])
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err)
+    // 409 means a plan for this week already exists — surface it helpfully
+    planError.value = msg.includes('409') || msg.toLowerCase().includes('already exists')
+      ? 'A plan for this week already exists. Select it from the dropdown above.'
+      : `Couldn't create plan: ${msg}`
+  } finally {
+    planCreating.value = false
+  }
 }
 
 async function onSelectPlan(planId: number) {
@@ -150,4 +174,11 @@ function onAddMealType() {
 .tab-panel { padding-top: 0.75rem; }
 
 .empty-plan-state { text-align: center; padding: 2rem 0; opacity: 0.6; font-size: 0.9rem; }
+
+.plan-error {
+  font-size: 0.82rem; color: var(--color-error, #e05252);
+  background: var(--color-error-subtle, #fef2f2);
+  border: 1px solid var(--color-error, #e05252); border-radius: 6px;
+  padding: 0.4rem 0.75rem; margin: 0;
+}
 </style>

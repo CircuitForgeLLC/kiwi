@@ -1149,7 +1149,7 @@ class Store:
 
     def get_plan_slots(self, plan_id: int) -> list[dict]:
         return self._fetch_all(
-            """SELECT s.*, r.name AS recipe_title
+            """SELECT s.*, r.title AS recipe_title
                FROM meal_plan_slots s
                LEFT JOIN recipes r ON r.id = s.recipe_id
                WHERE s.plan_id = ?
