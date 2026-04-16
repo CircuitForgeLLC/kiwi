@@ -562,6 +562,19 @@ def _hard_day_sort_tier(
     return 2
 
 
+def _estimate_time_min(directions: list[str], complexity: str) -> int:
+    """Rough cooking time estimate from step count and method complexity.
+
+    Not precise — intended for filtering and display hints only.
+    """
+    steps = len(directions)
+    if complexity == "easy":
+        return max(5, 10 + steps * 3)
+    if complexity == "involved":
+        return max(20, 30 + steps * 6)
+    return max(10, 20 + steps * 4)  # moderate
+
+
 def _classify_method_complexity(
     directions: list[str],
     available_equipment: list[str] | None = None,
@@ -712,22 +725,35 @@ class RecipeEngine:
                 if match_ratio < _L1_MIN_MATCH_RATIO:
                     continue
 
+            # Parse directions — needed for complexity, hard_day_mode, and time estimate.
+            directions: list[str] = row.get("directions") or []
+            if isinstance(directions, str):
+                try:
+                    directions = json.loads(directions)
+                except Exception:
+                    directions = [directions]
+
+            # Compute complexity for every suggestion (used for badge + filter).
+            row_complexity = _classify_method_complexity(directions, available_equipment)
+            row_time_min = _estimate_time_min(directions, row_complexity)
+
             # Filter and tier-rank by hard_day_mode
             if req.hard_day_mode:
-                directions: list[str] = row.get("directions") or []
-                if isinstance(directions, str):
-                    try:
-                        directions = json.loads(directions)
-                    except Exception:
-                        directions = [directions]
-                complexity = _classify_method_complexity(directions, available_equipment)
-                if complexity == "involved":
+                if row_complexity == "involved":
                     continue
                 hard_day_tier_map[row["id"]] = _hard_day_sort_tier(
                     title=row.get("title", ""),
                     ingredient_names=ingredient_names,
                     directions=directions,
                 )
+
+            # Complexity filter (#58)
+            if req.complexity_filter and row_complexity != req.complexity_filter:
+                continue
+
+            # Max time filter (#58)
+            if req.max_time_min is not None and row_time_min > req.max_time_min:
+                continue
 
             # Level 2: also add dietary constraint swaps from substitution_pairs
             if req.level == 2 and req.constraints:
@@ -778,6 +804,8 @@ class RecipeEngine:
                 level=req.level,
                 nutrition=nutrition if has_nutrition else None,
                 source_url=_build_source_url(row),
+                complexity=row_complexity,
+                estimated_time_min=row_time_min,
             ))
 
         # Sort corpus results — assembly templates are now served from a dedicated tab.

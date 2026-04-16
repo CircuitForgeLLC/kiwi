@@ -370,6 +370,14 @@
             :aria-pressed="filterMissing === 2"
             @click="filterMissing = filterMissing === 2 ? null : 2"
           >≤2 missing</button>
+          <!-- Complexity filter chips (#55 / #58) -->
+          <button
+            v-for="cx in ['easy', 'moderate', 'involved']"
+            :key="cx"
+            :class="['filter-chip', { active: filterComplexity === cx }]"
+            :aria-pressed="filterComplexity === cx"
+            @click="filterComplexity = filterComplexity === cx ? null : cx"
+          >{{ cx }}</button>
           <button
             v-if="hasActiveFilters"
             class="filter-chip filter-chip-clear"
@@ -377,6 +385,33 @@
             @click="clearFilters"
           ><span aria-hidden="true">✕</span> Clear</button>
         </div>
+
+        <!-- Zero-decision picks (#53 Surprise Me / #57 Just Pick One) -->
+        <div v-if="filteredSuggestions.length > 0" class="flex gap-sm flex-wrap" style="margin-top: var(--spacing-sm)">
+          <button class="btn btn-secondary btn-sm" @click="pickSurprise" :disabled="filteredSuggestions.length === 0">
+            🎲 Surprise me
+          </button>
+          <button class="btn btn-secondary btn-sm" @click="pickBest" :disabled="filteredSuggestions.length === 0">
+            ⚡ Just pick one
+          </button>
+        </div>
+      </div>
+
+      <!-- Spotlight (Surprise Me / Just Pick One result) -->
+      <div v-if="spotlightRecipe" class="card spotlight-card slide-up mb-md">
+        <div class="flex-between mb-sm">
+          <h3 class="text-lg font-bold">{{ spotlightRecipe.title }}</h3>
+          <div class="flex gap-xs" style="align-items:center">
+            <span v-if="spotlightRecipe.complexity" :class="['status-badge', `complexity-${spotlightRecipe.complexity}`]">{{ spotlightRecipe.complexity }}</span>
+            <span v-if="spotlightRecipe.estimated_time_min" class="status-badge status-neutral">~{{ spotlightRecipe.estimated_time_min }}m</span>
+            <button class="btn-icon" @click="spotlightRecipe = null" aria-label="Dismiss">✕</button>
+          </div>
+        </div>
+        <p class="text-sm text-secondary mb-xs">{{ spotlightRecipe.match_count }} ingredients matched from your pantry</p>
+        <button class="btn btn-primary btn-sm" @click="selectedRecipe = spotlightRecipe; spotlightRecipe = null">
+          Cook this
+        </button>
+        <button class="btn btn-ghost btn-sm ml-sm" @click="pickSurprise">Try another</button>
       </div>
 
       <!-- No suggestions -->
@@ -403,6 +438,8 @@
             <h3 class="text-lg font-bold recipe-title">{{ recipe.title }}</h3>
             <div class="flex flex-wrap gap-xs" style="align-items:center">
               <span class="status-badge status-success">{{ recipe.match_count }} matched</span>
+              <span v-if="recipe.complexity" :class="['status-badge', `complexity-${recipe.complexity}`]">{{ recipe.complexity }}</span>
+              <span v-if="recipe.estimated_time_min" class="status-badge status-neutral">~{{ recipe.estimated_time_min }}m</span>
               <span class="status-badge status-info">Level {{ recipe.level }}</span>
               <span v-if="recipe.is_wildcard" class="status-badge status-info">Wildcard</span>
               <button
@@ -739,6 +776,8 @@ const selectedRecipe = ref<RecipeSuggestion | null>(null)
 const filterText = ref('')
 const filterLevel = ref<number | null>(null)
 const filterMissing = ref<number | null>(null)
+const filterComplexity = ref<string | null>(null)
+const spotlightRecipe = ref<RecipeSuggestion | null>(null)
 
 const availableLevels = computed(() => {
   if (!recipesStore.result) return []
@@ -762,17 +801,35 @@ const filteredSuggestions = computed(() => {
   if (filterMissing.value !== null) {
     items = items.filter((r) => r.missing_ingredients.length <= filterMissing.value!)
   }
+  if (filterComplexity.value !== null) {
+    items = items.filter((r) => r.complexity === filterComplexity.value)
+  }
   return items
 })
 
 const hasActiveFilters = computed(
-  () => filterText.value.trim() !== '' || filterLevel.value !== null || filterMissing.value !== null
+  () => filterText.value.trim() !== '' || filterLevel.value !== null || filterMissing.value !== null || filterComplexity.value !== null
 )
 
 function clearFilters() {
   filterText.value = ''
   filterLevel.value = null
   filterMissing.value = null
+  filterComplexity.value = null
+}
+
+function pickSurprise() {
+  const pool = filteredSuggestions.value
+  if (!pool.length) return
+  const exclude = spotlightRecipe.value?.id
+  const candidates = pool.length > 1 ? pool.filter((r) => r.id !== exclude) : pool
+  spotlightRecipe.value = candidates[Math.floor(Math.random() * candidates.length)]
+}
+
+function pickBest() {
+  const pool = filteredSuggestions.value
+  if (!pool.length) return
+  spotlightRecipe.value = pool[0]
 }
 
 const selectedGroceryLinks = computed<GroceryLink[]>(() => {
@@ -1470,6 +1527,11 @@ details[open] .collapsible-summary::before {
 .btn-make {
   font-size: var(--font-size-sm);
   padding: var(--spacing-xs) var(--spacing-md);
+}
+
+.spotlight-card {
+  border: 2px solid var(--color-primary);
+  background: linear-gradient(135deg, var(--color-bg-elevated) 0%, rgba(232, 168, 32, 0.06) 100%);
 }
 
 .results-section {

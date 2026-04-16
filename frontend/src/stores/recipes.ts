@@ -133,6 +133,8 @@ export const useRecipesStore = defineStore('recipes', () => {
   const wildcardConfirmed = ref(false)
   const shoppingMode = ref(false)
   const pantryMatchOnly = ref(false)
+  const complexityFilter = ref<string | null>(null)
+  const maxTimeMin = ref<number | null>(null)
   const nutritionFilters = ref<NutritionFilters>({
     max_calories: null,
     max_sugar_g: null,
@@ -178,6 +180,8 @@ export const useRecipesStore = defineStore('recipes', () => {
       excluded_ids: [...excluded],
       shopping_mode: shoppingMode.value,
       pantry_match_only: pantryMatchOnly.value,
+      complexity_filter: complexityFilter.value,
+      max_time_min: maxTimeMin.value,
     }
   }
 
@@ -309,6 +313,8 @@ export const useRecipesStore = defineStore('recipes', () => {
     wildcardConfirmed,
     shoppingMode,
     pantryMatchOnly,
+    complexityFilter,
+    maxTimeMin,
     nutritionFilters,
     dismissedIds,
     dismissedCount,

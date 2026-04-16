@@ -41,6 +41,8 @@ class RecipeSuggestion(BaseModel):
     is_wildcard: bool = False
     nutrition: NutritionPanel | None = None
     source_url: str | None = None
+    complexity: str | None = None  # 'easy' | 'moderate' | 'involved'
+    estimated_time_min: int | None = None  # derived from step count + method signals
 
 
 class GroceryLink(BaseModel):
@@ -84,6 +86,8 @@ class RecipeRequest(BaseModel):
     excluded_ids: list[int] = Field(default_factory=list)
     shopping_mode: bool = False
     pantry_match_only: bool = False  # when True, only return recipes with zero missing ingredients
+    complexity_filter: str | None = None  # 'easy' | 'moderate' | 'involved' — None = any
+    max_time_min: int | None = None  # filter by estimated cooking time ceiling
     unit_system: str = "metric"  # "metric" | "imperial"
 
 

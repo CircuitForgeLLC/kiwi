@@ -495,6 +495,8 @@ export interface RecipeSuggestion {
   is_wildcard: boolean
   nutrition: NutritionPanel | null
   source_url: string | null
+  complexity: 'easy' | 'moderate' | 'involved' | null
+  estimated_time_min: number | null
 }
 
 export interface NutritionFilters {
@@ -534,6 +536,8 @@ export interface RecipeRequest {
   excluded_ids: number[]
   shopping_mode: boolean
   pantry_match_only: boolean
+  complexity_filter: string | null
+  max_time_min: number | null
 }
 
 export interface Staple {
