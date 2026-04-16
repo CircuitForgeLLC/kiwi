@@ -25,8 +25,11 @@
       <MealPlanGrid
         :active-meal-types="activePlan.meal_types"
         :can-add-meal-type="canAddMealType"
+        :meal-type-changing="mealTypeAdding"
         @slot-click="onSlotClick"
         @add-meal-type="onAddMealType"
+        @remove-meal-type="onRemoveMealType"
+        @reorder-meal-types="onReorderMealTypes"
       />
 
       <!-- Slot editor panel -->
@@ -269,6 +272,24 @@ async function onPickMealType(mealType: string) {
   try {
     await store.addMealType(mealType)
     addingMealType.value = false
+  } finally {
+    mealTypeAdding.value = false
+  }
+}
+
+async function onRemoveMealType(mealType: string) {
+  mealTypeAdding.value = true
+  try {
+    await store.removeMealType(mealType)
+  } finally {
+    mealTypeAdding.value = false
+  }
+}
+
+async function onReorderMealTypes(newOrder: string[]) {
+  mealTypeAdding.value = true
+  try {
+    await store.reorderMealTypes(newOrder)
   } finally {
     mealTypeAdding.value = false
   }
