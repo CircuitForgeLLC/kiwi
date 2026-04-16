@@ -32,22 +32,23 @@ class OpenFoodFactsService:
         "https://world.openproductsfacts.org/api/v2",
     ]
 
-    async def _lookup_in_database(self, barcode: str, base_url: str) -> Optional[Dict[str, Any]]:
-        """Try one Open*Facts database. Returns parsed product dict or None."""
+    async def _lookup_in_database(
+        self, barcode: str, base_url: str, client: httpx.AsyncClient
+    ) -> Optional[Dict[str, Any]]:
+        """Try one Open*Facts database using an existing client. Returns parsed product dict or None."""
         try:
-            async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    f"{base_url}/product/{barcode}.json",
-                    headers={"User-Agent": self.USER_AGENT},
-                    timeout=10.0,
-                )
-                if response.status_code == 404:
-                    return None
-                response.raise_for_status()
-                data = response.json()
-                if data.get("status") != 1:
-                    return None
-                return self._parse_product_data(data, barcode)
+            response = await client.get(
+                f"{base_url}/product/{barcode}.json",
+                headers={"User-Agent": self.USER_AGENT},
+                timeout=10.0,
+            )
+            if response.status_code == 404:
+                return None
+            response.raise_for_status()
+            data = response.json()
+            if data.get("status") != 1:
+                return None
+            return self._parse_product_data(data, barcode)
         except httpx.HTTPError as e:
             logger.debug("HTTP error for %s at %s: %s", barcode, base_url, e)
             return None
@@ -59,21 +60,25 @@ class OpenFoodFactsService:
         """
         Look up a product by barcode, trying OFFs then fallback databases.
 
+        A single httpx.AsyncClient is created for the whole lookup chain so that
+        connection pooling and TLS session reuse apply across all database attempts.
+
         Args:
             barcode: UPC/EAN barcode (8-13 digits)
 
         Returns:
             Dictionary with product information, or None if not found in any database.
         """
-        result = await self._lookup_in_database(barcode, self.BASE_URL)
-        if result:
-            return result
-
-        for db_url in self._FALLBACK_DATABASES:
-            result = await self._lookup_in_database(barcode, db_url)
+        async with httpx.AsyncClient() as client:
+            result = await self._lookup_in_database(barcode, self.BASE_URL, client)
             if result:
-                logger.info("Barcode %s found in fallback database: %s", barcode, db_url)
                 return result
+
+            for db_url in self._FALLBACK_DATABASES:
+                result = await self._lookup_in_database(barcode, db_url, client)
+                if result:
+                    logger.info("Barcode %s found in fallback database: %s", barcode, db_url)
+                    return result
 
         logger.info("Barcode %s not found in any Open*Facts database", barcode)
         return None

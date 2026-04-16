@@ -454,7 +454,7 @@ import { storeToRefs } from 'pinia'
 import { useInventoryStore } from '../stores/inventory'
 import { useSettingsStore } from '../stores/settings'
 import { inventoryAPI } from '../services/api'
-import type { InventoryItem, BarcodeScanResponse } from '../services/api'
+import type { InventoryItem } from '../services/api'
 import { formatQuantity } from '../utils/units'
 import EditItemModal from './EditItemModal.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
@@ -716,9 +716,11 @@ async function handleScannerGunInput() {
 
     const item = result.results[0]
     if (item?.added_to_inventory) {
+      const productName = item.product?.name || 'item'
+      const productBrand = item.product?.brand ? ` (${item.product.brand})` : ''
       scannerResults.value.push({
         type: 'success',
-        message: `Added: ${item.product?.name || 'item'} to ${scannerLocation.value}`,
+        message: `Added: ${productName}${productBrand} to ${scannerLocation.value}`,
       })
       await refreshItems()
     } else if (item?.needs_manual_entry) {

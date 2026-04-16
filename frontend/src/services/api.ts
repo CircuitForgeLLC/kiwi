@@ -585,7 +585,8 @@ export interface BuildRequest {
 
 export const recipesAPI = {
   async suggest(req: RecipeRequest): Promise<RecipeResult> {
-    const response = await api.post('/recipes/suggest', req)
+    // Allow up to 120s — cf-orch model cold-start can take 60+ seconds on first request
+    const response = await api.post('/recipes/suggest', req, { timeout: 120000 })
     return response.data
   },
   async getRecipe(id: number): Promise<RecipeSuggestion> {
