@@ -1,0 +1,68 @@
+site_name: Kiwi
+site_description: Pantry tracking and leftover recipe suggestions — scan barcodes, photograph receipts, and cook what you already have before it expires.
+site_author: Circuit Forge LLC
+site_url: https://docs.circuitforge.tech/kiwi
+repo_url: https://git.opensourcesolarpunk.com/Circuit-Forge/kiwi
+repo_name: Circuit-Forge/kiwi
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: light green
+      accent: green
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: light green
+      accent: green
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting-started/installation.md
+    - Quick Start: getting-started/quick-start.md
+    - LLM Backend (Optional): getting-started/llm-setup.md
+  - User Guide:
+    - Inventory: user-guide/inventory.md
+    - Barcode Scanning: user-guide/barcode.md
+    - Receipt OCR: user-guide/receipt-ocr.md
+    - Recipe Browser: user-guide/recipes.md
+    - Saved Recipes: user-guide/saved-recipes.md
+    - Leftover Mode: user-guide/leftover-mode.md
+    - Settings: user-guide/settings.md
+  - Reference:
+    - Recipe Engine: reference/recipe-engine.md
+    - Tier System: reference/tier-system.md
+    - Architecture: reference/architecture.md
+
+extra_javascript:
+  - plausible.js
