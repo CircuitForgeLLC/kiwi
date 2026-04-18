@@ -284,9 +284,9 @@ function scaleIngredient(ing: string, scale: number): string {
 
   function parseFrac(s: string): number {
     const mixed = s.match(/^(\d+)\s+(\d+)\/(\d+)$/)
-    if (mixed) return parseInt(mixed[1]) + parseInt(mixed[2]) / parseInt(mixed[3])
+    if (mixed) return parseInt(mixed[1]!) + parseInt(mixed[2]!) / parseInt(mixed[3]!)
     const frac = s.match(/^(\d+)\/(\d+)$/)
-    if (frac) return parseInt(frac[1]) / parseInt(frac[2])
+    if (frac) return parseInt(frac[1]!) / parseInt(frac[2]!)
     return parseFloat(s)
   }
 
@@ -311,7 +311,7 @@ function scaleIngredient(ing: string, scale: number): string {
     return whole > 0 && remainder < 0.05 ? `${whole}` : n.toFixed(1).replace(/\.0$/, '')
   }
 
-  const low = parseFrac(m[1])
+  const low = parseFrac(m[1]!)
   const scaledLow = fmtNum(low * scale)
 
   let scaled: string

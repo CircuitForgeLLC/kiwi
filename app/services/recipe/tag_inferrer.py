@@ -112,6 +112,21 @@ _TIME_SIGNALS: list[tuple[str, list[str]]] = [
     ("time:Slow Cook",    ["slow cooker", "crockpot", "< 4 hours", "braise"]),
 ]
 
+_MAIN_INGREDIENT_SIGNALS: list[tuple[str, list[str]]] = [
+    ("main:Chicken",    ["chicken", "poultry", "turkey"]),
+    ("main:Beef",       ["beef", "ground beef", "steak", "brisket", "pot roast"]),
+    ("main:Pork",       ["pork", "bacon", "ham", "sausage", "prosciutto"]),
+    ("main:Fish",       ["salmon", "tuna", "tilapia", "cod", "halibut", "shrimp", "seafood", "fish"]),
+    ("main:Pasta",      ["pasta", "noodle", "spaghetti", "penne", "fettuccine", "linguine"]),
+    ("main:Vegetables", ["broccoli", "cauliflower", "zucchini", "eggplant", "carrot",
+                          "vegetable", "veggie"]),
+    ("main:Eggs",       ["egg", "frittata", "omelette", "omelet", "quiche"]),
+    ("main:Legumes",    ["bean", "lentil", "chickpea", "tofu", "tempeh", "edamame"]),
+    ("main:Grains",     ["rice", "quinoa", "barley", "farro", "oat", "grain"]),
+    ("main:Cheese",     ["cheddar", "mozzarella", "parmesan", "ricotta", "brie",
+                          "cheese"]),
+]
+
 # food.com corpus tag -> normalized tags
 _CORPUS_TAG_MAP: dict[str, list[str]] = {
     "european":        ["cuisine:Italian", "cuisine:French", "cuisine:German",
@@ -232,6 +247,7 @@ def infer_tags(
     tags.update(_match_signals(text, _CUISINE_SIGNALS))
     tags.update(_match_signals(text, _DIETARY_SIGNALS))
     tags.update(_match_signals(text, _FLAVOR_SIGNALS))
+    tags.update(_match_signals(text, _MAIN_INGREDIENT_SIGNALS))
 
     # 3. Time signals from corpus keywords + text
     corpus_text = " ".join(kw.lower() for kw in corpus_keywords)

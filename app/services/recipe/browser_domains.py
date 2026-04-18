@@ -56,16 +56,18 @@ DOMAINS: dict[str, dict] = {
     "main_ingredient": {
         "label": "Main Ingredient",
         "categories": {
-            "Chicken":    ["chicken", "poultry", "turkey"],
-            "Beef":       ["beef", "ground beef", "steak", "brisket", "pot roast"],
-            "Pork":       ["pork", "bacon", "ham", "sausage", "prosciutto"],
-            "Fish":       ["fish", "salmon", "tuna", "tilapia", "cod", "halibut", "shrimp", "seafood"],
-            "Pasta":      ["pasta", "noodle", "spaghetti", "penne", "fettuccine", "linguine"],
-            "Vegetables": ["vegetable", "veggie", "cauliflower", "broccoli", "zucchini", "eggplant"],
-            "Eggs":       ["egg", "frittata", "omelette", "omelet", "quiche"],
-            "Legumes":    ["bean", "lentil", "chickpea", "tofu", "tempeh", "edamame"],
-            "Grains":     ["rice", "quinoa", "barley", "farro", "oat", "grain"],
-            "Cheese":     ["cheese", "ricotta", "mozzarella", "parmesan", "cheddar"],
+            # These values match the inferred_tags written by tag_inferrer._MAIN_INGREDIENT_SIGNALS
+            # and indexed into recipe_browser_fts — use exact tag strings.
+            "Chicken":    ["main:Chicken"],
+            "Beef":       ["main:Beef"],
+            "Pork":       ["main:Pork"],
+            "Fish":       ["main:Fish"],
+            "Pasta":      ["main:Pasta"],
+            "Vegetables": ["main:Vegetables"],
+            "Eggs":       ["main:Eggs"],
+            "Legumes":    ["main:Legumes"],
+            "Grains":     ["main:Grains"],
+            "Cheese":     ["main:Cheese"],
         },
     },
 }

@@ -128,15 +128,18 @@ async def household_status(session: CloudUser = Depends(_require_premium)):
 @router.post("/invite", response_model=HouseholdInviteResponse)
 async def create_invite(session: CloudUser = Depends(_require_household_owner)):
     """Generate a one-time invite token valid for 7 days."""
-    store = Store(session.db)
     token = secrets.token_hex(32)
     expires_at = (datetime.now(timezone.utc) + timedelta(days=_INVITE_TTL_DAYS)).isoformat()
-    store.conn.execute(
-        """INSERT INTO household_invites (token, household_id, created_by, expires_at)
-           VALUES (?, ?, ?, ?)""",
-        (token, session.household_id, session.user_id, expires_at),
-    )
-    store.conn.commit()
+    store = Store(session.db)
+    try:
+        store.conn.execute(
+            """INSERT INTO household_invites (token, household_id, created_by, expires_at)
+               VALUES (?, ?, ?, ?)""",
+            (token, session.household_id, session.user_id, expires_at),
+        )
+        store.conn.commit()
+    finally:
+        store.close()
     invite_url = f"{_KIWI_BASE_URL}/#/join?household_id={session.household_id}&token={token}"
     return HouseholdInviteResponse(token=token, invite_url=invite_url, expires_at=expires_at)
 
@@ -152,24 +155,27 @@ async def accept_invite(
 
     hh_store = _household_store(body.household_id)
     now = datetime.now(timezone.utc).isoformat()
-    row = hh_store.conn.execute(
-        """SELECT token, expires_at, used_at FROM household_invites
-           WHERE token = ? AND household_id = ?""",
-        (body.token, body.household_id),
-    ).fetchone()
+    try:
+        row = hh_store.conn.execute(
+            """SELECT token, expires_at, used_at FROM household_invites
+               WHERE token = ? AND household_id = ?""",
+            (body.token, body.household_id),
+        ).fetchone()
 
-    if not row:
-        raise HTTPException(status_code=404, detail="Invite not found.")
-    if row["used_at"] is not None:
-        raise HTTPException(status_code=410, detail="Invite already used.")
-    if row["expires_at"] < now:
-        raise HTTPException(status_code=410, detail="Invite has expired.")
+        if not row:
+            raise HTTPException(status_code=404, detail="Invite not found.")
+        if row["used_at"] is not None:
+            raise HTTPException(status_code=410, detail="Invite already used.")
+        if row["expires_at"] < now:
+            raise HTTPException(status_code=410, detail="Invite has expired.")
 
-    hh_store.conn.execute(
-        "UPDATE household_invites SET used_at = ?, used_by = ? WHERE token = ?",
-        (now, session.user_id, body.token),
-    )
-    hh_store.conn.commit()
+        hh_store.conn.execute(
+            "UPDATE household_invites SET used_at = ?, used_by = ? WHERE token = ?",
+            (now, session.user_id, body.token),
+        )
+        hh_store.conn.commit()
+    finally:
+        hh_store.close()
 
     _heimdall_post("/admin/household/add-member", {
         "household_id": body.household_id,

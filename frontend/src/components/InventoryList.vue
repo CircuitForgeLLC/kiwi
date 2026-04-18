@@ -11,11 +11,25 @@
         <div class="stat-num text-amber">{{ stats.available_items }}</div>
         <div class="stat-lbl">Available</div>
       </div>
-      <div class="stat-strip-item">
+      <div
+        :class="['stat-strip-item', 'stat-clickable', { 'stat-active': expiryView === 'soon' }]"
+        @click="toggleExpiryView('soon')"
+        @keydown.enter="toggleExpiryView('soon')"
+        role="button"
+        tabindex="0"
+        :aria-label="`${store.expiringItems.length} items expiring soon — tap to view`"
+      >
         <div class="stat-num text-warning">{{ store.expiringItems.length }}</div>
         <div class="stat-lbl">Expiring</div>
       </div>
-      <div class="stat-strip-item">
+      <div
+        :class="['stat-strip-item', 'stat-clickable', { 'stat-active': expiryView === 'expired' }]"
+        @click="toggleExpiryView('expired')"
+        @keydown.enter="toggleExpiryView('expired')"
+        role="button"
+        tabindex="0"
+        :aria-label="`${store.expiredItems.length} expired items — tap to view`"
+      >
         <div class="stat-num text-error">{{ store.expiredItems.length }}</div>
         <div class="stat-lbl">Expired</div>
       </div>
@@ -245,9 +259,162 @@
     <div class="inventory-section">
       <!-- Filter chips -->
       <div class="inventory-header">
-        <h2 class="section-title">Pantry</h2>
+        <h2 class="section-title">
+          {{ expiryView === 'soon' ? 'Expiring Soon' : expiryView === 'expired' ? 'Expired Items' : 'Pantry' }}
+        </h2>
+        <button v-if="expiryView" @click="expiryView = null" class="btn-text expiry-back-btn" type="button">
+          ← All items
+        </button>
       </div>
 
+      <!-- Expiry Panel -->
+      <template v-if="expiryView === 'soon'">
+        <div v-if="!store.expiringItems.length" class="empty-state">
+          <p class="text-secondary">Nothing expiring in the next 7 days.</p>
+        </div>
+        <div v-else class="expiry-panel">
+          <!-- Urgent: ≤3 days -->
+          <div v-if="urgentItems.length" class="expiry-group">
+            <div class="expiry-group-label expiry-group-urgent">Use within 3 days</div>
+            <div
+              v-for="item in urgentItems"
+              :key="item.id"
+              class="expiry-item-row"
+            >
+              <span :class="['loc-dot', `loc-dot-${item.location}`]"></span>
+              <div class="expiry-item-name">
+                <span class="inv-name">{{ item.product_name || 'Unknown' }}</span>
+                <span v-if="item.category" class="inv-category">{{ item.category }}</span>
+              </div>
+              <div class="expiry-item-right">
+                <span class="inv-qty">{{ formatQuantity(item.quantity, item.unit, settingsStore.unitSystem) }}</span>
+                <span :class="['expiry-badge', getExpiryBadgeClass(item.expiration_date!)]">
+                  {{ daysLabel(item.expiration_date!) }}
+                </span>
+                <div class="inv-actions">
+                  <button @click="markAsConsumed(item)" class="btn-icon btn-icon-success" aria-label="Use">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                      <polyline points="4 10 8 14 16 6"/>
+                    </svg>
+                  </button>
+                  <button @click="markAsDiscarded(item)" class="btn-icon btn-icon-discard" aria-label="Not used">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                      <path d="M4 4l12 12M4 16L16 4"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Soon: 4-7 days -->
+          <div v-if="soonItems.length" class="expiry-group">
+            <div class="expiry-group-label expiry-group-soon">Coming up (4–7 days)</div>
+            <div
+              v-for="item in soonItems"
+              :key="item.id"
+              class="expiry-item-row"
+            >
+              <span :class="['loc-dot', `loc-dot-${item.location}`]"></span>
+              <div class="expiry-item-name">
+                <span class="inv-name">{{ item.product_name || 'Unknown' }}</span>
+                <span v-if="item.category" class="inv-category">{{ item.category }}</span>
+              </div>
+              <div class="expiry-item-right">
+                <span class="inv-qty">{{ formatQuantity(item.quantity, item.unit, settingsStore.unitSystem) }}</span>
+                <span :class="['expiry-badge', getExpiryBadgeClass(item.expiration_date!)]">
+                  {{ daysLabel(item.expiration_date!) }}
+                </span>
+                <div class="inv-actions">
+                  <button @click="markAsConsumed(item)" class="btn-icon btn-icon-success" aria-label="Use">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                      <polyline points="4 10 8 14 16 6"/>
+                    </svg>
+                  </button>
+                  <button @click="markAsDiscarded(item)" class="btn-icon btn-icon-discard" aria-label="Not used">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                      <path d="M4 4l12 12M4 16L16 4"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- Expired panel -->
+      <template v-else-if="expiryView === 'expired'">
+        <div v-if="!store.expiredItems.length" class="empty-state">
+          <p class="text-secondary">No expired items.</p>
+        </div>
+        <div v-else class="expiry-panel">
+          <!-- Items with a secondary use window -->
+          <div v-if="secondaryStateItems.length" class="expiry-group">
+            <div class="expiry-group-label expiry-group-secondary">Still useful with the right recipe</div>
+            <div
+              v-for="item in secondaryStateItems"
+              :key="item.id"
+              class="expiry-item-row expiry-item-secondary"
+            >
+              <span :class="['loc-dot', `loc-dot-${item.location}`]"></span>
+              <div class="expiry-item-name">
+                <span class="inv-name">{{ item.product_name || 'Unknown' }}</span>
+                <span class="secondary-state-badge">{{ item.secondary_state }}</span>
+                <span v-if="item.secondary_uses?.length" class="secondary-uses-text">
+                  Good for: {{ item.secondary_uses!.slice(0, 3).join(', ') }}
+                </span>
+                <span v-if="item.secondary_warning" class="secondary-warning-text">
+                  ⚠ {{ item.secondary_warning }}
+                </span>
+              </div>
+              <div class="expiry-item-right">
+                <span class="inv-qty">{{ formatQuantity(item.quantity, item.unit, settingsStore.unitSystem) }}</span>
+                <div class="inv-actions">
+                  <button @click="markAsConsumed(item)" class="btn-icon btn-icon-success" aria-label="Use now">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                      <polyline points="4 10 8 14 16 6"/>
+                    </svg>
+                  </button>
+                  <button @click="markAsDiscarded(item)" class="btn-icon btn-icon-discard" aria-label="Not used">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                      <path d="M4 4l12 12M4 16L16 4"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <!-- Truly expired — past secondary window -->
+          <div v-if="trulyExpiredItems.length" class="expiry-group">
+            <div class="expiry-group-label expiry-group-done">Time to let it go</div>
+            <div
+              v-for="item in trulyExpiredItems"
+              :key="item.id"
+              class="expiry-item-row"
+            >
+              <span :class="['loc-dot', `loc-dot-${item.location}`]"></span>
+              <div class="expiry-item-name">
+                <span class="inv-name">{{ item.product_name || 'Unknown' }}</span>
+                <span v-if="item.category" class="inv-category">{{ item.category }}</span>
+              </div>
+              <div class="expiry-item-right">
+                <span class="inv-qty">{{ formatQuantity(item.quantity, item.unit, settingsStore.unitSystem) }}</span>
+                <span class="expiry-badge expiry-expired">{{ daysLabel(item.expiration_date!) }}</span>
+                <div class="inv-actions">
+                  <button @click="markAsDiscarded(item)" class="btn-icon btn-icon-discard" aria-label="Not used">
+                    <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+                      <path d="M4 4l12 12M4 16L16 4"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- Normal filter + list view -->
+      <template v-else>
       <div class="filter-row">
         <div class="filter-chip-row">
           <button
@@ -387,6 +554,7 @@
           </div>
         </div>
       </div>
+      </template><!-- end v-else normal view -->
     </div>
 
     <!-- Export -->
@@ -467,6 +635,50 @@ const { items, stats, loading, locationFilter, statusFilter } = storeToRefs(stor
 
 const filteredItems = computed(() => store.filteredItems)
 const editingItem = ref<InventoryItem | null>(null)
+
+// Expiry view
+const expiryView = ref<'soon' | 'expired' | null>(null)
+
+function toggleExpiryView(mode: 'soon' | 'expired') {
+  expiryView.value = expiryView.value === mode ? null : mode
+  // Ensure available items are loaded so computeds have data
+  if (expiryView.value && statusFilter.value !== 'available' && statusFilter.value !== 'all') {
+    statusFilter.value = 'available'
+    store.fetchItems()
+  }
+}
+
+const urgentItems = computed(() =>
+  store.expiringItems.filter((item) => {
+    if (!item.expiration_date) return false
+    const diff = Math.ceil((new Date(item.expiration_date).getTime() - Date.now()) / 86_400_000)
+    return diff <= 3
+  })
+)
+
+const soonItems = computed(() =>
+  store.expiringItems.filter((item) => {
+    if (!item.expiration_date) return false
+    const diff = Math.ceil((new Date(item.expiration_date).getTime() - Date.now()) / 86_400_000)
+    return diff > 3
+  })
+)
+
+const secondaryStateItems = computed(() =>
+  store.expiredItems.filter((item) => item.secondary_state != null)
+)
+
+const trulyExpiredItems = computed(() =>
+  store.expiredItems.filter((item) => item.secondary_state == null)
+)
+
+function daysLabel(dateStr: string): string {
+  const diff = Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86_400_000)
+  if (diff < 0) return `${Math.abs(diff)}d ago`
+  if (diff === 0) return 'today'
+  if (diff === 1) return '1 day'
+  return `${diff} days`
+}
 
 // Scan mode toggle
 const scanMode = ref<'gun' | 'camera' | 'manual'>('gun')
@@ -1494,5 +1706,126 @@ function getItemClass(item: InventoryItem): string {
   .scan-meta-row {
     flex-wrap: nowrap;
   }
+}
+
+/* ============================================
+   STATS — clickable badges
+   ============================================ */
+.stat-clickable {
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.stat-clickable:hover {
+  background: var(--color-bg-secondary);
+}
+
+.stat-clickable.stat-active {
+  background: var(--color-bg-secondary);
+  box-shadow: inset 0 -2px 0 var(--color-accent);
+}
+
+/* ============================================
+   EXPIRY PANEL
+   ============================================ */
+.expiry-back-btn {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.expiry-back-btn:hover {
+  color: var(--color-text-primary);
+}
+
+.expiry-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.expiry-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.expiry-group-label {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: var(--spacing-xs) 0;
+  color: var(--color-text-muted);
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 2px;
+}
+
+.expiry-group-urgent { color: var(--color-error); }
+.expiry-group-soon   { color: var(--color-warning); }
+.expiry-group-secondary { color: var(--color-success); }
+.expiry-group-done   { color: var(--color-text-muted); }
+
+.expiry-item-row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) 0;
+  border-bottom: 1px solid var(--color-border-subtle, var(--color-border));
+}
+
+.expiry-item-row:last-child {
+  border-bottom: none;
+}
+
+.expiry-item-secondary {
+  background: color-mix(in srgb, var(--color-success) 5%, transparent);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-sm);
+}
+
+.expiry-item-name {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.expiry-item-right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  flex-shrink: 0;
+}
+
+.secondary-state-badge {
+  display: inline-flex;
+  align-items: center;
+  background: color-mix(in srgb, var(--color-success) 15%, transparent);
+  color: var(--color-success);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  width: fit-content;
+}
+
+.secondary-uses-text {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.secondary-warning-text {
+  font-size: var(--font-size-xs);
+  color: var(--color-warning);
 }
 </style>

@@ -823,13 +823,13 @@ function pickSurprise() {
   if (!pool.length) return
   const exclude = spotlightRecipe.value?.id
   const candidates = pool.length > 1 ? pool.filter((r) => r.id !== exclude) : pool
-  spotlightRecipe.value = candidates[Math.floor(Math.random() * candidates.length)]
+  spotlightRecipe.value = candidates[Math.floor(Math.random() * candidates.length)] ?? null
 }
 
 function pickBest() {
   const pool = filteredSuggestions.value
   if (!pool.length) return
-  spotlightRecipe.value = pool[0]
+  spotlightRecipe.value = pool[0] ?? null
 }
 
 const selectedGroceryLinks = computed<GroceryLink[]>(() => {
