@@ -58,7 +58,7 @@ async def export_full_json(store: Store = Depends(get_store)):
     """
     inventory, saved = await asyncio.gather(
         asyncio.to_thread(store.list_inventory),
-        asyncio.to_thread(store.get_saved_recipes, 1000, 0),
+        asyncio.to_thread(store.get_saved_recipes),
     )
 
     export_doc = {

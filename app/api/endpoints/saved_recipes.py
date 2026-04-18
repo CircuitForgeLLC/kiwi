@@ -104,6 +104,8 @@ async def list_saved_recipes(
 async def list_collections(
     session: CloudUser = Depends(get_session),
 ) -> list[CollectionSummary]:
+    if not can_use("recipe_collections", session.tier):
+        raise HTTPException(status_code=403, detail="Collections require Paid tier.")
     rows = await asyncio.to_thread(
         _in_thread, session.db, lambda s: s.get_collections()
     )

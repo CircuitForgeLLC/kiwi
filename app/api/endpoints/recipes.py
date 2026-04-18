@@ -2,12 +2,15 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from app.cloud_session import CloudUser, get_session
+from app.cloud_session import CloudUser, _auth_label, get_session
+
+log = logging.getLogger(__name__)
 from app.db.session import get_store
 from app.db.store import Store
 from app.models.schemas.recipe import (
@@ -57,6 +60,7 @@ async def suggest_recipes(
     session: CloudUser = Depends(get_session),
     store: Store = Depends(get_store),
 ) -> RecipeResult:
+    log.info("recipes auth=%s tier=%s level=%s", _auth_label(session.user_id), session.tier, req.level)
     # Inject session-authoritative tier/byok immediately — client-supplied values are ignored.
     # Also read stored unit_system preference; default to metric if not set.
     unit_system = store.get_setting("unit_system") or "metric"

@@ -11,6 +11,9 @@ from app.api.routes import api_router
 from app.core.config import settings
 from app.services.meal_plan.affiliates import register_kiwi_programs
 
+# Structured key=value log lines — grep/awk-friendly for log-based analytics.
+# Without basicConfig, app-level INFO logs are silently dropped.
+logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 

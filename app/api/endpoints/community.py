@@ -62,7 +62,13 @@ async def list_posts(
 ):
     store = _get_community_store()
     if store is None:
-        return {"posts": [], "total": 0, "note": "Community DB not available on this instance."}
+        return {
+            "posts": [],
+            "total": 0,
+            "page": page,
+            "page_size": page_size,
+            "note": "Community DB not available on this instance.",
+        }
 
     dietary = [t.strip() for t in dietary_tags.split(",")] if dietary_tags else None
     allergen_ex = [t.strip() for t in allergen_exclude.split(",")] if allergen_exclude else None
@@ -76,7 +82,8 @@ async def list_posts(
         dietary_tags=dietary,
         allergen_exclude=allergen_ex,
     )
-    return {"posts": [_post_to_dict(p) for p in posts if _visible(p)], "page": page, "page_size": page_size}
+    visible = [_post_to_dict(p) for p in posts if _visible(p)]
+    return {"posts": visible, "total": len(visible), "page": page, "page_size": page_size}
 
 
 @router.get("/posts/{slug}")

@@ -58,6 +58,15 @@
           <span class="sidebar-label">Meal Plan</span>
         </button>
 
+        <button :class="['sidebar-item', { active: currentTab === 'shopping' }]" @click="switchTab('shopping')" aria-label="Shopping List">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
+            <line x1="3" y1="6" x2="21" y2="6"/>
+            <path d="M16 10a4 4 0 01-8 0"/>
+          </svg>
+          <span class="sidebar-label">Shopping</span>
+        </button>
+
         <button :class="['sidebar-item', { active: currentTab === 'settings' }]" @click="switchTab('settings')">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="3"/>
@@ -93,6 +102,9 @@
           </div>
           <div v-show="currentTab === 'mealplan'" class="tab-content">
             <MealPlanView />
+          </div>
+          <div v-show="currentTab === 'shopping'" class="tab-content fade-in">
+            <ShoppingView />
           </div>
         </div>
       </main>
@@ -144,6 +156,14 @@
         </svg>
         <span class="nav-label">Meal Plan</span>
       </button>
+      <button :class="['nav-item', { active: currentTab === 'shopping' }]" @click="switchTab('shopping')" aria-label="Shopping List">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/>
+          <line x1="3" y1="6" x2="21" y2="6"/>
+          <path d="M16 10a4 4 0 01-8 0"/>
+        </svg>
+        <span class="nav-label">Shopping</span>
+      </button>
     </nav>
 
     <!-- Feedback FAB — hidden when FORGEJO_API_TOKEN not configured -->
@@ -190,12 +210,13 @@ import ReceiptsView from './components/ReceiptsView.vue'
 import RecipesView from './components/RecipesView.vue'
 import SettingsView from './components/SettingsView.vue'
 import MealPlanView from './components/MealPlanView.vue'
+import ShoppingView from './components/ShoppingView.vue'
 import FeedbackButton from './components/FeedbackButton.vue'
 import { useInventoryStore } from './stores/inventory'
 import { useEasterEggs } from './composables/useEasterEggs'
-import { householdAPI } from './services/api'
+import { householdAPI, bootstrapSession } from './services/api'
 
-type Tab = 'inventory' | 'receipts' | 'recipes' | 'settings' | 'mealplan'
+type Tab = 'inventory' | 'receipts' | 'recipes' | 'settings' | 'mealplan' | 'shopping'
 
 const currentTab = ref<Tab>('recipes')
 const sidebarCollapsed = ref(false)
@@ -225,6 +246,10 @@ async function switchTab(tab: Tab) {
 }
 
 onMounted(async () => {
+  // Session bootstrap — logs auth= + tier= server-side for log-based analytics.
+  // Fire-and-forget: failure doesn't affect UX.
+  bootstrapSession()
+
   // Pre-fetch inventory so Recipes tab has data on first load
   if (inventoryStore.items.length === 0) {
     await inventoryStore.fetchItems()

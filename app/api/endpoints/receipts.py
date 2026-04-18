@@ -42,9 +42,11 @@ async def upload_receipt(
     )
     # Only queue OCR if the feature is enabled server-side AND the user's tier allows it.
     # Check tier here, not inside the background task — once dispatched it can't be cancelled.
+    # Pass session.db (a Path) rather than store — the store dependency closes before
+    # background tasks run, so the task opens its own store from the DB path.
     ocr_allowed = settings.ENABLE_OCR and can_use("receipt_ocr", session.tier, session.has_byok)
     if ocr_allowed:
-        background_tasks.add_task(_process_receipt_ocr, receipt["id"], saved, store)
+        background_tasks.add_task(_process_receipt_ocr, receipt["id"], saved, session.db)
     return ReceiptResponse.model_validate(receipt)
 
 
@@ -64,7 +66,7 @@ async def upload_receipts_batch(
             store.create_receipt, file.filename, str(saved)
         )
         if ocr_allowed:
-            background_tasks.add_task(_process_receipt_ocr, receipt["id"], saved, store)
+            background_tasks.add_task(_process_receipt_ocr, receipt["id"], saved, session.db)
         results.append(ReceiptResponse.model_validate(receipt))
     return results
 
@@ -97,8 +99,13 @@ async def get_receipt_quality(receipt_id: int, store: Store = Depends(get_store)
     return QualityAssessment.model_validate(qa)
 
 
-async def _process_receipt_ocr(receipt_id: int, image_path: Path, store: Store) -> None:
-    """Background task: run OCR pipeline on an uploaded receipt."""
+async def _process_receipt_ocr(receipt_id: int, image_path: Path, db_path: Path) -> None:
+    """Background task: run OCR pipeline on an uploaded receipt.
+
+    Accepts db_path (not a Store instance) because FastAPI closes the request-scoped
+    store before background tasks execute. This task owns its store lifecycle.
+    """
+    store = Store(db_path)
     try:
         await asyncio.to_thread(store.update_receipt_status, receipt_id, "processing")
         from app.services.receipt_service import ReceiptService
@@ -108,3 +115,5 @@ async def _process_receipt_ocr(receipt_id: int, image_path: Path, store: Store) 
         await asyncio.to_thread(
             store.update_receipt_status, receipt_id, "error", str(exc)
         )
+    finally:
+        store.close()

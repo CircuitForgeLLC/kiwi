@@ -153,6 +153,49 @@ class ExpirationPredictor:
         'flour': 90,
     }
 
+    # Post-expiry secondary use window.
+    # These are NOT spoilage extensions — they describe a qualitative state
+    # change where the ingredient is specifically suited for certain preparations.
+    # Sources: USDA FoodKeeper, food science, culinary tradition.
+    SECONDARY_WINDOW: dict[str, dict] = {
+        'bread': {
+            'window_days': 5,
+            'label': 'stale',
+            'uses': ['croutons', 'stuffing', 'bread pudding', 'French toast', 'panzanella'],
+            'warning': 'Check for mold before use — discard if any is visible.',
+        },
+        'bakery': {
+            'window_days': 3,
+            'label': 'day-old',
+            'uses': ['French toast', 'bread pudding', 'crumbles'],
+            'warning': 'Check for mold before use — discard if any is visible.',
+        },
+        'bananas': {
+            'window_days': 5,
+            'label': 'overripe',
+            'uses': ['banana bread', 'smoothies', 'pancakes', 'muffins'],
+            'warning': None,
+        },
+        'milk': {
+            'window_days': 3,
+            'label': 'sour',
+            'uses': ['pancakes', 'quick breads', 'baking', 'sauces'],
+            'warning': 'Use only in cooked recipes — do not drink.',
+        },
+        'dairy': {
+            'window_days': 2,
+            'label': 'sour',
+            'uses': ['pancakes', 'quick breads', 'baking'],
+            'warning': 'Use only in cooked recipes — do not drink.',
+        },
+        'cheese': {
+            'window_days': 14,
+            'label': 'well-aged',
+            'uses': ['broth', 'soups', 'risotto', 'gratins'],
+            'warning': None,
+        },
+    }
+
     def days_after_opening(self, category: str | None) -> int | None:
         """Return days of shelf life remaining once a package is opened.
 
@@ -162,6 +205,38 @@ class ExpirationPredictor:
         if not category:
             return None
         return self.SHELF_LIFE_AFTER_OPENING.get(category.lower())
+
+    def secondary_state(
+        self, category: str | None, expiry_date: str | None
+    ) -> dict | None:
+        """Return secondary use info if the item is in its post-expiry secondary window.
+
+        Returns a dict with label, uses, warning, days_past, and window_days when the
+        item is past its nominal expiry date but still within the secondary use window.
+        Returns None in all other cases (unknown category, no window defined, not yet
+        expired, or past the secondary window).
+        """
+        if not category or not expiry_date:
+            return None
+        entry = self.SECONDARY_WINDOW.get(category.lower())
+        if not entry:
+            return None
+        try:
+            from datetime import date
+            today = date.today()
+            exp = date.fromisoformat(expiry_date)
+            days_past = (today - exp).days
+            if 0 <= days_past <= entry['window_days']:
+                return {
+                    'label': entry['label'],
+                    'uses': list(entry['uses']),
+                    'warning': entry['warning'],
+                    'days_past': days_past,
+                    'window_days': entry['window_days'],
+                }
+        except ValueError:
+            pass
+        return None
 
     # Keyword lists are checked in declaration order — most specific first.
     # Rules:
