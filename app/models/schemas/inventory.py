@@ -89,6 +89,7 @@ class InventoryItemUpdate(BaseModel):
     unit: Optional[str] = None
     location: Optional[str] = None
     sublocation: Optional[str] = None
+    purchase_date: Optional[date] = None
     expiration_date: Optional[date] = None
     opened_date: Optional[date] = None
     status: Optional[str] = None
@@ -118,6 +119,9 @@ class InventoryItemResponse(BaseModel):
     expiration_date: Optional[str]
     opened_date: Optional[str] = None
     opened_expiry_date: Optional[str] = None
+    secondary_state: Optional[str] = None
+    secondary_uses: Optional[List[str]] = None
+    secondary_warning: Optional[str] = None
     status: str
     notes: Optional[str]
     disposal_reason: Optional[str] = None

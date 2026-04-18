@@ -56,7 +56,7 @@ export const useInventoryStore = defineStore('inventory', () => {
 
     try {
       items.value = await inventoryAPI.listItems({
-        status: statusFilter.value === 'all' ? undefined : statusFilter.value,
+        item_status: statusFilter.value === 'all' ? undefined : statusFilter.value,
         location: locationFilter.value === 'all' ? undefined : locationFilter.value,
         limit: 1000,
       })

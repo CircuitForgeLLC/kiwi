@@ -84,8 +84,9 @@ class ElementClassifier:
         name = ingredient_name.lower().strip()
         if not name:
             return IngredientProfile(name="", elements=[], source="heuristic")
+        c = self._store._cp
         row = self._store._fetch_one(
-            "SELECT * FROM ingredient_profiles WHERE name = ?", (name,)
+            f"SELECT * FROM {c}ingredient_profiles WHERE name = ?", (name,)
         )
         if row:
             return self._row_to_profile(row)

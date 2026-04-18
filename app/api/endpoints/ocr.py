@@ -219,7 +219,7 @@ def _commit_items(
             receipt_id=receipt_id,
             purchase_date=str(purchase_date) if purchase_date else None,
             expiration_date=str(exp) if exp else None,
-            source="receipt_ocr",
+            source="receipt",
         )
 
         created.append(ApprovedInventoryItem(

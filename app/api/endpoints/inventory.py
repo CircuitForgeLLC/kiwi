@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -11,7 +12,9 @@ import aiofiles
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from pydantic import BaseModel
 
-from app.cloud_session import CloudUser, get_session
+from app.cloud_session import CloudUser, _auth_label, get_session
+
+log = logging.getLogger(__name__)
 from app.db.session import get_store
 from app.services.expiration_predictor import ExpirationPredictor
 
@@ -41,7 +44,7 @@ router = APIRouter()
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _enrich_item(item: dict) -> dict:
-    """Attach computed opened_expiry_date when opened_date is set."""
+    """Attach computed fields: opened_expiry_date, secondary_state/uses/warning."""
     from datetime import date, timedelta
     opened = item.get("opened_date")
     if opened:
@@ -54,6 +57,15 @@ def _enrich_item(item: dict) -> dict:
                 pass
     if "opened_expiry_date" not in item:
         item = {**item, "opened_expiry_date": None}
+
+    # Secondary use window — check sell-by date (not opened expiry)
+    sec = _predictor.secondary_state(item.get("category"), item.get("expiration_date"))
+    item = {
+        **item,
+        "secondary_state": sec["label"] if sec else None,
+        "secondary_uses": sec["uses"] if sec else None,
+        "secondary_warning": sec["warning"] if sec else None,
+    }
     return item
 
 
@@ -141,7 +153,12 @@ async def delete_product(product_id: int, store: Store = Depends(get_store)):
 # ── Inventory items ───────────────────────────────────────────────────────────
 
 @router.post("/items", response_model=InventoryItemResponse, status_code=status.HTTP_201_CREATED)
-async def create_inventory_item(body: InventoryItemCreate, store: Store = Depends(get_store)):
+async def create_inventory_item(
+    body: InventoryItemCreate,
+    store: Store = Depends(get_store),
+    session: CloudUser = Depends(get_session),
+):
+    log.info("add_item auth=%s tier=%s product_id=%s", _auth_label(session.user_id), session.tier, body.product_id)
     item = await asyncio.to_thread(
         store.add_inventory_item,
         body.product_id,
@@ -167,7 +184,7 @@ async def bulk_add_items_by_name(body: BulkAddByNameRequest, store: Store = Depe
     for entry in body.items:
         try:
             product, _ = await asyncio.to_thread(
-                store.get_or_create_product, entry.name, None, source="shopping"
+                store.get_or_create_product, entry.name, None, source="manual"
             )
             item = await asyncio.to_thread(
                 store.add_inventory_item,
@@ -175,7 +192,7 @@ async def bulk_add_items_by_name(body: BulkAddByNameRequest, store: Store = Depe
                 entry.location,
                 quantity=entry.quantity,
                 unit=entry.unit,
-                source="shopping",
+                source="manual",
             )
             results.append(BulkAddItemResult(name=entry.name, ok=True, item_id=item["id"]))
         except Exception as exc:
@@ -320,6 +337,7 @@ async def scan_barcode_text(
     session: CloudUser = Depends(get_session),
 ):
     """Scan a barcode from a text string (e.g. from a hardware scanner or manual entry)."""
+    log.info("scan auth=%s tier=%s barcode=%r", _auth_label(session.user_id), session.tier, body.barcode)
     from app.services.openfoodfacts import OpenFoodFactsService
     from app.services.expiration_predictor import ExpirationPredictor
 
@@ -388,6 +406,7 @@ async def scan_barcode_image(
     session: CloudUser = Depends(get_session),
 ):
     """Scan a barcode from an uploaded image. Requires Phase 2 scanner integration."""
+    log.info("scan_image auth=%s tier=%s", _auth_label(session.user_id), session.tier)
     temp_dir = Path("/tmp/kiwi_barcode_scans")
     temp_dir.mkdir(parents=True, exist_ok=True)
     temp_file = temp_dir / f"{uuid.uuid4()}_{file.filename}"

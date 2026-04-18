@@ -23,11 +23,24 @@ _COUNT_CACHE: dict[tuple[str, ...], int] = {}
 
 class Store:
     def __init__(self, db_path: Path, key: str = "") -> None:
+        import os
         self._db_path = str(db_path)
         self.conn: sqlite3.Connection = get_connection(db_path, key)
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute("PRAGMA foreign_keys=ON")
         run_migrations(self.conn, MIGRATIONS_DIR)
+
+        # When RECIPE_DB_PATH is set (cloud mode), attach the shared read-only
+        # corpus DB as the "corpus" schema so per-user DBs can access recipe data.
+        # _cp (corpus prefix) is "corpus." in cloud mode, "" in local mode.
+        corpus_path = os.environ.get("RECIPE_DB_PATH", "")
+        if corpus_path:
+            self.conn.execute("ATTACH DATABASE ? AS corpus", (corpus_path,))
+            self._cp = "corpus."
+            self._corpus_path = corpus_path
+        else:
+            self._cp = ""
+            self._corpus_path = self._db_path
 
     def close(self) -> None:
         self.conn.close()
@@ -218,8 +231,8 @@ class Store:
 
     def update_inventory_item(self, item_id: int, **kwargs) -> dict[str, Any] | None:
         allowed = {"quantity", "unit", "location", "sublocation",
-                   "expiration_date", "opened_date", "status", "notes", "consumed_at",
-                   "disposal_reason"}
+                   "purchase_date", "expiration_date", "opened_date",
+                   "status", "notes", "consumed_at", "disposal_reason"}
         updates = {k: v for k, v in kwargs.items() if k in allowed}
         if not updates:
             return self.get_inventory_item(item_id)
@@ -372,8 +385,9 @@ class Store:
 
     def _fts_ready(self) -> bool:
         """Return True if the recipes_fts virtual table exists."""
+        schema = "corpus" if self._cp else "main"
         row = self._fetch_one(
-            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='recipes_fts'"
+            f"SELECT 1 FROM {schema}.sqlite_master WHERE type='table' AND name='recipes_fts'"
         )
         return row is not None
 
@@ -664,10 +678,12 @@ class Store:
             return []
 
         # Pull up to 10× limit candidates so ranking has enough headroom.
+        # FTS5 pseudo-column in WHERE uses bare table name, not schema-qualified.
+        c = self._cp
         sql = f"""
             SELECT r.*
-            FROM recipes_fts
-            JOIN recipes r ON r.id = recipes_fts.rowid
+            FROM {c}recipes_fts
+            JOIN {c}recipes r ON r.id = {c}recipes_fts.rowid
             WHERE recipes_fts MATCH ?
             {where_extra}
             LIMIT ?
@@ -701,9 +717,10 @@ class Store:
             "CASE WHEN r.ingredient_names LIKE ? THEN 1 ELSE 0 END"
             for _ in ingredient_names
         )
+        c = self._cp
         sql = f"""
             SELECT r.*, ({match_score}) AS match_count
-            FROM recipes r
+            FROM {c}recipes r
             WHERE ({like_clauses})
             {where_extra}
             ORDER BY match_count DESC, r.id ASC
@@ -713,7 +730,11 @@ class Store:
         return self._fetch_all(sql, tuple(all_params))
 
     def get_recipe(self, recipe_id: int) -> dict | None:
-        return self._fetch_one("SELECT * FROM recipes WHERE id = ?", (recipe_id,))
+        row = self._fetch_one(f"SELECT * FROM {self._cp}recipes WHERE id = ?", (recipe_id,))
+        if row is None and self._cp:
+            # Fall back to user's own assembled recipes in main schema
+            row = self._fetch_one("SELECT * FROM recipes WHERE id = ?", (recipe_id,))
+        return row
 
     def upsert_built_recipe(
         self,
@@ -764,7 +785,7 @@ class Store:
             return {}
         placeholders = ",".join("?" * len(names))
         rows = self._fetch_all(
-            f"SELECT name, elements FROM ingredient_profiles WHERE name IN ({placeholders})",
+            f"SELECT name, elements FROM {self._cp}ingredient_profiles WHERE name IN ({placeholders})",
             tuple(names),
         )
         result: dict[str, list[str]] = {}
@@ -905,12 +926,25 @@ class Store:
             "title":    "r.title ASC",
         }.get(sort_by, "sr.saved_at DESC")
 
+        c = self._cp
+        # In corpus-attached (cloud) mode: try corpus recipes first, fall back
+        # to user's own assembled recipes. In local mode: single join suffices.
+        if c:
+            recipe_join = (
+                f"LEFT JOIN {c}recipes rc ON rc.id = sr.recipe_id "
+                "LEFT JOIN recipes rm ON rm.id = sr.recipe_id"
+            )
+            title_col = "COALESCE(rc.title, rm.title) AS title"
+        else:
+            recipe_join = "JOIN recipes rc ON rc.id = sr.recipe_id"
+            title_col = "rc.title"
+
         if collection_id is not None:
             return self._fetch_all(
                 f"""
-                SELECT sr.*, r.title
+                SELECT sr.*, {title_col}
                 FROM saved_recipes sr
-                JOIN recipes r ON r.id = sr.recipe_id
+                {recipe_join}
                 JOIN recipe_collection_members rcm ON rcm.saved_recipe_id = sr.id
                 WHERE rcm.collection_id = ?
                 ORDER BY {order}
@@ -919,9 +953,9 @@ class Store:
             )
         return self._fetch_all(
             f"""
-            SELECT sr.*, r.title
+            SELECT sr.*, {title_col}
             FROM saved_recipes sr
-            JOIN recipes r ON r.id = sr.recipe_id
+            {recipe_join}
             ORDER BY {order}
             """,
         )
@@ -936,10 +970,26 @@ class Store:
     # ── recipe collections ────────────────────────────────────────────────
 
     def create_collection(self, name: str, description: str | None) -> dict:
-        return self._insert_returning(
-            "INSERT INTO recipe_collections (name, description) VALUES (?, ?) RETURNING *",
+        # INSERT RETURNING * omits aggregate columns (e.g. member_count); re-query
+        # with the same SELECT used by get_collections() so the response shape is consistent.
+        cur = self.conn.execute(
+            "INSERT INTO recipe_collections (name, description) VALUES (?, ?)",
             (name, description),
         )
+        self.conn.commit()
+        new_id = cur.lastrowid
+        row = self._fetch_one(
+            """
+            SELECT rc.*,
+                   COUNT(rcm.saved_recipe_id) AS member_count
+            FROM recipe_collections rc
+            LEFT JOIN recipe_collection_members rcm ON rcm.collection_id = rc.id
+            WHERE rc.id = ?
+            GROUP BY rc.id
+            """,
+            (new_id,),
+        )
+        return row  # type: ignore[return-value]
 
     def delete_collection(self, collection_id: int) -> None:
         self.conn.execute(
@@ -1023,12 +1073,16 @@ class Store:
     def _count_recipes_for_keywords(self, keywords: list[str]) -> int:
         if not keywords:
             return 0
-        cache_key = (self._db_path, *sorted(keywords))
+        # Use corpus path as cache key so all cloud users share the same counts.
+        cache_key = (self._corpus_path, *sorted(keywords))
         if cache_key in _COUNT_CACHE:
             return _COUNT_CACHE[cache_key]
         match_expr = self._browser_fts_query(keywords)
+        c = self._cp
+        # FTS5 pseudo-column in WHERE is always the bare (unqualified) table name,
+        # even when the table is accessed through an ATTACHed schema.
         row = self.conn.execute(
-            "SELECT count(*) FROM recipe_browser_fts WHERE recipe_browser_fts MATCH ?",
+            f"SELECT count(*) FROM {c}recipe_browser_fts WHERE recipe_browser_fts MATCH ?",
             (match_expr,),
         ).fetchone()
         count = row[0] if row else 0
@@ -1057,13 +1111,14 @@ class Store:
         # Reuse cached count — avoids a second index scan on every page turn.
         total = self._count_recipes_for_keywords(keywords)
 
+        c = self._cp
         rows = self._fetch_all(
-            """
+            f"""
             SELECT id, title, category, keywords, ingredient_names,
                    calories, fat_g, protein_g, sodium_mg
-            FROM recipes
+            FROM {c}recipes
             WHERE id IN (
-                SELECT rowid FROM recipe_browser_fts
+                SELECT rowid FROM {c}recipe_browser_fts
                 WHERE recipe_browser_fts MATCH ?
             )
             ORDER BY id ASC
@@ -1154,10 +1209,11 @@ class Store:
         self.conn.commit()
 
     def get_plan_slots(self, plan_id: int) -> list[dict]:
+        c = self._cp
         return self._fetch_all(
-            """SELECT s.*, r.title AS recipe_title
+            f"""SELECT s.*, r.title AS recipe_title
                FROM meal_plan_slots s
-               LEFT JOIN recipes r ON r.id = s.recipe_id
+               LEFT JOIN {c}recipes r ON r.id = s.recipe_id
                WHERE s.plan_id = ?
                ORDER BY s.day_of_week, s.meal_type""",
             (plan_id,),
@@ -1165,10 +1221,11 @@ class Store:
 
     def get_plan_recipes(self, plan_id: int) -> list[dict]:
         """Return full recipe rows for all recipes assigned to a plan."""
+        c = self._cp
         return self._fetch_all(
-            """SELECT DISTINCT r.*
+            f"""SELECT DISTINCT r.*
                FROM meal_plan_slots s
-               JOIN recipes r ON r.id = s.recipe_id
+               JOIN {c}recipes r ON r.id = s.recipe_id
                WHERE s.plan_id = ? AND s.recipe_id IS NOT NULL""",
             (plan_id,),
         )
@@ -1256,3 +1313,71 @@ class Store:
             (pseudonym, directus_user_id),
         )
         self.conn.commit()
+
+    # ── Shopping list ─────────────────────────────────────────────────────────
+
+    def add_shopping_item(
+        self,
+        name: str,
+        quantity: float | None = None,
+        unit: str | None = None,
+        category: str | None = None,
+        notes: str | None = None,
+        source: str = "manual",
+        recipe_id: int | None = None,
+        sort_order: int = 0,
+    ) -> dict:
+        return self._insert_returning(
+            """INSERT INTO shopping_list_items
+               (name, quantity, unit, category, notes, source, recipe_id, sort_order)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING *""",
+            (name, quantity, unit, category, notes, source, recipe_id, sort_order),
+        )
+
+    def list_shopping_items(self, include_checked: bool = True) -> list[dict]:
+        where = "" if include_checked else "WHERE checked = 0"
+        self.conn.row_factory = sqlite3.Row
+        rows = self.conn.execute(
+            f"SELECT * FROM shopping_list_items {where} ORDER BY checked, sort_order, id",
+        ).fetchall()
+        return [self._row_to_dict(r) for r in rows]
+
+    def get_shopping_item(self, item_id: int) -> dict | None:
+        self.conn.row_factory = sqlite3.Row
+        row = self.conn.execute(
+            "SELECT * FROM shopping_list_items WHERE id = ?", (item_id,)
+        ).fetchone()
+        return self._row_to_dict(row) if row else None
+
+    def update_shopping_item(self, item_id: int, **kwargs) -> dict | None:
+        allowed = {"name", "quantity", "unit", "category", "checked", "notes", "sort_order"}
+        fields = {k: v for k, v in kwargs.items() if k in allowed and v is not None}
+        if not fields:
+            return self.get_shopping_item(item_id)
+        if "checked" in fields:
+            fields["checked"] = 1 if fields["checked"] else 0
+        set_clause = ", ".join(f"{k} = ?" for k in fields)
+        values = list(fields.values()) + [item_id]
+        self.conn.execute(
+            f"UPDATE shopping_list_items SET {set_clause}, updated_at = datetime('now') WHERE id = ?",
+            values,
+        )
+        self.conn.commit()
+        return self.get_shopping_item(item_id)
+
+    def delete_shopping_item(self, item_id: int) -> bool:
+        cur = self.conn.execute(
+            "DELETE FROM shopping_list_items WHERE id = ?", (item_id,)
+        )
+        self.conn.commit()
+        return cur.rowcount > 0
+
+    def clear_checked_shopping_items(self) -> int:
+        cur = self.conn.execute("DELETE FROM shopping_list_items WHERE checked = 1")
+        self.conn.commit()
+        return cur.rowcount
+
+    def clear_all_shopping_items(self) -> int:
+        cur = self.conn.execute("DELETE FROM shopping_list_items")
+        self.conn.commit()
+        return cur.rowcount

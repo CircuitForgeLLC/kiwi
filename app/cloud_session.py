@@ -22,10 +22,12 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+import uuid
+
 import jwt as pyjwt
 import requests
 import yaml
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, HTTPException, Request, Response
 
 log = logging.getLogger(__name__)
 
@@ -80,6 +82,15 @@ _TIER_CACHE: dict[str, tuple[dict, float]] = {}
 _TIER_CACHE_TTL = 300  # 5 minutes
 
 TIERS = ["free", "paid", "premium", "ultra"]
+
+
+def _auth_label(user_id: str) -> str:
+    """Classify a user_id into a short tag for structured log lines. No PII emitted."""
+    if user_id in ("local", "local-dev"):
+        return "local"
+    if user_id.startswith("anon-"):
+        return "anon"
+    return "authed"
 
 
 # ── Domain ────────────────────────────────────────────────────────────────────
@@ -172,9 +183,13 @@ def _user_db_path(user_id: str, household_id: str | None = None) -> Path:
     return path
 
 
-def _anon_db_path() -> Path:
-    """Ephemeral DB for unauthenticated guest visitors (Free tier, no persistence)."""
-    path = CLOUD_DATA_ROOT / "anonymous" / "kiwi.db"
+def _anon_guest_db_path(guest_id: str) -> Path:
+    """Per-session DB for unauthenticated guest visitors.
+
+    Each anonymous visitor gets an isolated SQLite DB keyed by their guest UUID
+    cookie, so shopping lists and affiliate interactions never bleed across sessions.
+    """
+    path = CLOUD_DATA_ROOT / f"anon-{guest_id}" / "kiwi.db"
     path.parent.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -204,20 +219,52 @@ def _detect_byok(config_path: Path = _LLM_CONFIG_PATH) -> bool:
 
 # ── FastAPI dependency ────────────────────────────────────────────────────────
 
-def get_session(request: Request) -> CloudUser:
+_GUEST_COOKIE = "kiwi_guest_id"
+_GUEST_COOKIE_MAX_AGE = 60 * 60 * 24 * 90  # 90 days
+
+
+def _resolve_guest_session(request: Request, response: Response, has_byok: bool) -> CloudUser:
+    """Return a per-session anonymous CloudUser, creating a guest UUID cookie if needed."""
+    guest_id = request.cookies.get(_GUEST_COOKIE, "").strip()
+    is_new = not guest_id
+    if is_new:
+        guest_id = str(uuid.uuid4())
+        log.debug("New guest session assigned: anon-%s", guest_id[:8])
+    # Secure flag only when the request actually arrived over HTTPS
+    # (Caddy sets X-Forwarded-Proto=https in cloud; absent on direct port access).
+    # Avoids losing the session cookie on HTTP direct-port testing of the cloud stack.
+    is_https = request.headers.get("x-forwarded-proto", "http").lower() == "https"
+    response.set_cookie(
+        key=_GUEST_COOKIE,
+        value=guest_id,
+        max_age=_GUEST_COOKIE_MAX_AGE,
+        httponly=True,
+        samesite="lax",
+        secure=is_https,
+    )
+    return CloudUser(
+        user_id=f"anon-{guest_id}",
+        tier="free",
+        db=_anon_guest_db_path(guest_id),
+        has_byok=has_byok,
+    )
+
+
+def get_session(request: Request, response: Response) -> CloudUser:
     """FastAPI dependency — resolves the current user from the request.
 
     Local mode: fully-privileged "local" user pointing at local DB.
     Cloud mode: validates X-CF-Session JWT, provisions license, resolves tier.
     Dev bypass: if CLOUD_AUTH_BYPASS_IPS is set and the client IP matches,
       returns a "local" session without JWT validation (dev/LAN use only).
+    Anonymous: per-session UUID cookie isolates each guest visitor's data.
     """
     has_byok = _detect_byok()
 
     if not CLOUD_MODE:
         return CloudUser(user_id="local", tier="local", db=_LOCAL_KIWI_DB, has_byok=has_byok)
 
-    # Prefer X-Real-IP (set by nginx from the actual client address) over the
+    # Prefer X-Real-IP (set by Caddy from the actual client address) over the
     # TCP peer address (which is nginx's container IP when behind the proxy).
     client_ip = (
         request.headers.get("x-real-ip", "")
@@ -229,26 +276,19 @@ def get_session(request: Request) -> CloudUser:
         dev_db = _user_db_path("local-dev")
         return CloudUser(user_id="local-dev", tier="local", db=dev_db, has_byok=has_byok)
 
-    raw_header = (
-        request.headers.get("x-cf-session", "")
-        or request.headers.get("cookie", "")
-    )
-    if not raw_header:
-        return CloudUser(
-            user_id="anonymous",
-            tier="free",
-            db=_anon_db_path(),
-            has_byok=has_byok,
-        )
+    # Resolve cf_session JWT: prefer the explicit header injected by Caddy, then
+    # fall back to the cf_session cookie value.  Other cookies (e.g. kiwi_guest_id)
+    # must never be treated as auth tokens.
+    raw_session = request.headers.get("x-cf-session", "").strip()
+    if not raw_session:
+        raw_session = request.cookies.get("cf_session", "").strip()
 
-    token = _extract_session_token(raw_header)  # gitleaks:allow — function name, not a secret
+    if not raw_session:
+        return _resolve_guest_session(request, response, has_byok)
+
+    token = _extract_session_token(raw_session)  # gitleaks:allow — function name, not a secret
     if not token:
-        return CloudUser(
-            user_id="anonymous",
-            tier="free",
-            db=_anon_db_path(),
-            has_byok=has_byok,
-        )
+        return _resolve_guest_session(request, response, has_byok)
 
     user_id = validate_session_jwt(token)
     _ensure_provisioned(user_id)

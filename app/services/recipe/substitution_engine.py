@@ -55,11 +55,12 @@ class SubstitutionEngine:
         ingredient_name: str,
         constraint: str,
     ) -> list[SubstitutionSwap]:
-        rows = self._store._fetch_all("""
+        c = self._store._cp
+        rows = self._store._fetch_all(f"""
             SELECT substitute_name, constraint_label,
                    fat_delta, moisture_delta, glutamate_delta, protein_delta,
                    occurrence_count, compensation_hints
-            FROM substitution_pairs
+            FROM {c}substitution_pairs
             WHERE original_name = ? AND constraint_label = ?
             ORDER BY occurrence_count DESC
         """, (ingredient_name.lower(), constraint))

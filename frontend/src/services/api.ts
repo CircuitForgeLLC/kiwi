@@ -93,6 +93,9 @@ export interface InventoryItem {
   expiration_date: string | null
   opened_date: string | null
   opened_expiry_date: string | null
+  secondary_state: string | null
+  secondary_uses: string[] | null
+  secondary_warning: string | null
   status: string
   source: string
   notes: string | null
@@ -187,7 +190,7 @@ export const inventoryAPI = {
    */
   async listItems(params?: {
     location?: string
-    status?: string
+    item_status?: string
     limit?: number
     offset?: number
   }): Promise<InventoryItem[]> {
@@ -913,11 +916,100 @@ export const browserAPI = {
   },
 }
 
+// ── Shopping List ─────────────────────────────────────────────────────────────
+
+export interface GroceryLink {
+  ingredient: string
+  retailer: string
+  url: string
+}
+
+export interface ShoppingItem {
+  id: number
+  name: string
+  quantity: number | null
+  unit: string | null
+  category: string | null
+  checked: boolean
+  notes: string | null
+  source: string
+  recipe_id: number | null
+  sort_order: number
+  created_at: string
+  updated_at: string
+  grocery_links: GroceryLink[]
+}
+
+export interface ShoppingItemCreate {
+  name: string
+  quantity?: number
+  unit?: string
+  category?: string
+  notes?: string
+  source?: string
+  recipe_id?: number
+  sort_order?: number
+}
+
+export interface ShoppingItemUpdate {
+  name?: string
+  quantity?: number
+  unit?: string
+  category?: string
+  checked?: boolean
+  notes?: string
+  sort_order?: number
+}
+
+export const shoppingAPI = {
+  list: (includeChecked = true) =>
+    api.get<ShoppingItem[]>('/shopping', { params: { include_checked: includeChecked } }).then(r => r.data),
+
+  add: (item: ShoppingItemCreate) =>
+    api.post<ShoppingItem>('/shopping', item).then(r => r.data),
+
+  addFromRecipe: (recipeId: number, includeCovered = false) =>
+    api.post<ShoppingItem[]>('/shopping/from-recipe', { recipe_id: recipeId, include_covered: includeCovered }).then(r => r.data),
+
+  update: (id: number, update: ShoppingItemUpdate) =>
+    api.patch<ShoppingItem>(`/shopping/${id}`, update).then(r => r.data),
+
+  remove: (id: number) =>
+    api.delete(`/shopping/${id}`),
+
+  clearChecked: () =>
+    api.delete('/shopping/checked'),
+
+  clearAll: () =>
+    api.delete('/shopping/all'),
+
+  confirmPurchase: (id: number, location = 'pantry', quantity?: number, unit?: string) =>
+    api.post(`/shopping/${id}/confirm`, { location, quantity, unit }).then(r => r.data),
+}
+
 // ── Orch Usage ────────────────────────────────────────────────────────────────
 
 export async function getOrchUsage(): Promise<OrchUsage | null> {
   const resp = await api.get<OrchUsage | null>('/orch-usage')
   return resp.data
+}
+
+// ── Session Bootstrap ─────────────────────────────────────────────────────────
+
+export interface SessionInfo {
+  auth: 'local' | 'anon' | 'authed'
+  tier: string
+  has_byok: boolean
+}
+
+/** Call once on app load. Logs auth= + tier= server-side for analytics. */
+export async function bootstrapSession(): Promise<SessionInfo | null> {
+  try {
+    const resp = await api.get<SessionInfo>('/session/bootstrap')
+    return resp.data
+  } catch {
+    return null
+  }
 }
 
 export default api
