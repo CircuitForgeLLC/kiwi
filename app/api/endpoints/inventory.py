@@ -171,7 +171,10 @@ async def create_inventory_item(
         notes=body.notes,
         source=body.source,
     )
-    return InventoryItemResponse.model_validate(item)
+    # RETURNING * omits joined columns (product_name, barcode, category).
+    # Re-fetch with the products JOIN so the response is fully populated (#99).
+    full_item = await asyncio.to_thread(store.get_inventory_item, item["id"])
+    return InventoryItemResponse.model_validate(full_item)
 
 
 @router.post("/items/bulk-add-by-name", response_model=BulkAddByNameResponse)
