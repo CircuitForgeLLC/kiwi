@@ -60,6 +60,10 @@ class Settings:
     # CFOrchClient reads CF_LICENSE_KEY automatically; exposed here for startup validation.
     CF_LICENSE_KEY: str | None = os.environ.get("CF_LICENSE_KEY")
 
+    # E2E test account — analytics logging is suppressed for this user_id so test
+    # runs don't pollute session counts.  Set to the Directus UUID of the test user.
+    E2E_TEST_USER_ID: str | None = os.environ.get("E2E_TEST_USER_ID") or None
+
     # Feature flags
     ENABLE_OCR: bool = os.environ.get("ENABLE_OCR", "false").lower() in ("1", "true", "yes")
 
