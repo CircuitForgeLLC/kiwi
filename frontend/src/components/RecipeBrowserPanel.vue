@@ -78,6 +78,34 @@
         <div v-if="loadingRecipes" class="text-secondary text-sm">Loading recipes…</div>
 
         <template v-else>
+          <!-- Search + sort controls -->
+          <div class="browser-controls flex gap-sm mb-sm flex-wrap align-center">
+            <input
+              v-model="searchQuery"
+              @input="onSearchInput"
+              type="search"
+              placeholder="Filter by title…"
+              class="browser-search"
+            />
+            <div class="sort-btns flex gap-xs">
+              <button
+                :class="['btn', 'btn-secondary', 'sort-btn', { active: sortOrder === 'default' }]"
+                @click="setSort('default')"
+                title="Corpus order"
+              >Default</button>
+              <button
+                :class="['btn', 'btn-secondary', 'sort-btn', { active: sortOrder === 'alpha' }]"
+                @click="setSort('alpha')"
+                title="Alphabetical A→Z"
+              >A→Z</button>
+              <button
+                :class="['btn', 'btn-secondary', 'sort-btn', { active: sortOrder === 'alpha_desc' }]"
+                @click="setSort('alpha_desc')"
+                title="Alphabetical Z→A"
+              >Z→A</button>
+            </div>
+          </div>
+
           <div class="results-header flex-between mb-sm">
             <span class="text-sm text-secondary">
               {{ total }} recipes
@@ -183,6 +211,9 @@ const pageSize = 20
 const loadingDomains = ref(false)
 const loadingRecipes = ref(false)
 const savingRecipe = ref<BrowserRecipe | null>(null)
+const searchQuery = ref('')
+const sortOrder = ref<'default' | 'alpha' | 'alpha_desc'>('default')
+let searchDebounce: ReturnType<typeof setTimeout> | null = null
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
 const allCountsZero = computed(() =>
@@ -219,12 +250,29 @@ onMounted(async () => {
   if (!savedStore.savedIds.size) savedStore.load()
 })
 
+function onSearchInput() {
+  if (searchDebounce) clearTimeout(searchDebounce)
+  searchDebounce = setTimeout(() => {
+    page.value = 1
+    loadRecipes()
+  }, 350)
+}
+
+function setSort(s: 'default' | 'alpha' | 'alpha_desc') {
+  if (sortOrder.value === s) return
+  sortOrder.value = s
+  page.value = 1
+  loadRecipes()
+}
+
 async function selectDomain(domainId: string) {
   activeDomain.value = domainId
   activeCategory.value = null
   recipes.value = []
   total.value = 0
   page.value = 1
+  searchQuery.value = ''
+  sortOrder.value = 'default'
   categories.value = await browserAPI.listCategories(domainId)
   // Auto-select the most-populated category so content appears immediately.
   // Skip when all counts are 0 (corpus not seeded) — no point loading an empty result.
@@ -247,6 +295,8 @@ async function selectCategory(category: string) {
   activeSubcategory.value = null
   subcategories.value = []
   page.value = 1
+  searchQuery.value = ''
+  sortOrder.value = 'default'
 
   // Fetch subcategories in the background when the category supports them,
   // then immediately start loading recipes at the full-category level.
@@ -286,6 +336,8 @@ async function loadRecipes() {
           ? pantryItems.value.join(',')
           : undefined,
         subcategory: activeSubcategory.value ?? undefined,
+        q: searchQuery.value.trim() || undefined,
+        sort: sortOrder.value !== 'default' ? sortOrder.value : undefined,
       }
     )
     recipes.value = result.recipes
@@ -376,6 +428,38 @@ async function doUnsave(recipeId: number) {
 .subcat-btn.active .cat-count {
   background: rgba(255, 255, 255, 0.2);
   color: white;
+}
+
+.browser-controls {
+  align-items: center;
+}
+
+.browser-search {
+  flex: 1;
+  min-width: 120px;
+  max-width: 260px;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  font-size: var(--font-size-sm);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.browser-search:focus {
+  outline: none;
+  border-color: var(--color-primary);
+}
+
+.sort-btn {
+  font-size: var(--font-size-xs, 0.75rem);
+  padding: 2px var(--spacing-sm);
+}
+
+.sort-btn.active {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
 }
 
 .recipe-grid {

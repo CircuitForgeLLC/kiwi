@@ -168,12 +168,15 @@ async def browse_recipes(
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
     pantry_items: Annotated[str | None, Query()] = None,
     subcategory: Annotated[str | None, Query()] = None,
+    q: Annotated[str | None, Query(max_length=200)] = None,
+    sort: Annotated[str, Query(pattern="^(default|alpha|alpha_desc)$")] = "default",
     session: CloudUser = Depends(get_session),
 ) -> dict:
     """Return a paginated list of recipes for a domain/category.
 
     Pass pantry_items as a comma-separated string to receive match_pct badges.
     Pass subcategory to narrow within a category that has subcategories.
+    Pass q to filter by title substring. Pass sort for ordering (default/alpha/alpha_desc).
     """
     if domain not in DOMAINS:
         raise HTTPException(status_code=404, detail=f"Unknown domain '{domain}'.")
@@ -209,6 +212,8 @@ async def browse_recipes(
                 page=page,
                 page_size=page_size,
                 pantry_items=pantry_list,
+                q=q or None,
+                sort=sort,
             )
             store.log_browser_telemetry(
                 domain=domain,

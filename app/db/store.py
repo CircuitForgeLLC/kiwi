@@ -1116,6 +1116,8 @@ class Store:
         page: int,
         page_size: int,
         pantry_items: list[str] | None = None,
+        q: str | None = None,
+        sort: str = "default",
     ) -> dict:
         """Return a page of recipes matching the keyword set.
 
@@ -1123,6 +1125,9 @@ class Store:
         Each recipe row includes match_pct (float | None) when pantry_items
         is provided. match_pct is the fraction of ingredient_names covered by
         the pantry set — computed deterministically, no LLM needed.
+
+        q: optional title substring filter (case-insensitive LIKE).
+        sort: "default" (corpus order) | "alpha" (A→Z) | "alpha_desc" (Z→A).
         """
         if keywords is not None and not keywords:
             return {"recipes": [], "total": 0, "page": page}
@@ -1130,37 +1135,52 @@ class Store:
         offset = (page - 1) * page_size
         c = self._cp
 
+        order_clause = {
+            "alpha":      "ORDER BY title ASC",
+            "alpha_desc": "ORDER BY title DESC",
+        }.get(sort, "ORDER BY id ASC")
+
+        q_param = f"%{q.strip()}%" if q and q.strip() else None
+        cols = (
+            f"SELECT id, title, category, keywords, ingredient_names,"
+            f"       calories, fat_g, protein_g, sodium_mg FROM {c}recipes"
+        )
+
         if keywords is None:
-            # "All" browse — unfiltered paginated scan.
-            total = self.conn.execute(f"SELECT COUNT(*) FROM {c}recipes").fetchone()[0]
-            rows = self._fetch_all(
-                f"""
-                SELECT id, title, category, keywords, ingredient_names,
-                       calories, fat_g, protein_g, sodium_mg
-                FROM {c}recipes
-                ORDER BY id ASC
-                LIMIT ? OFFSET ?
-                """,
-                (page_size, offset),
-            )
+            if q_param:
+                total = self.conn.execute(
+                    f"SELECT COUNT(*) FROM {c}recipes WHERE LOWER(title) LIKE LOWER(?)",
+                    (q_param,),
+                ).fetchone()[0]
+                rows = self._fetch_all(
+                    f"{cols} WHERE LOWER(title) LIKE LOWER(?) {order_clause} LIMIT ? OFFSET ?",
+                    (q_param, page_size, offset),
+                )
+            else:
+                total = self.conn.execute(f"SELECT COUNT(*) FROM {c}recipes").fetchone()[0]
+                rows = self._fetch_all(
+                    f"{cols} {order_clause} LIMIT ? OFFSET ?",
+                    (page_size, offset),
+                )
         else:
             match_expr = self._browser_fts_query(keywords)
-            # Reuse cached count — avoids a second index scan on every page turn.
-            total = self._count_recipes_for_keywords(keywords)
-            rows = self._fetch_all(
-                f"""
-                SELECT id, title, category, keywords, ingredient_names,
-                       calories, fat_g, protein_g, sodium_mg
-                FROM {c}recipes
-                WHERE id IN (
-                    SELECT rowid FROM {c}recipe_browser_fts
-                    WHERE recipe_browser_fts MATCH ?
+            fts_sub = f"id IN (SELECT rowid FROM {c}recipe_browser_fts WHERE recipe_browser_fts MATCH ?)"
+            if q_param:
+                total = self.conn.execute(
+                    f"SELECT COUNT(*) FROM {c}recipes WHERE {fts_sub} AND LOWER(title) LIKE LOWER(?)",
+                    (match_expr, q_param),
+                ).fetchone()[0]
+                rows = self._fetch_all(
+                    f"{cols} WHERE {fts_sub} AND LOWER(title) LIKE LOWER(?) {order_clause} LIMIT ? OFFSET ?",
+                    (match_expr, q_param, page_size, offset),
                 )
-                ORDER BY id ASC
-                LIMIT ? OFFSET ?
-                """,
-                (match_expr, page_size, offset),
-            )
+            else:
+                # Reuse cached count — avoids a second index scan on every page turn.
+                total = self._count_recipes_for_keywords(keywords)
+                rows = self._fetch_all(
+                    f"{cols} WHERE {fts_sub} {order_clause} LIMIT ? OFFSET ?",
+                    (match_expr, page_size, offset),
+                )
 
         pantry_set = {p.lower() for p in pantry_items} if pantry_items else None
         recipes = []
