@@ -15,8 +15,13 @@
     <div v-if="loadingDomains" class="text-secondary text-sm">Loading…</div>
 
     <div v-else-if="activeDomain" class="browser-body">
+      <!-- Corpus unavailable notice — shown when all category counts are 0 -->
+      <div v-if="allCountsZero" class="browser-unavailable card p-md text-secondary text-sm">
+        Recipe library is not available on this instance yet. Browse categories will appear once the recipe corpus is loaded.
+      </div>
+
       <!-- Category list + Surprise Me -->
-      <div class="category-list mb-md flex flex-wrap gap-xs">
+      <div v-else class="category-list mb-md flex flex-wrap gap-xs">
         <button
           v-for="cat in categories"
           :key="cat.category"
@@ -101,7 +106,7 @@
         </template>
       </template>
 
-      <div v-else class="text-secondary text-sm">Loading recipes…</div>
+      <div v-else-if="!allCountsZero" class="text-secondary text-sm">Loading recipes…</div>
     </div>
 
     <div v-else-if="!loadingDomains" class="text-secondary text-sm">Loading…</div>
@@ -145,6 +150,9 @@ const loadingRecipes = ref(false)
 const savingRecipe = ref<BrowserRecipe | null>(null)
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
+const allCountsZero = computed(() =>
+  categories.value.length > 0 && categories.value.every(c => c.recipe_count === 0)
+)
 
 const pantryItems = computed(() =>
   inventoryStore.items
@@ -179,8 +187,10 @@ async function selectDomain(domainId: string) {
   total.value = 0
   page.value = 1
   categories.value = await browserAPI.listCategories(domainId)
-  // Auto-select the most-populated category so content appears immediately
-  if (categories.value.length > 0) {
+  // Auto-select the most-populated category so content appears immediately.
+  // Skip when all counts are 0 (corpus not seeded) — no point loading an empty result.
+  const hasRecipes = categories.value.some(c => c.recipe_count > 0)
+  if (hasRecipes) {
     const top = categories.value.reduce((best, c) =>
       c.recipe_count > best.recipe_count ? c : best, categories.value[0]!)
     selectCategory(top.category)

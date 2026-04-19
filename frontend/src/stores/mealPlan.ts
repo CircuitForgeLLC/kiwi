@@ -34,7 +34,8 @@ export const useMealPlanStore = defineStore('mealPlan', () => {
   async function loadPlans() {
     loading.value = true
     try {
-      plans.value = await mealPlanAPI.list()
+      const result = await mealPlanAPI.list()
+      plans.value = Array.isArray(result) ? result : []
     } finally {
       loading.value = false
     }

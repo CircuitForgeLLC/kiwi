@@ -175,7 +175,8 @@ async function uploadFile(file: File) {
 
 async function loadReceipts() {
   try {
-    const data = await receiptsAPI.listReceipts()
+    const raw = await receiptsAPI.listReceipts()
+    const data = Array.isArray(raw) ? raw : []
     // Fetch OCR data for each receipt
     receipts.value = await Promise.all(
       data.map(async (receipt: any) => {

@@ -88,22 +88,22 @@
 
       <main class="app-main">
         <div class="container">
-          <div v-show="currentTab === 'inventory'" class="tab-content fade-in">
+          <div v-if="mountedTabs.has('inventory')" v-show="currentTab === 'inventory'" class="tab-content fade-in">
             <InventoryList />
           </div>
-          <div v-show="currentTab === 'receipts'" class="tab-content fade-in">
+          <div v-if="mountedTabs.has('receipts')" v-show="currentTab === 'receipts'" class="tab-content fade-in">
             <ReceiptsView />
           </div>
           <div v-show="currentTab === 'recipes'" class="tab-content fade-in">
             <RecipesView />
           </div>
-          <div v-show="currentTab === 'settings'" class="tab-content fade-in">
+          <div v-if="mountedTabs.has('settings')" v-show="currentTab === 'settings'" class="tab-content fade-in">
             <SettingsView />
           </div>
-          <div v-show="currentTab === 'mealplan'" class="tab-content">
+          <div v-if="mountedTabs.has('mealplan')" v-show="currentTab === 'mealplan'" class="tab-content">
             <MealPlanView />
           </div>
-          <div v-show="currentTab === 'shopping'" class="tab-content fade-in">
+          <div v-if="mountedTabs.has('shopping')" v-show="currentTab === 'shopping'" class="tab-content fade-in">
             <ShoppingView />
           </div>
         </div>
@@ -204,7 +204,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import InventoryList from './components/InventoryList.vue'
 import ReceiptsView from './components/ReceiptsView.vue'
 import RecipesView from './components/RecipesView.vue'
@@ -220,6 +220,10 @@ type Tab = 'inventory' | 'receipts' | 'recipes' | 'settings' | 'mealplan' | 'sho
 
 const currentTab = ref<Tab>('recipes')
 const sidebarCollapsed = ref(false)
+// Lazy-mount: tabs mount on first visit and stay mounted (KeepAlive-like behaviour).
+// Only 'recipes' is in the initial set so non-active tabs don't mount simultaneously
+// on page load — eliminates concurrent onMounted calls across all tab components.
+const mountedTabs = reactive(new Set<Tab>(['recipes']))
 const inventoryStore = useInventoryStore()
 const { kiwiVisible, kiwiDirection } = useEasterEggs()
 
@@ -239,6 +243,7 @@ function onWordmarkClick() {
 }
 
 async function switchTab(tab: Tab) {
+  mountedTabs.add(tab)
   currentTab.value = tab
   if (tab === 'recipes' && inventoryStore.items.length === 0) {
     await inventoryStore.fetchItems()

@@ -55,11 +55,12 @@ export const useInventoryStore = defineStore('inventory', () => {
     error.value = null
 
     try {
-      items.value = await inventoryAPI.listItems({
+      const result = await inventoryAPI.listItems({
         item_status: statusFilter.value === 'all' ? undefined : statusFilter.value,
         location: locationFilter.value === 'all' ? undefined : locationFilter.value,
         limit: 1000,
       })
+      items.value = Array.isArray(result) ? result : []
     } catch (err: any) {
       error.value = err.response?.data?.detail || 'Failed to fetch inventory items'
       console.error('Error fetching inventory:', err)
