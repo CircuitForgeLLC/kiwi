@@ -28,9 +28,12 @@ from app.services.recipe.assembly_recipes import (
 )
 from app.services.recipe.browser_domains import (
     DOMAINS,
+    category_has_subcategories,
     get_category_names,
     get_domain_labels,
     get_keywords_for_category,
+    get_keywords_for_subcategory,
+    get_subcategory_names,
 )
 from app.services.recipe.recipe_engine import RecipeEngine
 from app.services.heimdall_orch import check_orch_budget
@@ -115,15 +118,42 @@ async def list_browse_categories(
     if domain not in DOMAINS:
         raise HTTPException(status_code=404, detail=f"Unknown domain '{domain}'.")
 
-    keywords_by_category = {
-        cat: get_keywords_for_category(domain, cat)
-        for cat in get_category_names(domain)
+    cat_names = get_category_names(domain)
+    keywords_by_category = {cat: get_keywords_for_category(domain, cat) for cat in cat_names}
+    has_subs = {cat: category_has_subcategories(domain, cat) for cat in cat_names}
+
+    def _get(db_path: Path) -> list[dict]:
+        store = Store(db_path)
+        try:
+            return store.get_browser_categories(domain, keywords_by_category, has_subs)
+        finally:
+            store.close()
+
+    return await asyncio.to_thread(_get, session.db)
+
+
+@router.get("/browse/{domain}/{category}/subcategories")
+async def list_browse_subcategories(
+    domain: str,
+    category: str,
+    session: CloudUser = Depends(get_session),
+) -> list[dict]:
+    """Return [{subcategory, recipe_count}] for a category that supports subcategories."""
+    if domain not in DOMAINS:
+        raise HTTPException(status_code=404, detail=f"Unknown domain '{domain}'.")
+    if not category_has_subcategories(domain, category):
+        return []
+
+    subcat_names = get_subcategory_names(domain, category)
+    keywords_by_subcat = {
+        sub: get_keywords_for_subcategory(domain, category, sub)
+        for sub in subcat_names
     }
 
     def _get(db_path: Path) -> list[dict]:
         store = Store(db_path)
         try:
-            return store.get_browser_categories(domain, keywords_by_category)
+            return store.get_browser_subcategories(domain, keywords_by_subcat)
         finally:
             store.close()
 
@@ -137,22 +167,33 @@ async def browse_recipes(
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
     pantry_items: Annotated[str | None, Query()] = None,
+    subcategory: Annotated[str | None, Query()] = None,
     session: CloudUser = Depends(get_session),
 ) -> dict:
     """Return a paginated list of recipes for a domain/category.
 
-    Pass pantry_items as a comma-separated string to receive match_pct
-    badges on each result.
+    Pass pantry_items as a comma-separated string to receive match_pct badges.
+    Pass subcategory to narrow within a category that has subcategories.
     """
     if domain not in DOMAINS:
         raise HTTPException(status_code=404, detail=f"Unknown domain '{domain}'.")
 
-    keywords = get_keywords_for_category(domain, category)
-    if not keywords:
-        raise HTTPException(
-            status_code=404,
-            detail=f"Unknown category '{category}' in domain '{domain}'.",
-        )
+    if category == "_all":
+        keywords = None  # unfiltered browse
+    elif subcategory:
+        keywords = get_keywords_for_subcategory(domain, category, subcategory)
+        if not keywords:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Unknown subcategory '{subcategory}' in '{category}'.",
+            )
+    else:
+        keywords = get_keywords_for_category(domain, category)
+        if not keywords:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Unknown category '{category}' in domain '{domain}'.",
+            )
 
     pantry_list = (
         [p.strip() for p in pantry_items.split(",") if p.strip()]

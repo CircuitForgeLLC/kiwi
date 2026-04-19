@@ -1051,17 +1051,38 @@ class Store:
     # ── recipe browser ────────────────────────────────────────────────────
 
     def get_browser_categories(
-        self, domain: str, keywords_by_category: dict[str, list[str]]
+        self,
+        domain: str,
+        keywords_by_category: dict[str, list[str]],
+        has_subcategories_by_category: dict[str, bool] | None = None,
     ) -> list[dict]:
-        """Return [{category, recipe_count}] for each category in the domain.
+        """Return [{category, recipe_count, has_subcategories}] for each category.
 
-        keywords_by_category maps category name to the keyword list used to
-        match against recipes.category and recipes.keywords.
+        keywords_by_category maps category name → keyword list for counting.
+        has_subcategories_by_category maps category name → bool (optional;
+        defaults to False for all categories when omitted).
         """
         results = []
         for category, keywords in keywords_by_category.items():
             count = self._count_recipes_for_keywords(keywords)
-            results.append({"category": category, "recipe_count": count})
+            results.append({
+                "category": category,
+                "recipe_count": count,
+                "has_subcategories": (has_subcategories_by_category or {}).get(category, False),
+            })
+        return results
+
+    def get_browser_subcategories(
+        self, domain: str, keywords_by_subcategory: dict[str, list[str]]
+    ) -> list[dict]:
+        """Return [{subcategory, recipe_count}] for each subcategory.
+
+        Mirrors get_browser_categories but for the second level.
+        """
+        results = []
+        for subcat, keywords in keywords_by_subcategory.items():
+            count = self._count_recipes_for_keywords(keywords)
+            results.append({"subcategory": subcat, "recipe_count": count})
         return results
 
     @staticmethod
@@ -1091,41 +1112,55 @@ class Store:
 
     def browse_recipes(
         self,
-        keywords: list[str],
+        keywords: list[str] | None,
         page: int,
         page_size: int,
         pantry_items: list[str] | None = None,
     ) -> dict:
         """Return a page of recipes matching the keyword set.
 
+        Pass keywords=None to browse all recipes without category filtering.
         Each recipe row includes match_pct (float | None) when pantry_items
         is provided. match_pct is the fraction of ingredient_names covered by
         the pantry set — computed deterministically, no LLM needed.
         """
-        if not keywords:
+        if keywords is not None and not keywords:
             return {"recipes": [], "total": 0, "page": page}
 
-        match_expr = self._browser_fts_query(keywords)
         offset = (page - 1) * page_size
-
-        # Reuse cached count — avoids a second index scan on every page turn.
-        total = self._count_recipes_for_keywords(keywords)
-
         c = self._cp
-        rows = self._fetch_all(
-            f"""
-            SELECT id, title, category, keywords, ingredient_names,
-                   calories, fat_g, protein_g, sodium_mg
-            FROM {c}recipes
-            WHERE id IN (
-                SELECT rowid FROM {c}recipe_browser_fts
-                WHERE recipe_browser_fts MATCH ?
+
+        if keywords is None:
+            # "All" browse — unfiltered paginated scan.
+            total = self.conn.execute(f"SELECT COUNT(*) FROM {c}recipes").fetchone()[0]
+            rows = self._fetch_all(
+                f"""
+                SELECT id, title, category, keywords, ingredient_names,
+                       calories, fat_g, protein_g, sodium_mg
+                FROM {c}recipes
+                ORDER BY id ASC
+                LIMIT ? OFFSET ?
+                """,
+                (page_size, offset),
             )
-            ORDER BY id ASC
-            LIMIT ? OFFSET ?
-            """,
-            (match_expr, page_size, offset),
-        )
+        else:
+            match_expr = self._browser_fts_query(keywords)
+            # Reuse cached count — avoids a second index scan on every page turn.
+            total = self._count_recipes_for_keywords(keywords)
+            rows = self._fetch_all(
+                f"""
+                SELECT id, title, category, keywords, ingredient_names,
+                       calories, fat_g, protein_g, sodium_mg
+                FROM {c}recipes
+                WHERE id IN (
+                    SELECT rowid FROM {c}recipe_browser_fts
+                    WHERE recipe_browser_fts MATCH ?
+                )
+                ORDER BY id ASC
+                LIMIT ? OFFSET ?
+                """,
+                (match_expr, page_size, offset),
+            )
 
         pantry_set = {p.lower() for p in pantry_items} if pantry_items else None
         recipes = []

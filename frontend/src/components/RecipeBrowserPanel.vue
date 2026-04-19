@@ -21,7 +21,13 @@
       </div>
 
       <!-- Category list + Surprise Me -->
-      <div v-else class="category-list mb-md flex flex-wrap gap-xs">
+      <div v-else class="category-list mb-sm flex flex-wrap gap-xs">
+        <button
+          :class="['btn', 'btn-secondary', 'cat-btn', { active: activeCategory === '_all' }]"
+          @click="selectCategory('_all')"
+        >
+          All
+        </button>
         <button
           v-for="cat in categories"
           :key="cat.category"
@@ -30,6 +36,7 @@
         >
           {{ cat.category }}
           <span class="cat-count">{{ cat.recipe_count }}</span>
+          <span v-if="cat.has_subcategories" class="cat-drill-indicator" title="Has subcategories">›</span>
         </button>
         <button
           v-if="categories.length > 1"
@@ -39,6 +46,31 @@
         >
           🎲 Surprise me
         </button>
+      </div>
+
+      <!-- Subcategory row — shown when the active category has subcategories -->
+      <div
+        v-if="activeCategoryHasSubs && (subcategories.length > 0 || loadingSubcategories)"
+        class="subcategory-list mb-md flex flex-wrap gap-xs"
+      >
+        <span v-if="loadingSubcategories" class="text-secondary text-xs">Loading…</span>
+        <template v-else>
+          <button
+            :class="['btn', 'btn-secondary', 'subcat-btn', { active: activeSubcategory === null }]"
+            @click="selectSubcategory(null)"
+          >
+            All {{ activeCategory }}
+          </button>
+          <button
+            v-for="sub in subcategories"
+            :key="sub.subcategory"
+            :class="['btn', 'btn-secondary', 'subcat-btn', { active: activeSubcategory === sub.subcategory }]"
+            @click="selectSubcategory(sub.subcategory)"
+          >
+            {{ sub.subcategory }}
+            <span class="cat-count">{{ sub.recipe_count }}</span>
+          </button>
+        </template>
       </div>
 
       <!-- Recipe grid -->
@@ -125,7 +157,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { browserAPI, type BrowserDomain, type BrowserCategory, type BrowserRecipe } from '../services/api'
+import { browserAPI, type BrowserDomain, type BrowserCategory, type BrowserSubcategory, type BrowserRecipe } from '../services/api'
 import { useSavedRecipesStore } from '../stores/savedRecipes'
 import { useInventoryStore } from '../stores/inventory'
 import SaveRecipeModal from './SaveRecipeModal.vue'
@@ -141,6 +173,9 @@ const domains = ref<BrowserDomain[]>([])
 const activeDomain = ref<string | null>(null)
 const categories = ref<BrowserCategory[]>([])
 const activeCategory = ref<string | null>(null)
+const subcategories = ref<BrowserSubcategory[]>([])
+const activeSubcategory = ref<string | null>(null)
+const loadingSubcategories = ref(false)
 const recipes = ref<BrowserRecipe[]>([])
 const total = ref(0)
 const page = ref(1)
@@ -153,6 +188,10 @@ const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize))
 const allCountsZero = computed(() =>
   categories.value.length > 0 && categories.value.every(c => c.recipe_count === 0)
 )
+const activeCategoryHasSubs = computed(() => {
+  if (!activeCategory.value || activeCategory.value === '_all') return false
+  return categories.value.find(c => c.category === activeCategory.value)?.has_subcategories ?? false
+})
 
 const pantryItems = computed(() =>
   inventoryStore.items
@@ -205,6 +244,25 @@ function surpriseMe() {
 
 async function selectCategory(category: string) {
   activeCategory.value = category
+  activeSubcategory.value = null
+  subcategories.value = []
+  page.value = 1
+
+  // Fetch subcategories in the background when the category supports them,
+  // then immediately start loading recipes at the full-category level.
+  const catMeta = categories.value.find(c => c.category === category)
+  if (catMeta?.has_subcategories) {
+    loadingSubcategories.value = true
+    browserAPI.listSubcategories(activeDomain.value!, category)
+      .then(subs => { subcategories.value = subs })
+      .finally(() => { loadingSubcategories.value = false })
+  }
+
+  await loadRecipes()
+}
+
+async function selectSubcategory(subcat: string | null) {
+  activeSubcategory.value = subcat
   page.value = 1
   await loadRecipes()
 }
@@ -227,6 +285,7 @@ async function loadRecipes() {
         pantry_items: pantryItems.value.length > 0
           ? pantryItems.value.join(',')
           : undefined,
+        subcategory: activeSubcategory.value ?? undefined,
       }
     )
     recipes.value = result.recipes
@@ -287,6 +346,36 @@ async function doUnsave(recipeId: number) {
 
 .surprise-btn:hover {
   opacity: 1;
+}
+
+.cat-drill-indicator {
+  margin-left: var(--spacing-xs);
+  opacity: 0.5;
+  font-size: var(--font-size-sm);
+}
+
+.subcategory-list {
+  padding-left: var(--spacing-sm);
+  border-left: 2px solid var(--color-border);
+  margin-left: var(--spacing-xs);
+}
+
+.subcat-btn {
+  font-size: var(--font-size-xs, 0.78rem);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  opacity: 0.9;
+}
+
+.subcat-btn.active {
+  background: var(--color-primary);
+  color: white;
+  border-color: var(--color-primary);
+  opacity: 1;
+}
+
+.subcat-btn.active .cat-count {
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
 }
 
 .recipe-grid {

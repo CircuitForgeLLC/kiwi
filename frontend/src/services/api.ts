@@ -881,6 +881,12 @@ export interface BrowserDomain {
 export interface BrowserCategory {
   category: string
   recipe_count: number
+  has_subcategories: boolean
+}
+
+export interface BrowserSubcategory {
+  subcategory: string
+  recipe_count: number
 }
 
 export interface BrowserRecipe {
@@ -907,10 +913,17 @@ export const browserAPI = {
     const response = await api.get(`/recipes/browse/${domain}`)
     return response.data
   },
+  async listSubcategories(domain: string, category: string): Promise<BrowserSubcategory[]> {
+    const response = await api.get(
+      `/recipes/browse/${domain}/${encodeURIComponent(category)}/subcategories`
+    )
+    return response.data
+  },
   async browse(domain: string, category: string, params?: {
     page?: number
     page_size?: number
     pantry_items?: string
+    subcategory?: string
   }): Promise<BrowserResult> {
     const response = await api.get(`/recipes/browse/${domain}/${encodeURIComponent(category)}`, { params })
     return response.data
