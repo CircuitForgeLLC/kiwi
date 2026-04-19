@@ -11,6 +11,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY circuitforge-core/ ./circuitforge-core/
 RUN conda run -n base pip install --no-cache-dir -e ./circuitforge-core
 
+# Install circuitforge-orch — needed for the cf-orch-agent sidecar (compose.override.yml)
+COPY circuitforge-orch/ ./circuitforge-orch/
+
 # Create kiwi conda env and install app
 COPY kiwi/environment.yml .
 RUN conda env create -f environment.yml
@@ -22,8 +25,9 @@ COPY kiwi/ ./kiwi/
 # they never end up in the cloud image regardless of .dockerignore placement.
 RUN rm -f /app/kiwi/.env
 
-# Install cf-core into the kiwi env BEFORE installing kiwi (kiwi lists it as a dep)
+# Install cf-core and cf-orch into the kiwi env BEFORE installing kiwi
 RUN conda run -n kiwi pip install --no-cache-dir -e /app/circuitforge-core
+RUN conda run -n kiwi pip install --no-cache-dir -e /app/circuitforge-orch
 WORKDIR /app/kiwi
 RUN conda run -n kiwi pip install --no-cache-dir -e .
 
