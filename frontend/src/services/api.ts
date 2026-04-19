@@ -526,6 +526,7 @@ export interface RecipeResult {
 
 export interface RecipeRequest {
   pantry_items: string[]
+  secondary_pantry_items: Record<string, string>
   level: number
   constraints: string[]
   allergies: string[]

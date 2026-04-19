@@ -71,6 +71,10 @@ class NutritionFilters(BaseModel):
 
 class RecipeRequest(BaseModel):
     pantry_items: list[str]
+    # Maps product name → secondary state label for items past nominal expiry
+    # but still within their secondary use window (e.g. {"Bread": "stale"}).
+    # Used by the recipe engine to boost recipes suited to those specific states.
+    secondary_pantry_items: dict[str, str] = Field(default_factory=dict)
     level: int = Field(default=1, ge=1, le=4)
     constraints: list[str] = Field(default_factory=list)
     expiry_first: bool = False

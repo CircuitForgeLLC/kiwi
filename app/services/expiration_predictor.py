@@ -194,6 +194,18 @@ class ExpirationPredictor:
             'uses': ['broth', 'soups', 'risotto', 'gratins'],
             'warning': None,
         },
+        'rice': {
+            'window_days': 2,
+            'label': 'day-old',
+            'uses': ['fried rice', 'rice bowls', 'rice porridge'],
+            'warning': 'Refrigerate immediately after cooking — do not leave at room temp.',
+        },
+        'tortillas': {
+            'window_days': 5,
+            'label': 'stale',
+            'uses': ['chilaquiles', 'migas', 'tortilla soup', 'casserole'],
+            'warning': None,
+        },
     }
 
     def days_after_opening(self, category: str | None) -> int | None:

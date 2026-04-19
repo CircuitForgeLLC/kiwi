@@ -163,10 +163,15 @@ export const useRecipesStore = defineStore('recipes', () => {
 
   const dismissedCount = computed(() => dismissedIds.value.size)
 
-  function _buildRequest(pantryItems: string[], extraExcluded: number[] = []): RecipeRequest {
+  function _buildRequest(
+    pantryItems: string[],
+    secondaryPantryItems: Record<string, string> = {},
+    extraExcluded: number[] = [],
+  ): RecipeRequest {
     const excluded = new Set([...dismissedIds.value, ...extraExcluded])
     return {
       pantry_items: pantryItems,
+      secondary_pantry_items: secondaryPantryItems,
       level: level.value,
       constraints: constraints.value,
       allergies: allergies.value,
@@ -191,13 +196,13 @@ export const useRecipesStore = defineStore('recipes', () => {
     }
   }
 
-  async function suggest(pantryItems: string[]) {
+  async function suggest(pantryItems: string[], secondaryPantryItems: Record<string, string> = {}) {
     loading.value = true
     error.value = null
     seenIds.value = new Set()
 
     try {
-      result.value = await recipesAPI.suggest(_buildRequest(pantryItems))
+      result.value = await recipesAPI.suggest(_buildRequest(pantryItems, secondaryPantryItems))
       _trackSeen(result.value.suggestions)
     } catch (err: unknown) {
       error.value = err instanceof Error ? err.message : 'Failed to get recipe suggestions'
@@ -206,14 +211,14 @@ export const useRecipesStore = defineStore('recipes', () => {
     }
   }
 
-  async function loadMore(pantryItems: string[]) {
+  async function loadMore(pantryItems: string[], secondaryPantryItems: Record<string, string> = {}) {
     if (!result.value || loading.value) return
     loading.value = true
     error.value = null
 
     try {
       // Exclude everything already shown (dismissed + all seen this session)
-      const more = await recipesAPI.suggest(_buildRequest(pantryItems, [...seenIds.value]))
+      const more = await recipesAPI.suggest(_buildRequest(pantryItems, secondaryPantryItems, [...seenIds.value]))
       if (more.suggestions.length === 0) {
         error.value = 'No more recipes found — try clearing dismissed or adjusting filters.'
       } else {

@@ -951,6 +951,19 @@ const pantryItems = computed(() => {
   return sorted.map((item) => item.product_name).filter(Boolean) as string[]
 })
 
+// Secondary-state items: expired but still usable in specific recipes.
+// Maps product_name → secondary_state label (e.g. "Bread" → "stale").
+// Sent alongside pantry_items so the recipe engine can boost relevant recipes.
+const secondaryPantryItems = computed<Record<string, string>>(() => {
+  const result: Record<string, string> = {}
+  for (const item of inventoryStore.items) {
+    if (item.secondary_state && item.product_name) {
+      result[item.product_name] = item.secondary_state
+    }
+  }
+  return result
+})
+
 // Grocery links relevant to a specific recipe's missing ingredients
 function groceryLinksForRecipe(recipe: RecipeSuggestion): GroceryLink[] {
   if (!recipesStore.result) return []
@@ -1025,12 +1038,12 @@ function onNutritionInput(key: NutritionKey, e: Event) {
 // Suggest handler
 async function handleSuggest() {
   isLoadingMore.value = false
-  await recipesStore.suggest(pantryItems.value)
+  await recipesStore.suggest(pantryItems.value, secondaryPantryItems.value)
 }
 
 async function handleLoadMore() {
   isLoadingMore.value = true
-  await recipesStore.loadMore(pantryItems.value)
+  await recipesStore.loadMore(pantryItems.value, secondaryPantryItems.value)
   isLoadingMore.value = false
 }
 

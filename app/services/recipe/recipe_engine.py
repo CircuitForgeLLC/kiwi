@@ -155,6 +155,24 @@ _PANTRY_LABEL_SYNONYMS: dict[str, str] = {
 }
 
 
+# When a pantry item is in a secondary state (e.g. bread → "stale"), expand
+# the pantry set with terms that recipe ingredients commonly use to describe
+# that state.  This lets "stale bread" in a recipe ingredient match a pantry
+# entry that is simply called "Bread" but is past its nominal use-by date.
+# Each key is (category_in_SECONDARY_WINDOW, label_returned_by_secondary_state).
+# Values are additional strings added to the pantry set for FTS coverage.
+_SECONDARY_STATE_SYNONYMS: dict[tuple[str, str], list[str]] = {
+    ("bread", "stale"):       ["stale bread", "day-old bread", "old bread", "dried bread"],
+    ("bakery", "day-old"):    ["day-old bread", "stale bread", "stale pastry"],
+    ("bananas", "overripe"):  ["overripe bananas", "very ripe banana", "ripe bananas", "mashed banana"],
+    ("milk", "sour"):         ["sour milk", "slightly sour milk", "buttermilk"],
+    ("dairy", "sour"):        ["sour milk", "slightly sour milk"],
+    ("cheese", "well-aged"):  ["parmesan rind", "cheese rind", "aged cheese"],
+    ("rice", "day-old"):      ["day-old rice", "leftover rice", "cold rice", "cooked rice"],
+    ("tortillas", "stale"):   ["stale tortillas", "dried tortillas", "day-old tortillas"],
+}
+
+
 # Matches leading quantity/unit prefixes in recipe ingredient strings,
 # e.g. "2 cups flour" → "flour", "1/2 c. ketchup" → "ketchup",
 #      "3 oz. butter" → "butter"
@@ -284,14 +302,24 @@ def _prep_note_for(ingredient: str) -> str | None:
     return template.format(ingredient=ingredient_name)
 
 
-def _expand_pantry_set(pantry_items: list[str]) -> set[str]:
+def _expand_pantry_set(
+    pantry_items: list[str],
+    secondary_pantry_items: dict[str, str] | None = None,
+) -> set[str]:
     """Return pantry_set expanded with canonical recipe-corpus synonyms.
 
     For each pantry item, checks _PANTRY_LABEL_SYNONYMS for substring matches
     and adds the canonical form.  This lets single-word recipe ingredients
     ("hamburger", "chicken") match product-label pantry entries
     ("burger patties", "rotisserie chicken").
+
+    If secondary_pantry_items is provided (product_name → state label), items
+    in a secondary state also receive state-specific synonym expansion so that
+    recipe ingredients like "stale bread" or "day-old rice" are matched.
     """
+    from app.services.expiration_predictor import ExpirationPredictor
+    _predictor = ExpirationPredictor()
+
     expanded: set[str] = set()
     for item in pantry_items:
         lower = item.lower().strip()
@@ -299,6 +327,15 @@ def _expand_pantry_set(pantry_items: list[str]) -> set[str]:
         for pattern, canonical in _PANTRY_LABEL_SYNONYMS.items():
             if pattern in lower:
                 expanded.add(canonical)
+
+        # Secondary state expansion — adds terms like "stale bread", "day-old rice"
+        if secondary_pantry_items and item in secondary_pantry_items:
+            state_label = secondary_pantry_items[item]
+            category = _predictor.get_category_from_product(item)
+            if category:
+                synonyms = _SECONDARY_STATE_SYNONYMS.get((category, state_label), [])
+                expanded.update(synonyms)
+
     return expanded
 
 
@@ -634,7 +671,7 @@ class RecipeEngine:
 
         profiles = self._classifier.classify_batch(req.pantry_items)
         gaps = self._classifier.identify_gaps(profiles)
-        pantry_set = _expand_pantry_set(req.pantry_items)
+        pantry_set = _expand_pantry_set(req.pantry_items, req.secondary_pantry_items or None)
 
         if req.level >= 3:
             from app.services.recipe.llm_recipe import LLMRecipeGenerator
