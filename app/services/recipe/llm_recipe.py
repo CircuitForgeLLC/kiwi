@@ -181,6 +181,19 @@ class LLMRecipeGenerator:
         try:
             alloc = ctx.__enter__()
         except Exception as exc:
+            msg = str(exc)
+            # 429 = coordinator at capacity (all nodes at max_concurrent limit).
+            # Don't fall back to LLMRouter — it's also overloaded and the slow
+            # fallback causes nginx 504s. Return "" fast so the caller degrades
+            # gracefully (empty recipe result) rather than timing out.
+            if "429" in msg or "max_concurrent" in msg.lower():
+                logger.info("cf-orch at capacity — returning empty result (graceful degradation)")
+                if ctx is not None:
+                    try:
+                        ctx.__exit__(None, None, None)
+                    except Exception:
+                        pass
+                return ""
             logger.debug("cf-orch allocation failed, falling back to LLMRouter: %s", exc)
             ctx = None  # __enter__ raised — do not call __exit__
 
