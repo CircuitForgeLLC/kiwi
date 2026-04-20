@@ -61,6 +61,18 @@ class RecipeResult(BaseModel):
     orch_fallback: bool = False  # True when orch budget exhausted; fell back to local LLM
 
 
+class RecipeJobQueued(BaseModel):
+    job_id: str
+    status: str = "queued"
+
+
+class RecipeJobStatus(BaseModel):
+    job_id: str
+    status: str
+    result: RecipeResult | None = None
+    error: str | None = None
+
+
 class NutritionFilters(BaseModel):
     """Optional per-serving upper bounds for macro filtering. None = no filter."""
     max_calories: float | None = None

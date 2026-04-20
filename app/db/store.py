@@ -736,6 +736,41 @@ class Store:
             row = self._fetch_one("SELECT * FROM recipes WHERE id = ?", (recipe_id,))
         return row
 
+    # --- Async recipe jobs ---
+
+    def create_recipe_job(self, job_id: str, user_id: str, request_json: str) -> sqlite3.Row:
+        return self._insert_returning(
+            "INSERT INTO recipe_jobs (job_id, user_id, status, request) VALUES (?,?,?,?) RETURNING *",
+            (job_id, user_id, "queued", request_json),
+        )
+
+    def get_recipe_job(self, job_id: str, user_id: str) -> sqlite3.Row | None:
+        return self._fetch_one(
+            "SELECT * FROM recipe_jobs WHERE job_id=? AND user_id=?",
+            (job_id, user_id),
+        )
+
+    def update_recipe_job_running(self, job_id: str) -> None:
+        self.conn.execute(
+            "UPDATE recipe_jobs SET status='running', updated_at=datetime('now') WHERE job_id=?",
+            (job_id,),
+        )
+        self.conn.commit()
+
+    def complete_recipe_job(self, job_id: str, result_json: str) -> None:
+        self.conn.execute(
+            "UPDATE recipe_jobs SET status='done', result=?, updated_at=datetime('now') WHERE job_id=?",
+            (result_json, job_id),
+        )
+        self.conn.commit()
+
+    def fail_recipe_job(self, job_id: str, error: str) -> None:
+        self.conn.execute(
+            "UPDATE recipe_jobs SET status='failed', error=?, updated_at=datetime('now') WHERE job_id=?",
+            (error, job_id),
+        )
+        self.conn.commit()
+
     def upsert_built_recipe(
         self,
         external_id: str,

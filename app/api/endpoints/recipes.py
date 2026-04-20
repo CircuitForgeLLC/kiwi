@@ -16,6 +16,7 @@ from app.db.store import Store
 from app.models.schemas.recipe import (
     AssemblyTemplateOut,
     BuildRequest,
+    RecipeJobStatus,
     RecipeRequest,
     RecipeResult,
     RecipeSuggestion,
@@ -57,12 +58,50 @@ def _suggest_in_thread(db_path: Path, req: RecipeRequest) -> RecipeResult:
         store.close()
 
 
-@router.post("/suggest", response_model=RecipeResult)
+async def _enqueue_recipe_job(session: CloudUser, req: RecipeRequest):
+    """Queue an async recipe_llm job and return 202 with job_id.
+
+    Falls back to synchronous generation in CLOUD_MODE (scheduler polls only
+    the shared settings DB, not per-user DBs — see snipe#45 / kiwi backlog).
+    """
+    import json
+    import uuid
+    from fastapi.responses import JSONResponse
+    from app.cloud_session import CLOUD_MODE
+    from app.tasks.runner import insert_task
+
+    if CLOUD_MODE:
+        log.warning("recipe_llm async jobs not supported in CLOUD_MODE — falling back to sync")
+        result = await asyncio.to_thread(_suggest_in_thread, session.db, req)
+        return result
+
+    job_id = f"rec_{uuid.uuid4().hex}"
+
+    def _create(db_path: Path) -> int:
+        store = Store(db_path)
+        try:
+            row = store.create_recipe_job(job_id, session.user_id, req.model_dump_json())
+            return row["id"]
+        finally:
+            store.close()
+
+    int_id = await asyncio.to_thread(_create, session.db)
+    params_json = json.dumps({"job_id": job_id})
+    task_id, is_new = insert_task(session.db, "recipe_llm", int_id, params=params_json)
+    if is_new:
+        from app.tasks.scheduler import get_scheduler
+        get_scheduler(session.db).enqueue(task_id, "recipe_llm", int_id, params_json)
+
+    return JSONResponse(content={"job_id": job_id, "status": "queued"}, status_code=202)
+
+
+@router.post("/suggest")
 async def suggest_recipes(
     req: RecipeRequest,
+    async_mode: bool = Query(default=False, alias="async"),
     session: CloudUser = Depends(get_session),
     store: Store = Depends(get_store),
-) -> RecipeResult:
+):
     log.info("recipes auth=%s tier=%s level=%s", _auth_label(session.user_id), session.tier, req.level)
     # Inject session-authoritative tier/byok immediately — client-supplied values are ignored.
     # Also read stored unit_system preference; default to metric if not set.
@@ -95,10 +134,47 @@ async def suggest_recipes(
             req = req.model_copy(update={"level": 2})
             orch_fallback = True
 
+    if req.level in (3, 4) and async_mode:
+        return await _enqueue_recipe_job(session, req)
+
     result = await asyncio.to_thread(_suggest_in_thread, session.db, req)
     if orch_fallback:
         result = result.model_copy(update={"orch_fallback": True})
     return result
+
+
+@router.get("/jobs/{job_id}", response_model=RecipeJobStatus)
+async def get_recipe_job_status(
+    job_id: str,
+    session: CloudUser = Depends(get_session),
+) -> RecipeJobStatus:
+    """Poll the status of an async recipe generation job.
+
+    Returns 404 when job_id is unknown or belongs to a different user.
+    On status='done' with suggestions=[], the LLM returned empty — client
+    should show a 'no recipe generated, try again' message.
+    """
+    def _get(db_path: Path) -> dict | None:
+        store = Store(db_path)
+        try:
+            return store.get_recipe_job(job_id, session.user_id)
+        finally:
+            store.close()
+
+    row = await asyncio.to_thread(_get, session.db)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Job not found.")
+
+    result = None
+    if row["status"] == "done" and row["result"]:
+        result = RecipeResult.model_validate_json(row["result"])
+
+    return RecipeJobStatus(
+        job_id=row["job_id"],
+        status=row["status"],
+        result=result,
+        error=row["error"],
+    )
 
 
 @router.get("/browse/domains")

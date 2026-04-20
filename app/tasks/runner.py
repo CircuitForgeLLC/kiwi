@@ -22,7 +22,7 @@ from app.services.expiration_predictor import ExpirationPredictor
 
 log = logging.getLogger(__name__)
 
-LLM_TASK_TYPES: frozenset[str] = frozenset({"expiry_llm_fallback"})
+LLM_TASK_TYPES: frozenset[str] = frozenset({"expiry_llm_fallback", "recipe_llm"})
 
 VRAM_BUDGETS: dict[str, float] = {
     # ExpirationPredictor uses a small LLM (16 tokens out, single pass).
@@ -88,6 +88,8 @@ def run_task(
     try:
         if task_type == "expiry_llm_fallback":
             _run_expiry_llm_fallback(db_path, job_id, params)
+        elif task_type == "recipe_llm":
+            _run_recipe_llm(db_path, job_id, params)
         else:
             raise ValueError(f"Unknown kiwi task type: {task_type!r}")
         _update_task_status(db_path, task_id, "completed")
@@ -143,3 +145,41 @@ def _run_expiry_llm_fallback(
         expiry,
         days,
     )
+
+
+def _run_recipe_llm(db_path: Path, _job_id_int: int, params: str | None) -> None:
+    """Run LLM recipe generation for an async recipe job.
+
+    params JSON keys:
+        job_id  (required) — recipe_jobs.job_id string (e.g. "rec_a1b2c3...")
+
+    Creates its own Store — follows same pattern as _suggest_in_thread.
+    MUST call store.fail_recipe_job() before re-raising so recipe_jobs.status
+    doesn't stay 'running' while background_tasks shows 'failed'.
+    """
+    from app.db.store import Store
+    from app.models.schemas.recipe import RecipeRequest
+    from app.services.recipe.recipe_engine import RecipeEngine
+
+    p = json.loads(params or "{}")
+    recipe_job_id: str = p.get("job_id", "")
+    if not recipe_job_id:
+        raise ValueError("recipe_llm: 'job_id' is required in params")
+
+    store = Store(db_path)
+    try:
+        store.update_recipe_job_running(recipe_job_id)
+        row = store._fetch_one(
+            "SELECT request FROM recipe_jobs WHERE job_id=?", (recipe_job_id,)
+        )
+        if row is None:
+            raise ValueError(f"recipe_llm: recipe_jobs row not found: {recipe_job_id!r}")
+        req = RecipeRequest.model_validate_json(row["request"])
+        result = RecipeEngine(store).suggest(req)
+        store.complete_recipe_job(recipe_job_id, result.model_dump_json())
+        log.info("recipe_llm: job %s completed (%d suggestion(s))", recipe_job_id, len(result.suggestions))
+    except Exception as exc:
+        store.fail_recipe_job(recipe_job_id, str(exc))
+        raise
+    finally:
+        store.close()
