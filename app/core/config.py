@@ -66,6 +66,13 @@ class Settings:
 
     # Feature flags
     ENABLE_OCR: bool = os.environ.get("ENABLE_OCR", "false").lower() in ("1", "true", "yes")
+    # Use OrchestratedScheduler (coordinator-aware, multi-GPU fan-out) instead of
+    # LocalScheduler. Defaults to true in CLOUD_MODE; can be set independently
+    # for multi-GPU local rigs that don't need full cloud auth.
+    USE_ORCH_SCHEDULER: bool | None = (
+        None if os.environ.get("USE_ORCH_SCHEDULER") is None
+        else os.environ.get("USE_ORCH_SCHEDULER", "").lower() in ("1", "true", "yes")
+    )
 
     # Runtime
     DEBUG: bool = os.environ.get("DEBUG", "false").lower() in ("1", "true", "yes")
