@@ -1,0 +1,74 @@
+# Kiwi — LLM backend configuration
+#
+# Copy to ~/.config/circuitforge/llm.yaml (shared across all CF products)
+# or to config/llm.yaml (Kiwi-local, takes precedence).
+#
+# Kiwi uses LLMs for:
+#   - Expiry prediction fallback (unknown products not in the lookup table)
+#   - Meal planning suggestions
+#
+# Local inference (Ollama / vLLM) is the default path — no API key required.
+# BYOK (bring your own key): set api_key_env to point at your API key env var.
+# cf-orch trunk: set CF_ORCH_URL env var to allocate cf-text on-demand via
+# the coordinator instead of hitting a static URL.
+
+backends:
+  ollama:
+    type: openai_compat
+    enabled: true
+    base_url: http://localhost:11434/v1
+    model: llama3.2:3b
+    api_key: ollama
+    supports_images: false
+
+  vllm:
+    type: openai_compat
+    enabled: false
+    base_url: http://localhost:8000/v1
+    model: __auto__             # resolved from /v1/models at runtime
+    api_key: ''
+    supports_images: false
+
+  # ── cf-orch trunk services ──────────────────────────────────────────────────
+  # These allocate via cf-orch rather than connecting to a static URL.
+  # cf-orch starts the service on-demand and returns its live URL.
+  # Set CF_ORCH_URL env var or fill in url below; leave enabled: false if
+  # cf-orch is not deployed in your environment.
+
+  cf_text:
+    type: openai_compat
+    enabled: false
+    base_url: http://localhost:8008/v1   # fallback when cf-orch is not available
+    model: __auto__
+    api_key: any
+    supports_images: false
+    cf_orch:
+      service: cf-text
+      # model_candidates: leave empty to use the service's default_model,
+      # or specify a catalog alias (e.g. "qwen2.5-3b").
+      model_candidates: []
+      ttl_s: 3600
+
+  # ── Cloud / BYOK ───────────────────────────────────────────────────────────
+
+  anthropic:
+    type: anthropic
+    enabled: false
+    model: claude-haiku-4-5-20251001
+    api_key_env: ANTHROPIC_API_KEY
+    supports_images: false
+
+  openai:
+    type: openai_compat
+    enabled: false
+    base_url: https://api.openai.com/v1
+    model: gpt-4o-mini
+    api_key_env: OPENAI_API_KEY
+    supports_images: false
+
+fallback_order:
+  - cf_text
+  - ollama
+  - vllm
+  - anthropic
+  - openai
