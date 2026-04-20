@@ -20,23 +20,41 @@ from app.core.config import settings
 from app.tasks.runner import LLM_TASK_TYPES, VRAM_BUDGETS, run_task
 
 
+def _orch_available() -> bool:
+    """Return True if circuitforge_orch is installed in this environment."""
+    try:
+        import circuitforge_orch  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
 def _use_orch() -> bool:
     """Return True if the OrchestratedScheduler should be used.
 
-    Explicit USE_ORCH_SCHEDULER env var takes priority; falls back to CLOUD_MODE.
+    Priority order:
+      1. USE_ORCH_SCHEDULER env var — explicit override always wins.
+      2. CLOUD_MODE=true — use orch in managed cloud deployments.
+      3. circuitforge_orch installed — paid+ local users who have cf-orch
+         set up get coordinator-aware scheduling (local GPU first) automatically.
     """
     override = settings.USE_ORCH_SCHEDULER
-    return CLOUD_MODE if override is None else override
+    if override is not None:
+        return override
+    return CLOUD_MODE or _orch_available()
 
 
 def get_scheduler(db_path: Path) -> TaskScheduler:
     """Return the process-level TaskScheduler singleton for Kiwi.
 
     OrchestratedScheduler: coordinator-aware, fans out concurrent jobs across
-    all registered cf-orch GPU nodes. Active when USE_ORCH_SCHEDULER=true or
-    CLOUD_MODE=true (and USE_ORCH_SCHEDULER is not explicitly false).
+    all registered cf-orch GPU nodes. Active when USE_ORCH_SCHEDULER=true,
+    CLOUD_MODE=true, or circuitforge_orch is installed locally (paid+ users
+    running their own cf-orch stack get this automatically; local GPU is
+    preferred by the coordinator's allocation queue).
 
-    LocalScheduler: serial FIFO, no coordinator dependency. Default for local dev.
+    LocalScheduler: serial FIFO, no coordinator dependency. Free-tier local
+    installs without circuitforge_orch installed use this automatically.
     """
     if _use_orch():
         try:
