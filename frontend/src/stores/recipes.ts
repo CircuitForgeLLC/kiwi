@@ -7,7 +7,7 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
-import { recipesAPI, type RecipeResult, type RecipeSuggestion, type RecipeRequest, type NutritionFilters } from '../services/api'
+import { recipesAPI, type RecipeResult, type RecipeSuggestion, type RecipeRequest, type RecipeJobStatusValue, type NutritionFilters } from '../services/api'
 
 const DISMISSED_KEY = 'kiwi:dismissed_recipes'
 const DISMISS_TTL_MS = 7 * 24 * 60 * 60 * 1000
@@ -121,6 +121,7 @@ export const useRecipesStore = defineStore('recipes', () => {
   const result = ref<RecipeResult | null>(null)
   const loading = ref(false)
   const error = ref<string | null>(null)
+  const jobStatus = ref<RecipeJobStatusValue | null>(null)
 
   // Request parameters
   const level = ref(1)
@@ -199,16 +200,55 @@ export const useRecipesStore = defineStore('recipes', () => {
   async function suggest(pantryItems: string[], secondaryPantryItems: Record<string, string> = {}) {
     loading.value = true
     error.value = null
+    jobStatus.value = null
     seenIds.value = new Set()
 
     try {
-      result.value = await recipesAPI.suggest(_buildRequest(pantryItems, secondaryPantryItems))
-      _trackSeen(result.value.suggestions)
+      if (level.value >= 3) {
+        await _suggestAsync(pantryItems, secondaryPantryItems)
+      } else {
+        result.value = await recipesAPI.suggest(_buildRequest(pantryItems, secondaryPantryItems))
+        _trackSeen(result.value.suggestions)
+      }
     } catch (err: unknown) {
       error.value = err instanceof Error ? err.message : 'Failed to get recipe suggestions'
     } finally {
       loading.value = false
+      jobStatus.value = null
     }
+  }
+
+  async function _suggestAsync(pantryItems: string[], secondaryPantryItems: Record<string, string>) {
+    const queued = await recipesAPI.suggestAsync(_buildRequest(pantryItems, secondaryPantryItems))
+
+    // CLOUD_MODE or future sync fallback: server returned result directly (status 200)
+    if ('suggestions' in queued) {
+      result.value = queued as unknown as RecipeResult
+      _trackSeen(result.value.suggestions)
+      return
+    }
+
+    jobStatus.value = 'queued'
+    const { job_id } = queued
+    const deadline = Date.now() + 90_000
+    const POLL_MS = 2_500
+
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, POLL_MS))
+      const poll = await recipesAPI.pollJob(job_id)
+      jobStatus.value = poll.status
+
+      if (poll.status === 'done') {
+        result.value = poll.result
+        if (result.value) _trackSeen(result.value.suggestions)
+        return
+      }
+      if (poll.status === 'failed') {
+        throw new Error(poll.error ?? 'Recipe generation failed')
+      }
+    }
+
+    throw new Error('Recipe generation timed out — the model may be busy. Try again.')
   }
 
   async function loadMore(pantryItems: string[], secondaryPantryItems: Record<string, string> = {}) {
@@ -308,6 +348,7 @@ export const useRecipesStore = defineStore('recipes', () => {
     result,
     loading,
     error,
+    jobStatus,
     level,
     constraints,
     allergies,

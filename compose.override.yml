@@ -8,9 +8,9 @@ services:
       # Docker can follow the symlink inside the container.
       - /Library/Assets/kiwi:/Library/Assets/kiwi:rw
 
-  # cf-orch agent sidecar: registers kiwi as a GPU node with the coordinator.
+  # cf-orch agent sidecar: registers this machine as GPU node "sif" with the coordinator.
   # The API scheduler uses COORDINATOR_URL to lease VRAM cooperatively; this
-  # agent makes kiwi's VRAM usage visible on the orchestrator dashboard.
+  # agent makes the local VRAM usage visible on the orchestrator dashboard.
   cf-orch-agent:
     image: kiwi-api  # reuse local api image — cf-core already installed there
     network_mode: host
@@ -21,7 +21,7 @@ services:
     command: >
       conda run -n kiwi cf-orch agent
       --coordinator ${COORDINATOR_URL:-http://10.1.10.71:7700}
-      --node-id kiwi
+      --node-id sif
       --host 0.0.0.0
       --port 7702
       --advertise-host ${CF_ORCH_ADVERTISE_HOST:-10.1.10.71}

@@ -287,7 +287,10 @@
           @click="handleSuggest"
         >
           <span v-if="recipesStore.loading && !isLoadingMore">
-            <span class="spinner spinner-sm inline-spinner"></span> Finding recipes…
+            <span class="spinner spinner-sm inline-spinner"></span>
+            <span v-if="recipesStore.jobStatus === 'queued'">Queued…</span>
+            <span v-else-if="recipesStore.jobStatus === 'running'">Generating…</span>
+            <span v-else>Finding recipes…</span>
           </span>
           <span v-else>Suggest Recipes</span>
         </button>
@@ -312,7 +315,9 @@
 
     <!-- Screen reader announcement for loading + results -->
     <div aria-live="polite" aria-atomic="true" class="sr-only">
-      <span v-if="recipesStore.loading">Finding recipes…</span>
+      <span v-if="recipesStore.loading && recipesStore.jobStatus === 'queued'">Recipe request queued, waiting for model…</span>
+      <span v-else-if="recipesStore.loading && recipesStore.jobStatus === 'running'">Generating your recipe now…</span>
+      <span v-else-if="recipesStore.loading">Finding recipes…</span>
       <span v-else-if="recipesStore.result">
         {{ filteredSuggestions.length }} recipe{{ filteredSuggestions.length !== 1 ? 's' : '' }} found
       </span>

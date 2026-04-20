@@ -524,6 +524,15 @@ export interface RecipeResult {
   rate_limit_count: number
 }
 
+export type RecipeJobStatusValue = 'queued' | 'running' | 'done' | 'failed'
+
+export interface RecipeJobStatus {
+  job_id: string
+  status: RecipeJobStatusValue
+  result: RecipeResult | null
+  error: string | null
+}
+
 export interface RecipeRequest {
   pantry_items: string[]
   secondary_pantry_items: Record<string, string>
@@ -591,6 +600,18 @@ export const recipesAPI = {
   async suggest(req: RecipeRequest): Promise<RecipeResult> {
     // Allow up to 120s — cf-orch model cold-start can take 60+ seconds on first request
     const response = await api.post('/recipes/suggest', req, { timeout: 120000 })
+    return response.data
+  },
+
+  /** Submit an async job for L3/L4 generation. Returns job_id + initial status. */
+  async suggestAsync(req: RecipeRequest): Promise<{ job_id: string; status: string }> {
+    const response = await api.post('/recipes/suggest', req, { params: { async: 'true' }, timeout: 15000 })
+    return response.data
+  },
+
+  /** Poll an async job. Returns the full status including result once done. */
+  async pollJob(jobId: string): Promise<RecipeJobStatus> {
+    const response = await api.get(`/recipes/jobs/${jobId}`, { timeout: 10000 })
     return response.data
   },
   async getRecipe(id: number): Promise<RecipeSuggestion> {
