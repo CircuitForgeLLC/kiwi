@@ -1161,21 +1161,33 @@ class Store:
         is provided. match_pct is the fraction of ingredient_names covered by
         the pantry set — computed deterministically, no LLM needed.
 
-        q: optional title substring filter (case-insensitive LIKE).
-        sort: "default" (corpus order) | "alpha" (A→Z) | "alpha_desc" (Z→A).
+        q:    optional title substring filter (case-insensitive LIKE).
+        sort: "default" (corpus order) | "alpha" (A→Z) | "alpha_desc" (Z→A)
+              | "match" (pantry coverage DESC — falls back to default when no pantry).
         """
         if keywords is not None and not keywords:
             return {"recipes": [], "total": 0, "page": page}
 
         offset = (page - 1) * page_size
         c = self._cp
+        pantry_set = {p.lower() for p in pantry_items} if pantry_items else None
+
+        # "match" sort requires pantry items; fall back gracefully when absent.
+        effective_sort = sort if (sort != "match" or pantry_set) else "default"
 
         order_clause = {
             "alpha":      "ORDER BY title ASC",
             "alpha_desc": "ORDER BY title DESC",
-        }.get(sort, "ORDER BY id ASC")
+        }.get(effective_sort, "ORDER BY id ASC")
 
         q_param = f"%{q.strip()}%" if q and q.strip() else None
+
+        # ── match sort: push match_pct computation into SQL so ORDER BY works ──
+        if effective_sort == "match" and pantry_set:
+            return self._browse_by_match(
+                keywords, page, page_size, offset, pantry_set, q_param, c
+            )
+
         cols = (
             f"SELECT id, title, category, keywords, ingredient_names,"
             f"       calories, fat_g, protein_g, sodium_mg FROM {c}recipes"
@@ -1217,24 +1229,105 @@ class Store:
                     (match_expr, page_size, offset),
                 )
 
-        pantry_set = {p.lower() for p in pantry_items} if pantry_items else None
         recipes = []
         for r in rows:
             entry = {
-                "id":         r["id"],
-                "title":      r["title"],
-                "category":   r["category"],
-                "match_pct":  None,
+                "id":        r["id"],
+                "title":     r["title"],
+                "category":  r["category"],
+                "match_pct": None,
             }
             if pantry_set:
                 names = r.get("ingredient_names") or []
                 if names:
-                    matched = sum(
-                        1 for n in names if n.lower() in pantry_set
-                    )
+                    matched = sum(1 for n in names if n.lower() in pantry_set)
                     entry["match_pct"] = round(matched / len(names), 3)
             recipes.append(entry)
 
+        return {"recipes": recipes, "total": total, "page": page}
+
+    def _browse_by_match(
+        self,
+        keywords: list[str] | None,
+        page: int,
+        page_size: int,
+        offset: int,
+        pantry_set: set[str],
+        q_param: str | None,
+        c: str,
+    ) -> dict:
+        """Browse recipes sorted by pantry match percentage, computed in SQL.
+
+        Uses json_each() to count how many of each recipe's ingredient_names
+        appear in the pantry set, then sorts highest-first. match_pct is
+        already present in the SQL result so no Python post-processing needed.
+        """
+        pantry_list = sorted(pantry_set)
+        ph = ",".join("?" * len(pantry_list))
+
+        # Subquery computes match fraction inline so ORDER BY can use it.
+        match_col = (
+            f"(SELECT CAST(COUNT(*) AS REAL)"
+            f" / NULLIF(json_array_length(r.ingredient_names), 0)"
+            f" FROM json_each(r.ingredient_names) AS j"
+            f" WHERE LOWER(j.value) IN ({ph}))"
+        )
+
+        base_cols = (
+            f"SELECT r.id, r.title, r.category, r.keywords, r.ingredient_names,"
+            f"       r.calories, r.fat_g, r.protein_g, r.sodium_mg,"
+            f"       {match_col} AS match_pct"
+            f" FROM {c}recipes r"
+        )
+
+        if keywords is None:
+            fts_where = "LOWER(r.title) LIKE LOWER(?)" if q_param else "1=1"
+            count_params: tuple = (q_param,) if q_param else ()
+            total = self.conn.execute(
+                f"SELECT COUNT(*) FROM {c}recipes r WHERE {fts_where}", count_params
+            ).fetchone()[0]
+            data_params = (*pantry_list, *(count_params), page_size, offset)
+            where_clause = f"WHERE {fts_where}" if fts_where != "1=1" else ""
+            sql = (
+                f"{base_cols} {where_clause}"
+                f" ORDER BY match_pct DESC NULLS LAST, r.id ASC"
+                f" LIMIT ? OFFSET ?"
+            )
+        else:
+            match_expr = self._browser_fts_query(keywords)
+            fts_sub = (
+                f"r.id IN (SELECT rowid FROM {c}recipe_browser_fts"
+                f" WHERE recipe_browser_fts MATCH ?)"
+            )
+            if q_param:
+                total = self.conn.execute(
+                    f"SELECT COUNT(*) FROM {c}recipes r"
+                    f" WHERE {fts_sub} AND LOWER(r.title) LIKE LOWER(?)",
+                    (match_expr, q_param),
+                ).fetchone()[0]
+                where_clause = f"WHERE {fts_sub} AND LOWER(r.title) LIKE LOWER(?)"
+                data_params = (*pantry_list, match_expr, q_param, page_size, offset)
+            else:
+                total = self._count_recipes_for_keywords(keywords)
+                where_clause = f"WHERE {fts_sub}"
+                data_params = (*pantry_list, match_expr, page_size, offset)
+            sql = (
+                f"{base_cols} {where_clause}"
+                f" ORDER BY match_pct DESC NULLS LAST, r.id ASC"
+                f" LIMIT ? OFFSET ?"
+            )
+
+        self.conn.row_factory = sqlite3.Row
+        rows = self.conn.execute(sql, data_params).fetchall()
+        recipes = []
+        for r in rows:
+            row = dict(r)
+            recipes.append({
+                "id":        row["id"],
+                "title":     row["title"],
+                "category":  row["category"],
+                "match_pct": round(row["match_pct"], 3) if row["match_pct"] is not None else None,
+            })
         return {"recipes": recipes, "total": total, "page": page}
 
     def log_browser_telemetry(

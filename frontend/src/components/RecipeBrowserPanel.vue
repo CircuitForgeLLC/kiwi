@@ -103,6 +103,12 @@
                 @click="setSort('alpha_desc')"
                 title="Alphabetical Z→A"
               >Z→A</button>
+              <button
+                :class="['btn', 'btn-secondary', 'sort-btn', { active: sortOrder === 'match' }]"
+                :disabled="pantryCount === 0"
+                @click="setSort('match')"
+                :title="pantryCount > 0 ? 'Sort by pantry match %' : 'Add items to pantry to sort by match'"
+              >Best match</button>
             </div>
           </div>
 
@@ -184,7 +190,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { browserAPI, type BrowserDomain, type BrowserCategory, type BrowserSubcategory, type BrowserRecipe } from '../services/api'
 import { useSavedRecipesStore } from '../stores/savedRecipes'
 import { useInventoryStore } from '../stores/inventory'
@@ -212,7 +218,7 @@ const loadingDomains = ref(false)
 const loadingRecipes = ref(false)
 const savingRecipe = ref<BrowserRecipe | null>(null)
 const searchQuery = ref('')
-const sortOrder = ref<'default' | 'alpha' | 'alpha_desc'>('default')
+const sortOrder = ref<'default' | 'alpha' | 'alpha_desc' | 'match'>('default')
 let searchDebounce: ReturnType<typeof setTimeout> | null = null
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
@@ -258,12 +264,22 @@ function onSearchInput() {
   }, 350)
 }
 
-function setSort(s: 'default' | 'alpha' | 'alpha_desc') {
+function setSort(s: 'default' | 'alpha' | 'alpha_desc' | 'match') {
   if (sortOrder.value === s) return
   sortOrder.value = s
   page.value = 1
   loadRecipes()
 }
+
+// When pantry items first become available while browsing, auto-engage match sort.
+// When pantry empties out mid-session, drop back to default so the button disables cleanly.
+watch(pantryCount, (newCount, oldCount) => {
+  if (newCount > 0 && oldCount === 0 && activeCategory.value) {
+    setSort('match')
+  } else if (newCount === 0 && sortOrder.value === 'match') {
+    setSort('default')
+  }
+})
 
 async function selectDomain(domainId: string) {
   activeDomain.value = domainId
