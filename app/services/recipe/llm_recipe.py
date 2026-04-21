@@ -149,7 +149,8 @@ class LLMRecipeGenerator:
 
         return "\n".join(lines)
 
-    _SERVICE_TYPE = "cf-text"
+    _SERVICE_TYPE = "vllm"
+    _MODEL_CANDIDATES = ["Qwen2.5-3B-Instruct", "Phi-4-mini-instruct"]
     _TTL_S = 300.0
     _CALLER = "kiwi-recipe"
 
@@ -167,8 +168,10 @@ class LLMRecipeGenerator:
                 client = CFOrchClient(cf_orch_url)
                 return client.allocate(
                     service=self._SERVICE_TYPE,
+                    model_candidates=self._MODEL_CANDIDATES,
                     ttl_s=self._TTL_S,
                     caller=self._CALLER,
+                    pipeline=os.environ.get("CF_APP_NAME") or None,
                 )
             except Exception as exc:
                 logger.debug("CFOrchClient init failed, falling back to direct URL: %s", exc)
