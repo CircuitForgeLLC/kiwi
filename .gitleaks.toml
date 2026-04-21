@@ -3,6 +3,16 @@
 [extend]
 path = "/Library/Development/CircuitForge/circuitforge-hooks/gitleaks.toml"
 
+# ── Global allowlist ──────────────────────────────────────────────────────────
+# Amazon grocery department IDs (rh=n:<10-digit>) false-positive as phone
+# numbers. locale_config.py is a static lookup table with no secrets.
+
+[allowlist]
+# Amazon grocery dept IDs (rh=n:<digits>) false-positive as phone numbers.
+regexes = [
+    '''rh=n:\d{8,12}''',
+]
+
 # ── Test fixture allowlists ───────────────────────────────────────────────────
 
 [[rules]]
