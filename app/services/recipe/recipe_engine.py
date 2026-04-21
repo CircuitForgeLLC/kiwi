@@ -672,6 +672,7 @@ class RecipeEngine:
         profiles = self._classifier.classify_batch(req.pantry_items)
         gaps = self._classifier.identify_gaps(profiles)
         pantry_set = _expand_pantry_set(req.pantry_items, req.secondary_pantry_items or None)
+        exclude_set = _expand_pantry_set(req.exclude_ingredients) if req.exclude_ingredients else set()
 
         if req.level >= 3:
             from app.services.recipe.llm_recipe import LLMRecipeGenerator
@@ -714,6 +715,10 @@ class RecipeEngine:
                     ingredient_names = json.loads(ingredient_names)
                 except Exception:
                     ingredient_names = []
+
+            # Skip recipes that require any ingredient the user has excluded.
+            if exclude_set and any(_ingredient_in_pantry(n, exclude_set) for n in ingredient_names):
+                continue
 
             # Compute missing ingredients, detecting pantry coverage first.
             # When covered, collect any prep-state annotations (e.g. "melted butter"

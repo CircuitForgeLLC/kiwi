@@ -68,6 +68,9 @@ class LLMRecipeGenerator:
         if allergy_list:
             lines.append(f"IMPORTANT — must NOT contain: {', '.join(allergy_list)}")
 
+        if req.exclude_ingredients:
+            lines.append(f"IMPORTANT — user does not want these today: {', '.join(req.exclude_ingredients)}. Do not include them.")
+
         lines.append("")
         lines.append(f"Covered culinary elements: {', '.join(covered_elements) or 'none'}")
 
@@ -123,6 +126,9 @@ class LLMRecipeGenerator:
 
         if allergy_list:
             lines.append(f"Must NOT contain: {', '.join(allergy_list)}")
+
+        if req.exclude_ingredients:
+            lines.append(f"Do not use today: {', '.join(req.exclude_ingredients)}")
 
         unit_line = (
             "Use metric units (grams, ml, Celsius) for all quantities and temperatures."

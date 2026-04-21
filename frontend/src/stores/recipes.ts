@@ -23,6 +23,7 @@ const FILTER_MODE_KEY = 'kiwi:builder_filter_mode'
 
 const CONSTRAINTS_KEY = 'kiwi:constraints'
 const ALLERGIES_KEY = 'kiwi:allergies'
+const EXCLUDE_INGREDIENTS_KEY = 'kiwi:exclude_ingredients'
 
 function loadConstraints(): string[] {
   try {
@@ -48,6 +49,19 @@ function loadAllergies(): string[] {
 
 function saveAllergies(vals: string[]) {
   localStorage.setItem(ALLERGIES_KEY, JSON.stringify(vals))
+}
+
+function loadExcludeIngredients(): string[] {
+  try {
+    const raw = localStorage.getItem(EXCLUDE_INGREDIENTS_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
+function saveExcludeIngredients(vals: string[]) {
+  localStorage.setItem(EXCLUDE_INGREDIENTS_KEY, JSON.stringify(vals))
 }
 
 type MissingIngredientMode = 'hidden' | 'greyed' | 'add-to-cart'
@@ -127,6 +141,7 @@ export const useRecipesStore = defineStore('recipes', () => {
   const level = ref(1)
   const constraints = ref<string[]>(loadConstraints())
   const allergies = ref<string[]>(loadAllergies())
+  const excludeIngredients = ref<string[]>(loadExcludeIngredients())
   const hardDayMode = ref(false)
   const maxMissing = ref<number | null>(null)
   const styleId = ref<string | null>(null)
@@ -161,6 +176,7 @@ export const useRecipesStore = defineStore('recipes', () => {
   watch(builderFilterMode, (val) => localStorage.setItem(FILTER_MODE_KEY, val))
   watch(constraints, (val) => saveConstraints(val), { deep: true })
   watch(allergies, (val) => saveAllergies(val), { deep: true })
+  watch(excludeIngredients, (val) => saveExcludeIngredients(val), { deep: true })
 
   const dismissedCount = computed(() => dismissedIds.value.size)
 
@@ -184,6 +200,7 @@ export const useRecipesStore = defineStore('recipes', () => {
       wildcard_confirmed: wildcardConfirmed.value,
       nutrition_filters: nutritionFilters.value,
       excluded_ids: [...excluded],
+      exclude_ingredients: excludeIngredients.value,
       shopping_mode: shoppingMode.value,
       pantry_match_only: pantryMatchOnly.value,
       complexity_filter: complexityFilter.value,
@@ -338,6 +355,11 @@ export const useRecipesStore = defineStore('recipes', () => {
     localStorage.removeItem(ALLERGIES_KEY)
   }
 
+  function clearExcludeIngredients() {
+    excludeIngredients.value = []
+    localStorage.removeItem(EXCLUDE_INGREDIENTS_KEY)
+  }
+
   function clearResult() {
     result.value = null
     error.value = null
@@ -352,6 +374,7 @@ export const useRecipesStore = defineStore('recipes', () => {
     level,
     constraints,
     allergies,
+    excludeIngredients,
     hardDayMode,
     maxMissing,
     styleId,
@@ -373,6 +396,7 @@ export const useRecipesStore = defineStore('recipes', () => {
     clearBookmarks,
     clearConstraints,
     clearAllergies,
+    clearExcludeIngredients,
     missingIngredientMode,
     builderFilterMode,
     suggest,

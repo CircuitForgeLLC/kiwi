@@ -100,6 +100,7 @@ class RecipeRequest(BaseModel):
     allergies: list[str] = Field(default_factory=list)
     nutrition_filters: NutritionFilters = Field(default_factory=NutritionFilters)
     excluded_ids: list[int] = Field(default_factory=list)
+    exclude_ingredients: list[str] = Field(default_factory=list)
     shopping_mode: bool = False
     pantry_match_only: bool = False  # when True, only return recipes with zero missing ingredients
     complexity_filter: str | None = None  # 'easy' | 'moderate' | 'involved' — None = any

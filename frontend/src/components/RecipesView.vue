@@ -169,6 +169,31 @@
             <span id="allergy-hint" class="form-hint">No recipes containing these ingredients will appear.</span>
           </div>
 
+          <!-- Not Today — temporary per-session ingredient exclusions -->
+          <div class="form-group">
+            <label class="form-label">Not today <span class="text-muted text-xs">(skip these ingredients this session)</span></label>
+            <div v-if="recipesStore.excludeIngredients.length > 0" class="tags-wrap flex flex-wrap gap-xs mb-xs">
+              <span
+                v-for="tag in recipesStore.excludeIngredients"
+                :key="tag"
+                class="tag-chip status-badge status-warning"
+              >
+                {{ tag }}
+                <button class="chip-remove" @click="removeExcludeIngredient(tag)" :aria-label="'Stop excluding: ' + tag">×</button>
+              </span>
+            </div>
+            <input
+              class="form-input"
+              v-model="excludeIngredientInput"
+              placeholder="e.g. eggs, chicken, broccoli"
+              aria-describedby="exclude-hint"
+              @keydown="onExcludeIngredientKey"
+              @blur="commitExcludeIngredientInput"
+              autocomplete="off"
+            />
+            <span id="exclude-hint" class="form-hint">Recipes containing these won't appear. Press Enter or comma to add.</span>
+          </div>
+
           <!-- Can Make Now toggle -->
           <div class="form-group">
             <label class="flex-start gap-sm shopping-toggle">
@@ -771,6 +796,7 @@ const levelLabels: Record<number, string> = {
 // Local input state for tags
 const constraintInput = ref('')
 const allergyInput = ref('')
+const excludeIngredientInput = ref('')
 const categoryInput = ref('')
 const isLoadingMore = ref(false)
 
@@ -918,6 +944,7 @@ function toggleAllergy(value: string) {
 const dietaryActive = computed(() =>
   recipesStore.constraints.length > 0 ||
   recipesStore.allergies.length > 0 ||
+  recipesStore.excludeIngredients.length > 0 ||
   recipesStore.shoppingMode
 )
 
@@ -1022,6 +1049,31 @@ function onAllergyKey(e: KeyboardEvent) {
 function commitAllergyInput() {
   if (allergyInput.value.trim()) {
     addAllergy(allergyInput.value)
+  }
+}
+
+function addExcludeIngredient(value: string) {
+  const tag = value.trim().toLowerCase()
+  if (tag && !recipesStore.excludeIngredients.includes(tag)) {
+    recipesStore.excludeIngredients = [...recipesStore.excludeIngredients, tag]
+  }
+  excludeIngredientInput.value = ''
+}
+
+function removeExcludeIngredient(tag: string) {
+  recipesStore.excludeIngredients = recipesStore.excludeIngredients.filter((i) => i !== tag)
+}
+
+function onExcludeIngredientKey(e: KeyboardEvent) {
+  if (e.key === 'Enter' || e.key === ',') {
+    e.preventDefault()
+    addExcludeIngredient(excludeIngredientInput.value)
+  }
+}
+
+function commitExcludeIngredientInput() {
+  if (excludeIngredientInput.value.trim()) {
+    addExcludeIngredient(excludeIngredientInput.value)
   }
 }
 
