@@ -13,6 +13,7 @@ Walmart is kept inline until cf-core adds Impact network support:
 
 Links are always generated (plain URLs are useful even without affiliate IDs).
 Walmart links only appear when WALMART_AFFILIATE_ID is set.
+Instacart and Walmart are US/CA-only; other locales get Amazon only.
 """
 from __future__ import annotations
 
@@ -23,19 +24,27 @@ from urllib.parse import quote_plus
 from circuitforge_core.affiliates import wrap_url
 
 from app.models.schemas.recipe import GroceryLink
+from app.services.recipe.locale_config import get_locale
 
 logger = logging.getLogger(__name__)
 
 
-def _amazon_fresh_link(ingredient: str) -> GroceryLink:
+def _amazon_link(ingredient: str, locale: str) -> GroceryLink:
+    cfg = get_locale(locale)
     q = quote_plus(ingredient)
-    base = f"https://www.amazon.com/s?k={q}&i=amazonfresh"
-    return GroceryLink(ingredient=ingredient, retailer="Amazon Fresh", url=wrap_url(base, "amazon"))
+    domain = cfg["amazon_domain"]
+    dept = cfg["amazon_grocery_dept"]
+    base = f"https://www.{domain}/s?k={q}&{dept}"
+    retailer = "Amazon" if locale != "us" else "Amazon Fresh"
+    return GroceryLink(ingredient=ingredient, retailer=retailer, url=wrap_url(base, "amazon"))
 
 
-def _instacart_link(ingredient: str) -> GroceryLink:
+def _instacart_link(ingredient: str, locale: str) -> GroceryLink:
     q = quote_plus(ingredient)
-    base = f"https://www.instacart.com/store/s?k={q}"
+    if locale == "ca":
+        base = f"https://www.instacart.ca/store/s?k={q}"
+    else:
+        base = f"https://www.instacart.com/store/s?k={q}"
     return GroceryLink(ingredient=ingredient, retailer="Instacart", url=wrap_url(base, "instacart"))
 
 
@@ -50,26 +59,28 @@ def _walmart_link(ingredient: str, affiliate_id: str) -> GroceryLink:
 
 
 class GroceryLinkBuilder:
-    def __init__(self, tier: str = "free", has_byok: bool = False) -> None:
+    def __init__(self, tier: str = "free", has_byok: bool = False, locale: str = "us") -> None:
         self._tier = tier
+        self._locale = locale
+        self._locale_cfg = get_locale(locale)
         self._walmart_id = os.environ.get("WALMART_AFFILIATE_ID", "").strip()
 
     def build_links(self, ingredient: str) -> list[GroceryLink]:
         """Build grocery deeplinks for a single ingredient.
 
-        Amazon Fresh and Instacart links are always included; wrap_url handles
-        affiliate ID injection (or returns a plain URL if none is configured).
-        Walmart requires WALMART_AFFILIATE_ID to be set (Impact network uses a
-        path-based redirect that doesn't degrade cleanly to a plain URL).
+        Amazon link is always included, routed to the user's locale domain.
+        Instacart and Walmart are only shown where they operate (US/CA).
+        wrap_url handles affiliate ID injection for supported programs.
         """
         if not ingredient.strip():
             return []
 
-        links: list[GroceryLink] = [
-            _amazon_fresh_link(ingredient),
-            _instacart_link(ingredient),
-        ]
-        if self._walmart_id:
+        links: list[GroceryLink] = [_amazon_link(ingredient, self._locale)]
+
+        if self._locale_cfg["instacart"]:
+            links.append(_instacart_link(ingredient, self._locale))
+
+        if self._locale_cfg["walmart"] and self._walmart_id:
             links.append(_walmart_link(ingredient, self._walmart_id))
 
         return links

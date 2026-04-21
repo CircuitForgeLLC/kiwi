@@ -547,6 +547,7 @@ export interface RecipeRequest {
   wildcard_confirmed: boolean
   nutrition_filters: NutritionFilters
   excluded_ids: number[]
+  exclude_ingredients: string[]
   shopping_mode: boolean
   pantry_match_only: boolean
   complexity_filter: string | null

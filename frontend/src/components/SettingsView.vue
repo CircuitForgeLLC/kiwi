@@ -99,6 +99,57 @@
         </div>
       </section>
 
+      <!-- Shopping Locale -->
+      <section class="mt-md">
+        <h3 class="text-lg font-semibold mb-xs">Shopping Region</h3>
+        <p class="text-sm text-secondary mb-sm">
+          Sets your Amazon storefront and which retailers appear in shopping links.
+          Instacart and Walmart are US/CA only — other regions get Amazon.
+        </p>
+        <select
+          class="form-input"
+          v-model="settingsStore.shoppingLocale"
+          aria-label="Shopping region"
+          style="max-width: 20rem;"
+        >
+          <optgroup label="North America">
+            <option value="us">United States (USD $)</option>
+            <option value="ca">Canada (CAD CA$)</option>
+            <option value="mx">Mexico (MXN MX$)</option>
+          </optgroup>
+          <optgroup label="Europe">
+            <option value="gb">United Kingdom (GBP £)</option>
+            <option value="de">Germany (EUR €)</option>
+            <option value="fr">France (EUR €)</option>
+            <option value="it">Italy (EUR €)</option>
+            <option value="es">Spain (EUR €)</option>
+            <option value="nl">Netherlands (EUR €)</option>
+            <option value="se">Sweden (SEK kr)</option>
+          </optgroup>
+          <optgroup label="Asia Pacific">
+            <option value="au">Australia (AUD A$)</option>
+            <option value="nz">New Zealand (NZD NZ$) — via Amazon AU</option>
+            <option value="jp">Japan (JPY ¥)</option>
+            <option value="in">India (INR ₹)</option>
+            <option value="sg">Singapore (SGD S$)</option>
+          </optgroup>
+          <optgroup label="South America">
+            <option value="br">Brazil (BRL R$)</option>
+          </optgroup>
+        </select>
+        <div class="flex-start gap-sm mt-sm">
+          <button
+            class="btn btn-primary btn-sm"
+            :disabled="settingsStore.loading"
+            @click="settingsStore.save()"
+          >
+            <span v-if="settingsStore.loading">Saving…</span>
+            <span v-else-if="settingsStore.saved">✓ Saved!</span>
+            <span v-else>Save</span>
+          </button>
+        </div>
+      </section>
+
       <!-- Display Preferences -->
       <section class="mt-md">
         <h3 class="text-lg font-semibold mb-xs">Display</h3>

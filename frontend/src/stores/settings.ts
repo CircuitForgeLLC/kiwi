@@ -13,6 +13,7 @@ export const useSettingsStore = defineStore('settings', () => {
   // State
   const cookingEquipment = ref<string[]>([])
   const unitSystem = ref<UnitSystem>('metric')
+  const shoppingLocale = ref<string>('us')
   const loading = ref(false)
   const saved = ref(false)
 
@@ -20,15 +21,19 @@ export const useSettingsStore = defineStore('settings', () => {
   async function load() {
     loading.value = true
     try {
-      const [rawEquipment, rawUnits] = await Promise.allSettled([
+      const [rawEquipment, rawUnits, rawLocale] = await Promise.allSettled([
         settingsAPI.getSetting('cooking_equipment'),
         settingsAPI.getSetting('unit_system'),
+        settingsAPI.getSetting('shopping_locale'),
       ])
       if (rawEquipment.status === 'fulfilled' && rawEquipment.value) {
         cookingEquipment.value = JSON.parse(rawEquipment.value)
       }
       if (rawUnits.status === 'fulfilled' && rawUnits.value) {
         unitSystem.value = rawUnits.value as UnitSystem
+      }
+      if (rawLocale.status === 'fulfilled' && rawLocale.value) {
+        shoppingLocale.value = rawLocale.value
       }
     } catch (err: unknown) {
       console.error('Failed to load settings:', err)
@@ -43,6 +48,7 @@ export const useSettingsStore = defineStore('settings', () => {
       await Promise.all([
         settingsAPI.setSetting('cooking_equipment', JSON.stringify(cookingEquipment.value)),
         settingsAPI.setSetting('unit_system', unitSystem.value),
+        settingsAPI.setSetting('shopping_locale', shoppingLocale.value),
       ])
       saved.value = true
       setTimeout(() => {
@@ -59,6 +65,7 @@ export const useSettingsStore = defineStore('settings', () => {
     // State
     cookingEquipment,
     unitSystem,
+    shoppingLocale,
     loading,
     saved,
 

@@ -57,12 +57,18 @@ def _in_thread(db_path, fn):
 
 # ── List ──────────────────────────────────────────────────────────────────────
 
+def _locale_from_store(store: Store) -> str:
+    return store.get_setting("shopping_locale") or "us"
+
+
 @router.get("", response_model=list[ShoppingItemResponse])
 async def list_shopping_items(
     include_checked: bool = True,
     session: CloudUser = Depends(get_session),
+    store: Store = Depends(get_store),
 ):
-    builder = GroceryLinkBuilder(tier=session.tier, has_byok=session.has_byok)
+    locale = await asyncio.to_thread(_in_thread, session.db, _locale_from_store)
+    builder = GroceryLinkBuilder(tier=session.tier, has_byok=session.has_byok, locale=locale)
     items = await asyncio.to_thread(
         _in_thread, session.db, lambda s: s.list_shopping_items(include_checked)
     )
@@ -75,8 +81,9 @@ async def list_shopping_items(
 async def add_shopping_item(
     body: ShoppingItemCreate,
     session: CloudUser = Depends(get_session),
+    store: Store = Depends(get_store),
 ):
-    builder = GroceryLinkBuilder(tier=session.tier, has_byok=session.has_byok)
+    builder = GroceryLinkBuilder(tier=session.tier, has_byok=session.has_byok, locale=_locale_from_store(store))
     item = await asyncio.to_thread(
         _in_thread,
         session.db,
@@ -100,6 +107,7 @@ async def add_shopping_item(
 async def add_from_recipe(
     body: BulkAddFromRecipeRequest,
     session: CloudUser = Depends(get_session),
+    store: Store = Depends(get_store),
 ):
     """Add missing ingredients from a recipe to the shopping list.
 
@@ -132,7 +140,7 @@ async def add_from_recipe(
             added.append(item)
         return added
 
-    builder = GroceryLinkBuilder(tier=session.tier, has_byok=session.has_byok)
+    builder = GroceryLinkBuilder(tier=session.tier, has_byok=session.has_byok, locale=_locale_from_store(store))
     items = await asyncio.to_thread(_in_thread, session.db, _run)
     return [_enrich(i, builder) for i in items]
 
@@ -144,8 +152,9 @@ async def update_shopping_item(
     item_id: int,
     body: ShoppingItemUpdate,
     session: CloudUser = Depends(get_session),
+    store: Store = Depends(get_store),
 ):
-    builder = GroceryLinkBuilder(tier=session.tier, has_byok=session.has_byok)
+    builder = GroceryLinkBuilder(tier=session.tier, has_byok=session.has_byok, locale=_locale_from_store(store))
     item = await asyncio.to_thread(
         _in_thread,
         session.db,
