@@ -68,6 +68,15 @@ _CUISINE_SIGNALS: list[tuple[str, list[str]]] = [
     ("cuisine:Cajun",          ["cajun", "creole", "gumbo", "jambalaya", "andouille", "etouffee"]),
     ("cuisine:African",        ["injera", "berbere", "jollof", "suya", "egusi", "fufu", "tagine"]),
     ("cuisine:Caribbean",      ["jerk", "scotch bonnet", "callaloo", "ackee"]),
+    # BBQ detection: match on title terms and key ingredients; these rarely appear
+    # in food.com's own keyword/category taxonomy so we derive the tag from content.
+    ("cuisine:BBQ",            ["brisket", "pulled pork", "spare ribs", "baby back ribs",
+                                 "baby back", "burnt ends", "pit smoked", "smoke ring",
+                                 "low and slow", "hickory", "mesquite", "liquid smoke",
+                                 "bbq brisket", "smoked brisket", "barbecue brisket",
+                                 "carolina bbq", "texas bbq", "kansas city bbq",
+                                 "memphis bbq", "smoked ribs", "smoked pulled pork",
+                                 "dry rub ribs", "wet rub ribs", "beer can chicken smoked"]),
 ]
 
 _DIETARY_SIGNALS: list[tuple[str, list[str]]] = [
