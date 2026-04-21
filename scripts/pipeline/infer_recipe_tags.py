@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sqlite3
 import sys
 from pathlib import Path
@@ -248,8 +249,37 @@ if __name__ == "__main__":
     parser.add_argument("--batch-size", type=int, default=2000)
     parser.add_argument("--force", action="store_true",
                         help="Re-derive tags even if inferred_tags is already set.")
+    parser.add_argument(
+        "--browse-counts-path",
+        type=Path,
+        default=None,
+        metavar="PATH",
+        help=(
+            "Path to the browse_counts.db cache file to refresh after tagging. "
+            "Defaults to DATA_DIR/browse_counts.db if DATA_DIR env var is set, "
+            "otherwise skipped."
+        ),
+    )
     args = parser.parse_args()
     if not args.db.exists():
         print(f"DB not found: {args.db}")
         sys.exit(1)
     run(args.db, args.batch_size, args.force)
+
+    # Refresh browse counts cache after a successful run so the app picks up
+    # the updated FTS index without restarting. Skipped if no cache path given
+    # and DATA_DIR env var is not set.
+    cache_path = args.browse_counts_path
+    if cache_path is None:
+        data_dir = os.environ.get("DATA_DIR")
+        if data_dir:
+            cache_path = Path(data_dir) / "browse_counts.db"
+
+    if cache_path is not None:
+        print(f"Refreshing browse counts cache → {cache_path} ...")
+        try:
+            from app.services.recipe.browse_counts_cache import refresh as _refresh
+            computed = _refresh(str(args.db), cache_path)
+            print(f"Browse counts cache refreshed ({computed} keyword sets).")
+        except Exception as exc:
+            print(f"Browse counts refresh skipped: {exc}")

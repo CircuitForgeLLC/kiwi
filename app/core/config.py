@@ -35,6 +35,14 @@ class Settings:
     # Database
     DB_PATH: Path = Path(os.environ.get("DB_PATH", str(DATA_DIR / "kiwi.db")))
 
+    # Pre-computed browse counts cache (small SQLite, separate from corpus).
+    # Written by the nightly refresh task and by infer_recipe_tags.py.
+    # Set BROWSE_COUNTS_PATH to a bind-mounted path if you want the host
+    # pipeline to share counts with the container without re-running FTS.
+    BROWSE_COUNTS_PATH: Path = Path(
+        os.environ.get("BROWSE_COUNTS_PATH", str(DATA_DIR / "browse_counts.db"))
+    )
+
     # Community feature settings
     COMMUNITY_DB_URL: str | None = os.environ.get("COMMUNITY_DB_URL") or None
     COMMUNITY_PSEUDONYM_SALT: str = os.environ.get(

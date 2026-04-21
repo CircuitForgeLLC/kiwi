@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 # app/main.py
 
+import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -15,6 +17,26 @@ from app.services.meal_plan.affiliates import register_kiwi_programs
 # Without basicConfig, app-level INFO logs are silently dropped.
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s: %(message)s")
 logger = logging.getLogger(__name__)
+
+_BROWSE_REFRESH_INTERVAL_H = 24
+
+
+async def _browse_counts_refresh_loop(corpus_path: str) -> None:
+    """Refresh browse counts every 24 h while the container is running."""
+    from app.db.store import _COUNT_CACHE
+    from app.services.recipe.browse_counts_cache import load_into_memory, refresh
+
+    while True:
+        await asyncio.sleep(_BROWSE_REFRESH_INTERVAL_H * 3600)
+        try:
+            logger.info("browse_counts: starting scheduled refresh...")
+            computed = await asyncio.to_thread(
+                refresh, corpus_path, settings.BROWSE_COUNTS_PATH
+            )
+            load_into_memory(settings.BROWSE_COUNTS_PATH, _COUNT_CACHE, corpus_path)
+            logger.info("browse_counts: scheduled refresh complete (%d sets)", computed)
+        except Exception as exc:
+            logger.warning("browse_counts: scheduled refresh failed: %s", exc)
 
 
 @asynccontextmanager
@@ -31,6 +53,27 @@ async def lifespan(app: FastAPI):
     # Initialize community store (no-op if COMMUNITY_DB_URL is not set)
     from app.api.endpoints.community import init_community_store
     init_community_store(settings.COMMUNITY_DB_URL)
+
+    # Browse counts cache — warm in-memory cache from disk, refresh if stale.
+    # Uses the corpus path the store will attach to at request time.
+    corpus_path = os.environ.get("RECIPE_DB_PATH", str(settings.DB_PATH))
+    try:
+        from app.db.store import _COUNT_CACHE
+        from app.services.recipe.browse_counts_cache import (
+            is_stale, load_into_memory, refresh,
+        )
+        if is_stale(settings.BROWSE_COUNTS_PATH):
+            logger.info("browse_counts: cache stale — refreshing in background...")
+            asyncio.create_task(
+                asyncio.to_thread(refresh, corpus_path, settings.BROWSE_COUNTS_PATH)
+            )
+        else:
+            load_into_memory(settings.BROWSE_COUNTS_PATH, _COUNT_CACHE, corpus_path)
+    except Exception as exc:
+        logger.warning("browse_counts: startup init failed (live FTS fallback active): %s", exc)
+
+    # Nightly background refresh loop
+    asyncio.create_task(_browse_counts_refresh_loop(corpus_path))
 
     yield
 
