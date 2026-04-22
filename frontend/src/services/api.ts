@@ -952,6 +952,28 @@ export const browserAPI = {
     const response = await api.get(`/recipes/browse/${domain}/${encodeURIComponent(category)}`, { params })
     return response.data
   },
+
+  async submitRecipeTag(body: {
+    recipe_id: number
+    domain: string
+    category: string
+    subcategory: string | null
+    pseudonym: string
+  }): Promise<void> {
+    await api.post('/recipes/community-tags', body)
+  },
+
+  async upvoteRecipeTag(tagId: number, pseudonym: string): Promise<void> {
+    await api.post(`/recipes/community-tags/${tagId}/upvote`, null, { params: { pseudonym } })
+  },
+
+  async listRecipeTags(recipeId: number): Promise<Array<{
+    id: number; domain: string; category: string; subcategory: string | null;
+    pseudonym: string; upvotes: number; accepted: boolean
+  }>> {
+    const response = await api.get(`/recipes/community-tags/${recipeId}`)
+    return response.data
+  },
 }
 
 // ── Shopping List ─────────────────────────────────────────────────────────────

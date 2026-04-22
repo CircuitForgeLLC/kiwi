@@ -69,6 +69,12 @@
           >
             {{ sub.subcategory }}
             <span class="cat-count">{{ sub.recipe_count }}</span>
+            <span
+              v-if="sub.recipe_count === 0"
+              class="tag-cta"
+              title="Know a recipe in this category? Tag it!"
+              @click.stop="openTagModal(sub.subcategory)"
+            >＋</span>
           </button>
         </template>
       </div>
@@ -186,6 +192,79 @@
       @saved="savingRecipe = null"
       @unsave="savingRecipe && doUnsave(savingRecipe.id)"
     />
+
+    <!-- Community tag modal — opened from zero-count subcategory CTA -->
+    <div v-if="tagModal.open" class="modal-backdrop" @click.self="tagModal.open = false">
+      <div class="modal-box" role="dialog" aria-modal="true" aria-label="Tag a recipe">
+        <h3 class="text-md font-semibold mb-sm">Tag a recipe as {{ tagModal.subcategory }}</h3>
+        <p class="text-sm text-secondary mb-sm">
+          Search for a recipe you know belongs here. Your tag helps other users discover it.
+        </p>
+
+        <!-- Recipe search -->
+        <input
+          class="form-input mb-xs"
+          v-model="tagModal.searchQuery"
+          placeholder="Search recipe title…"
+          @input="onTagSearchInput"
+          autocomplete="off"
+        />
+        <div v-if="tagModal.searching" class="text-sm text-secondary mb-xs">Searching…</div>
+        <ul v-else-if="tagModal.results.length > 0" class="tag-search-results mb-sm">
+          <li
+            v-for="r in tagModal.results"
+            :key="r.id"
+            :class="['tag-result-row', { selected: tagModal.selectedRecipe?.id === r.id }]"
+            @click="tagModal.selectedRecipe = r"
+          >
+            <span class="tag-result-title">{{ r.title }}</span>
+            <span class="tag-result-check" v-if="tagModal.selectedRecipe?.id === r.id">✓</span>
+          </li>
+        </ul>
+        <p v-else-if="tagModal.searchQuery.length > 2" class="text-sm text-secondary mb-sm">
+          No results — try a different title.
+        </p>
+
+        <!-- Location correction (pre-filled from active browse context) -->
+        <div class="form-group mb-xs">
+          <label class="form-label text-xs">Domain</label>
+          <select class="form-input" v-model="tagModal.domain">
+            <option v-for="d in domains" :key="d.id" :value="d.id">{{ d.label }}</option>
+          </select>
+        </div>
+        <div class="form-group mb-xs">
+          <label class="form-label text-xs">Category</label>
+          <select class="form-input" v-model="tagModal.category">
+            <option v-for="c in categories" :key="c.category" :value="c.category">
+              {{ c.category }}
+            </option>
+          </select>
+        </div>
+        <div class="form-group mb-sm">
+          <label class="form-label text-xs">Subcategory (optional)</label>
+          <select class="form-input" v-model="tagModal.subcategoryEdit">
+            <option value="">— none (category level) —</option>
+            <option v-for="s in subcategories" :key="s.subcategory" :value="s.subcategory">
+              {{ s.subcategory }}
+            </option>
+          </select>
+        </div>
+
+        <div class="flex gap-sm">
+          <button
+            class="btn btn-primary btn-sm"
+            :disabled="!tagModal.selectedRecipe || tagModal.submitting"
+            @click="submitTag"
+          >
+            <span v-if="tagModal.submitting">Submitting…</span>
+            <span v-else>Tag this recipe</span>
+          </button>
+          <button class="btn btn-secondary btn-sm" @click="tagModal.open = false">Cancel</button>
+        </div>
+        <p v-if="tagModal.error" class="text-sm status-badge status-error mt-xs">{{ tagModal.error }}</p>
+        <p v-if="tagModal.success" class="text-sm status-badge status-ok mt-xs">{{ tagModal.success }}</p>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -220,6 +299,24 @@ const savingRecipe = ref<BrowserRecipe | null>(null)
 const searchQuery = ref('')
 const sortOrder = ref<'default' | 'alpha' | 'alpha_desc' | 'match'>('default')
 let searchDebounce: ReturnType<typeof setTimeout> | null = null
+let tagSearchDebounce: ReturnType<typeof setTimeout> | null = null
+
+// ── Tag modal state ────────────────────────────────────────────────────────
+const tagModal = ref({
+  open: false,
+  subcategory: '',       // display label (pre-filled from CTA)
+  domain: '',            // editable, pre-filled
+  category: '',          // editable, pre-filled
+  subcategoryEdit: '',   // editable, pre-filled
+  searchQuery: '',
+  searching: false,
+  results: [] as Array<{ id: number; title: string }>,
+  selectedRecipe: null as { id: number; title: string } | null,
+  submitting: false,
+  error: '',
+  success: '',
+})
+
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
 const allCountsZero = computed(() =>
@@ -374,6 +471,73 @@ function toggleSave(recipe: BrowserRecipe) {
 async function doUnsave(recipeId: number) {
   savingRecipe.value = null
   await savedStore.unsave(recipeId)
+}
+
+// ── Tag modal ──────────────────────────────────────────────────────────────
+
+function openTagModal(subcategoryName: string) {
+  Object.assign(tagModal.value, {
+    open: true,
+    subcategory: subcategoryName,
+    domain: activeDomain.value ?? '',
+    category: activeCategory.value ?? '',
+    subcategoryEdit: subcategoryName,
+    searchQuery: '',
+    searching: false,
+    results: [],
+    selectedRecipe: null,
+    submitting: false,
+    error: '',
+    success: '',
+  })
+}
+
+function onTagSearchInput() {
+  if (tagSearchDebounce) clearTimeout(tagSearchDebounce)
+  const q = tagModal.value.searchQuery.trim()
+  if (q.length < 3) {
+    tagModal.value.results = []
+    return
+  }
+  tagSearchDebounce = setTimeout(async () => {
+    tagModal.value.searching = true
+    try {
+      // Re-use the browser API: browse all recipes filtered by title substring
+      const res = await browserAPI.browse('_all', '_all', { page: 1, q })
+      tagModal.value.results = (res.recipes ?? []).slice(0, 8).map(
+        (r: { id: number; title: string }) => ({ id: r.id, title: r.title })
+      )
+    } catch {
+      tagModal.value.results = []
+    } finally {
+      tagModal.value.searching = false
+    }
+  }, 350)
+}
+
+async function submitTag() {
+  const m = tagModal.value
+  if (!m.selectedRecipe) return
+  m.submitting = true
+  m.error = ''
+  m.success = ''
+  try {
+    await browserAPI.submitRecipeTag({
+      recipe_id: m.selectedRecipe.id,
+      domain: m.domain,
+      category: m.category,
+      subcategory: m.subcategoryEdit || null,
+      pseudonym: 'anon',  // TODO: wire real pseudonym from community store
+    })
+    m.success = `Tagged! It will appear here once a second user confirms.`
+    setTimeout(() => { m.open = false }, 2500)
+  } catch (err: any) {
+    m.error = err?.message === '409'
+      ? 'You have already tagged this recipe here.'
+      : 'Failed to submit — please try again.'
+  } finally {
+    m.submitting = false
+  }
 }
 </script>
 
@@ -534,5 +698,76 @@ async function doUnsave(recipeId: number) {
 
 .flex-shrink-0 {
   flex-shrink: 0;
+}
+
+/* ── Community tag CTA ──────────────────────────────────────────────────── */
+.tag-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 0.25rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  background: var(--color-accent, #7c6fcd);
+  color: #fff;
+  opacity: 0.75;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.tag-cta:hover {
+  opacity: 1;
+}
+
+/* ── Tag modal ──────────────────────────────────────────────────────────── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+.modal-box {
+  background: var(--color-surface, #fff);
+  border-radius: var(--radius-md, 0.5rem);
+  padding: 1.5rem;
+  max-width: 28rem;
+  width: 90vw;
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+}
+.tag-search-results {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  border: 1px solid var(--color-border, #e0e0e0);
+  border-radius: var(--radius-sm, 0.25rem);
+  max-height: 12rem;
+  overflow-y: auto;
+}
+.tag-result-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.4rem 0.75rem;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.tag-result-row:hover,
+.tag-result-row.selected {
+  background: var(--color-hover, #f0eeff);
+}
+.tag-result-title {
+  font-size: 0.875rem;
+  flex: 1;
+}
+.tag-result-check {
+  color: var(--color-accent, #7c6fcd);
+  font-size: 0.875rem;
+  margin-left: 0.5rem;
 }
 </style>
