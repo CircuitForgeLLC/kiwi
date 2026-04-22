@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from app.api.endpoints import health, receipts, export, inventory, ocr, recipes, settings, staples, feedback, feedback_attach, household, saved_recipes, imitate, meal_plans, orch_usage, session, shopping
 from app.api.endpoints.community import router as community_router
+from app.api.endpoints.recipe_tags import router as recipe_tags_router
 
 api_router = APIRouter()
 
@@ -22,3 +23,4 @@ api_router.include_router(meal_plans.router,     prefix="/meal-plans",     tags=
 api_router.include_router(orch_usage.router,     prefix="/orch-usage",     tags=["orch-usage"])
 api_router.include_router(shopping.router,       prefix="/shopping",       tags=["shopping"])
 api_router.include_router(community_router)
+api_router.include_router(recipe_tags_router)
