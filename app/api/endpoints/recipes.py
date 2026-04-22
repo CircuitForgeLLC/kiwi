@@ -292,6 +292,33 @@ async def browse_recipes(
                 q=q or None,
                 sort=sort,
             )
+
+            # Community tag fallback: if FTS returned nothing for a subcategory,
+            # check whether accepted community tags exist for this location and
+            # fetch those corpus recipes directly by ID.
+            if result["total"] == 0 and subcategory and keywords:
+                try:
+                    from app.api.endpoints.community import _get_community_store
+                    cs = _get_community_store()
+                    if cs is not None:
+                        community_ids = cs.get_accepted_recipe_ids_for_subcategory(
+                            domain=domain,
+                            category=category,
+                            subcategory=subcategory,
+                        )
+                        if community_ids:
+                            offset = (page - 1) * page_size
+                            paged_ids = community_ids[offset: offset + page_size]
+                            recipes = store.fetch_recipes_by_ids(paged_ids, pantry_list)
+                            result = {
+                                "recipes": recipes,
+                                "total": len(community_ids),
+                                "page": page,
+                                "community_tagged": True,
+                            }
+                except Exception as exc:
+                    logger.warning("community tag fallback failed: %s", exc)
+
             store.log_browser_telemetry(
                 domain=domain,
                 category=category,

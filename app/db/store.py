@@ -1228,6 +1228,11 @@ class Store:
                     f"{cols} WHERE {fts_sub} {order_clause} LIMIT ? OFFSET ?",
                     (match_expr, page_size, offset),
                 )
+                # Community tag fallback: if FTS found nothing, check whether
+                # community-tagged recipe IDs exist for this keyword context.
+                # browse_recipes doesn't know domain/category directly, so the
+                # fallback is triggered by the caller via community_ids= when needed.
+                # (See browse_recipes_with_community_fallback in the endpoint layer.)
 
         recipes = []
         for r in rows:
@@ -1246,6 +1251,48 @@ class Store:
 
         return {"recipes": recipes, "total": total, "page": page}
 
+    def fetch_recipes_by_ids(
+        self,
+        recipe_ids: list[int],
+        pantry_items: list[str] | None = None,
+    ) -> list[dict]:
+        """Fetch a specific set of corpus recipes by ID for community tag fallback.
+
+        Returns recipes in the same shape as browse_recipes rows, with match_pct
+        populated when pantry_items are provided.
+        """
+        if not recipe_ids:
+            return []
+        c = self._cp
+        pantry_set = {p.lower() for p in pantry_items} if pantry_items else None
+        ph = ",".join("?" * len(recipe_ids))
+        rows = self._fetch_all(
+            f"SELECT id, title, category, keywords, ingredient_names,"
+            f"       calories, fat_g, protein_g, sodium_mg"
+            f" FROM {c}recipes WHERE id IN ({ph}) ORDER BY id ASC",
+            tuple(recipe_ids),
+        )
+        result = []
+        for r in rows:
+            entry: dict = {
+                "id":        r["id"],
+                "title":     r["title"],
+                "category":  r["category"],
+                "match_pct": None,
+            }
+            if pantry_set:
+                names = r.get("ingredient_names") or []
+                if names:
+                    matched = sum(1 for n in names if n.lower() in pantry_set)
+                    entry["match_pct"] = round(matched / len(names), 3)
+            result.append(entry)
+        return result
+
+    # How many FTS candidates to fetch before Python-scoring for match sort.
+    # Large enough to cover several pages with good diversity; small enough
+    # that json-parsing + dict-lookup stays sub-second even for big categories.
+    _MATCH_POOL_SIZE = 800
+
     def _browse_by_match(
         self,
         keywords: list[str] | None,
@@ -1256,43 +1303,46 @@ class Store:
         q_param: str | None,
         c: str,
     ) -> dict:
-        """Browse recipes sorted by pantry match percentage, computed in SQL.
+        """Browse recipes sorted by pantry match percentage.
 
-        Uses json_each() to count how many of each recipe's ingredient_names
-        appear in the pantry set, then sorts highest-first. match_pct is
-        already present in the SQL result so no Python post-processing needed.
+        Fetches up to _MATCH_POOL_SIZE FTS candidates, scores each against the
+        pantry set in Python (fast dict lookup on a bounded list), then sorts
+        and paginates in-memory. This avoids correlated json_each() subqueries
+        that are prohibitively slow over 50k+ row result sets.
+
+        The reported total is the full FTS count (from cache), not pool size.
         """
-        pantry_list = sorted(pantry_set)
-        ph = ",".join("?" * len(pantry_list))
+        import json as _json
 
-        # Subquery computes match fraction inline so ORDER BY can use it.
-        match_col = (
-            f"(SELECT CAST(COUNT(*) AS REAL)"
-            f" / NULLIF(json_array_length(r.ingredient_names), 0)"
-            f" FROM json_each(r.ingredient_names) AS j"
-            f" WHERE LOWER(j.value) IN ({ph}))"
-        )
+        pantry_lower = {p.lower() for p in pantry_set}
 
+        # ── Fetch candidate pool from FTS ────────────────────────────────────
         base_cols = (
-            f"SELECT r.id, r.title, r.category, r.keywords, r.ingredient_names,"
-            f"       r.calories, r.fat_g, r.protein_g, r.sodium_mg,"
-            f"       {match_col} AS match_pct"
+            f"SELECT r.id, r.title, r.category, r.ingredient_names"
             f" FROM {c}recipes r"
         )
 
+        self.conn.row_factory = sqlite3.Row
+
         if keywords is None:
-            fts_where = "LOWER(r.title) LIKE LOWER(?)" if q_param else "1=1"
-            count_params: tuple = (q_param,) if q_param else ()
-            total = self.conn.execute(
-                f"SELECT COUNT(*) FROM {c}recipes r WHERE {fts_where}", count_params
-            ).fetchone()[0]
-            data_params = (*pantry_list, *(count_params), page_size, offset)
-            where_clause = f"WHERE {fts_where}" if fts_where != "1=1" else ""
-            sql = (
-                f"{base_cols} {where_clause}"
-                f" ORDER BY match_pct DESC NULLS LAST, r.id ASC"
-                f" LIMIT ? OFFSET ?"
-            )
+            if q_param:
+                total = self.conn.execute(
+                    f"SELECT COUNT(*) FROM {c}recipes WHERE LOWER(title) LIKE LOWER(?)",
+                    (q_param,),
+                ).fetchone()[0]
+                rows = self.conn.execute(
+                    f"{base_cols} WHERE LOWER(r.title) LIKE LOWER(?)"
+                    f" ORDER BY r.id ASC LIMIT ?",
+                    (q_param, self._MATCH_POOL_SIZE),
+                ).fetchall()
+            else:
+                total = self.conn.execute(
+                    f"SELECT COUNT(*) FROM {c}recipes"
+                ).fetchone()[0]
+                rows = self.conn.execute(
+                    f"{base_cols} ORDER BY r.id ASC LIMIT ?",
+                    (self._MATCH_POOL_SIZE,),
+                ).fetchall()
         else:
             match_expr = self._browser_fts_query(keywords)
             fts_sub = (
@@ -1305,30 +1355,41 @@ class Store:
                     f" WHERE {fts_sub} AND LOWER(r.title) LIKE LOWER(?)",
                     (match_expr, q_param),
                 ).fetchone()[0]
-                where_clause = f"WHERE {fts_sub} AND LOWER(r.title) LIKE LOWER(?)"
-                data_params = (*pantry_list, match_expr, q_param, page_size, offset)
+                rows = self.conn.execute(
+                    f"{base_cols} WHERE {fts_sub} AND LOWER(r.title) LIKE LOWER(?)"
+                    f" ORDER BY r.id ASC LIMIT ?",
+                    (match_expr, q_param, self._MATCH_POOL_SIZE),
+                ).fetchall()
             else:
                 total = self._count_recipes_for_keywords(keywords)
-                where_clause = f"WHERE {fts_sub}"
-                data_params = (*pantry_list, match_expr, page_size, offset)
-            sql = (
-                f"{base_cols} {where_clause}"
-                f" ORDER BY match_pct DESC NULLS LAST, r.id ASC"
-                f" LIMIT ? OFFSET ?"
-            )
+                rows = self.conn.execute(
+                    f"{base_cols} WHERE {fts_sub} ORDER BY r.id ASC LIMIT ?",
+                    (match_expr, self._MATCH_POOL_SIZE),
+                ).fetchall()
 
-        self.conn.row_factory = sqlite3.Row
-        rows = self.conn.execute(sql, data_params).fetchall()
-        recipes = []
+        # ── Score in Python, sort, paginate ──────────────────────────────────
+        scored = []
         for r in rows:
             row = dict(r)
-            recipes.append({
+            try:
+                names = _json.loads(row["ingredient_names"] or "[]")
+            except Exception:
+                names = []
+            if names:
+                matched = sum(1 for n in names if n.lower() in pantry_lower)
+                match_pct = round(matched / len(names), 3)
+            else:
+                match_pct = None
+            scored.append({
                 "id":        row["id"],
                 "title":     row["title"],
                 "category":  row["category"],
-                "match_pct": round(row["match_pct"], 3) if row["match_pct"] is not None else None,
+                "match_pct": match_pct,
             })
-        return {"recipes": recipes, "total": total, "page": page}
+
+        scored.sort(key=lambda r: (-(r["match_pct"] or 0), r["id"]))
+        page_slice = scored[offset: offset + page_size]
+        return {"recipes": page_slice, "total": total, "page": page}
 
     def log_browser_telemetry(
         self,

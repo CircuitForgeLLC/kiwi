@@ -168,6 +168,16 @@ def refresh(corpus_path: str, cache_path: Path) -> int:
             except Exception as exc:
                 logger.warning("browse_counts: query failed key=%r: %s", kw_key[:60], exc)
 
+        # Merge accepted community tags into counts.
+        # For each (domain, category, subcategory) that has accepted community
+        # tags, add the count of distinct tagged recipe_ids to the FTS count.
+        # The two overlap rarely (community tags exist precisely because FTS
+        # missed those recipes), so simple addition is accurate enough.
+        try:
+            _merge_community_tag_counts(cache_conn, DOMAINS, now)
+        except Exception as exc:
+            logger.warning("browse_counts: community merge skipped: %s", exc)
+
         cache_conn.execute(
             "INSERT OR REPLACE INTO browse_counts_meta (key, value) VALUES ('refreshed_at', ?)",
             (now,),
@@ -183,3 +193,64 @@ def refresh(corpus_path: str, cache_path: Path) -> int:
         cache_conn.close()
 
     return computed
+
+
+def _merge_community_tag_counts(
+    cache_conn: sqlite3.Connection,
+    domains: dict,
+    now: str,
+    threshold: int = 2,
+) -> None:
+    """Add accepted community tag counts on top of FTS counts in the cache.
+
+    Queries the community PostgreSQL store (if available) for accepted tags
+    grouped by (domain, category, subcategory), maps each back to its keyword
+    set key, then increments the cached count.
+
+    Silently skips if community features are unavailable.
+    """
+    try:
+        from app.api.endpoints.community import _get_community_store
+        store = _get_community_store()
+        if store is None:
+            return
+    except Exception:
+        return
+
+    for domain_id, domain_data in domains.items():
+        for cat_name, cat_data in domain_data.get("categories", {}).items():
+            if not isinstance(cat_data, dict):
+                continue
+            # Check subcategories
+            for subcat_name, subcat_kws in cat_data.get("subcategories", {}).items():
+                if not subcat_kws:
+                    continue
+                ids = store.get_accepted_recipe_ids_for_subcategory(
+                    domain=domain_id,
+                    category=cat_name,
+                    subcategory=subcat_name,
+                    threshold=threshold,
+                )
+                if not ids:
+                    continue
+                kw_key = _kw_key(subcat_kws)
+                cache_conn.execute(
+                    "UPDATE browse_counts SET count = count + ? WHERE keywords_key = ?",
+                    (len(ids), kw_key),
+                )
+            # Check category-level tags (subcategory IS NULL)
+            top_kws = cat_data.get("keywords", [])
+            if top_kws:
+                ids = store.get_accepted_recipe_ids_for_subcategory(
+                    domain=domain_id,
+                    category=cat_name,
+                    subcategory=None,
+                    threshold=threshold,
+                )
+                if ids:
+                    kw_key = _kw_key(top_kws)
+                    cache_conn.execute(
+                        "UPDATE browse_counts SET count = count + ? WHERE keywords_key = ?",
+                        (len(ids), kw_key),
+                    )
+    logger.info("browse_counts: community tag counts merged")
