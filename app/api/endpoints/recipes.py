@@ -21,7 +21,11 @@ from app.models.schemas.recipe import (
     RecipeResult,
     RecipeSuggestion,
     RoleCandidatesResponse,
+    StreamTokenRequest,
+    StreamTokenResponse,
 )
+from app.services.coordinator_proxy import CoordinatorError, coordinator_authorize
+from app.api.endpoints.imitate import _build_recipe_prompt
 from app.services.recipe.assembly_recipes import (
     build_from_selection,
     get_role_candidates,
@@ -56,6 +60,44 @@ def _suggest_in_thread(db_path: Path, req: RecipeRequest) -> RecipeResult:
     store = Store(db_path)
     try:
         return RecipeEngine(store).suggest(req)
+    finally:
+        store.close()
+
+
+def _build_stream_prompt(db_path: Path, level: int) -> str:
+    """Fetch pantry + user settings from DB and build the recipe prompt.
+
+    Runs in a thread (called via asyncio.to_thread) so it can use sync Store.
+    """
+    import datetime
+
+    store = Store(db_path)
+    try:
+        items = store.list_inventory(status="available")
+        pantry_names = [i["product_name"] for i in items if i.get("product_name")]
+
+        today = datetime.date.today()
+        expiring_names = [
+            i["product_name"]
+            for i in items
+            if i.get("product_name")
+            and i.get("expiry_date")
+            and (datetime.date.fromisoformat(i["expiry_date"]) - today).days <= 3
+        ]
+
+        settings: dict = {}
+        try:
+            rows = store.conn.execute("SELECT key, value FROM user_settings").fetchall()
+            settings = {r["key"]: r["value"] for r in rows}
+        except Exception:
+            pass
+
+        constraints_raw = settings.get("dietary_constraints", "")
+        constraints = [c.strip() for c in constraints_raw.split(",") if c.strip()] if constraints_raw else []
+        allergies_raw = settings.get("allergies", "")
+        allergies = [a.strip() for a in allergies_raw.split(",") if a.strip()] if allergies_raw else []
+
+        return _build_recipe_prompt(pantry_names, expiring_names, constraints, allergies, level)
     finally:
         store.close()
 
@@ -143,6 +185,42 @@ async def suggest_recipes(
     if orch_fallback:
         result = result.model_copy(update={"orch_fallback": True})
     return result
+
+
+@router.post("/stream-token", response_model=StreamTokenResponse)
+async def get_stream_token(
+    req: StreamTokenRequest,
+    session: CloudUser = Depends(get_session),
+) -> StreamTokenResponse:
+    """Issue a one-time stream token for LLM recipe generation.
+
+    Tier-gated (Paid or BYOK). Builds the prompt from pantry + user settings,
+    then calls the cf-orch coordinator to obtain a stream URL. Returns
+    immediately — the frontend opens EventSource to the stream URL directly.
+    """
+    if not can_use("recipe_suggestions", session.tier, session.has_byok):
+        raise HTTPException(
+            status_code=403,
+            detail="Streaming recipe generation requires Paid tier or a configured LLM backend.",
+        )
+    if req.level == 4 and not req.wildcard_confirmed:
+        raise HTTPException(
+            status_code=400,
+            detail="Level 4 (Wildcard) streaming requires wildcard_confirmed=true.",
+        )
+
+    prompt = await asyncio.to_thread(_build_stream_prompt, session.db, req.level)
+
+    try:
+        result = await coordinator_authorize(prompt=prompt, caller="kiwi-recipe", ttl_s=300)
+    except CoordinatorError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc))
+
+    return StreamTokenResponse(
+        stream_url=result.stream_url,
+        token=result.token,
+        expires_in_s=result.expires_in_s,
+    )
 
 
 @router.get("/jobs/{job_id}", response_model=RecipeJobStatus)
