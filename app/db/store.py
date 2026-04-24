@@ -11,6 +11,7 @@ from typing import Any
 
 from circuitforge_core.db.base import get_connection
 from circuitforge_core.db.migrations import run_migrations
+from app.services.recipe.sensory import SensoryExclude, passes_sensory_filter
 
 MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 
@@ -1153,6 +1154,7 @@ class Store:
         pantry_items: list[str] | None = None,
         q: str | None = None,
         sort: str = "default",
+        sensory_exclude: SensoryExclude | None = None,
     ) -> dict:
         """Return a page of recipes matching the keyword set.
 
@@ -1185,12 +1187,13 @@ class Store:
         # ── match sort: push match_pct computation into SQL so ORDER BY works ──
         if effective_sort == "match" and pantry_set:
             return self._browse_by_match(
-                keywords, page, page_size, offset, pantry_set, q_param, c
+                keywords, page, page_size, offset, pantry_set, q_param, c,
+                sensory_exclude=sensory_exclude,
             )
 
         cols = (
             f"SELECT id, title, category, keywords, ingredient_names,"
-            f"       calories, fat_g, protein_g, sodium_mg, directions FROM {c}recipes"
+            f"       calories, fat_g, protein_g, sodium_mg, directions, sensory_tags FROM {c}recipes"
         )
 
         if keywords is None:
@@ -1236,6 +1239,10 @@ class Store:
 
         recipes = []
         for r in rows:
+            # Apply sensory filter -- untagged recipes (empty {}) always pass
+            if sensory_exclude and not sensory_exclude.is_empty():
+                if not passes_sensory_filter(r.get("sensory_tags"), sensory_exclude):
+                    continue
             entry = {
                 "id":        r["id"],
                 "title":     r["title"],
@@ -1303,6 +1310,7 @@ class Store:
         pantry_set: set[str],
         q_param: str | None,
         c: str,
+        sensory_exclude: SensoryExclude | None = None,
     ) -> dict:
         """Browse recipes sorted by pantry match percentage.
 
@@ -1319,7 +1327,7 @@ class Store:
 
         # ── Fetch candidate pool from FTS ────────────────────────────────────
         base_cols = (
-            f"SELECT r.id, r.title, r.category, r.ingredient_names, r.directions"
+            f"SELECT r.id, r.title, r.category, r.ingredient_names, r.directions, r.sensory_tags"
             f" FROM {c}recipes r"
         )
 
@@ -1372,6 +1380,10 @@ class Store:
         scored = []
         for r in rows:
             row = dict(r)
+            # Sensory filter applied before scoring to keep hot path clean
+            if sensory_exclude and not sensory_exclude.is_empty():
+                if not passes_sensory_filter(row.get("sensory_tags"), sensory_exclude):
+                    continue
             try:
                 names = _json.loads(row["ingredient_names"] or "[]")
             except Exception:

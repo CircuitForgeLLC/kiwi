@@ -1091,4 +1091,22 @@ export async function bootstrapSession(): Promise<SessionInfo | null> {
   }
 }
 
+// ========== Sensory Preferences Types ==========
+
+export type TextureTag = 'mushy' | 'slimy' | 'crunchy' | 'chewy' | 'creamy' | 'chunky'
+export type SmellLevel = 'mild' | 'aromatic' | 'pungent' | 'fermented' | null
+export type NoiseLevel = 'quiet' | 'moderate' | 'loud' | 'very_loud' | null
+
+export interface SensoryPreferences {
+  avoid_textures: TextureTag[]
+  max_smell: SmellLevel
+  max_noise: NoiseLevel
+}
+
+export const DEFAULT_SENSORY_PREFERENCES: SensoryPreferences = {
+  avoid_textures: [],
+  max_smell: null,
+  max_noise: null,
+}
+
 export default api

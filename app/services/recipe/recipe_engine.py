@@ -24,6 +24,7 @@ from app.models.schemas.recipe import GroceryLink, NutritionPanel, RecipeRequest
 from app.services.recipe.element_classifier import ElementClassifier
 from app.services.recipe.grocery_links import GroceryLinkBuilder
 from app.services.recipe.substitution_engine import SubstitutionEngine
+from app.services.recipe.sensory import SensoryExclude, build_sensory_exclude, passes_sensory_filter
 
 _LEFTOVER_DAILY_MAX_FREE = 5
 
@@ -705,8 +706,12 @@ class RecipeEngine:
         if _l1 and effective_max_missing is None:
             effective_max_missing = _L1_MAX_MISSING_DEFAULT
 
+        # Load sensory preferences -- applied as silent post-score filter
+        _sensory_prefs_json = self._store.get_setting("sensory_preferences")
+        _sensory_exclude = build_sensory_exclude(_sensory_prefs_json)
+
         suggestions = []
-        hard_day_tier_map: dict[int, int] = {}  # recipe_id → tier when hard_day_mode
+        hard_day_tier_map: dict[int, int] = {}  # recipe_id -> tier when hard_day_mode
 
         for row in rows:
             ingredient_names: list[str] = row.get("ingredient_names") or []
@@ -719,6 +724,11 @@ class RecipeEngine:
             # Skip recipes that require any ingredient the user has excluded.
             if exclude_set and any(_ingredient_in_pantry(n, exclude_set) for n in ingredient_names):
                 continue
+
+            # Sensory filter -- silent exclusion of recipes exceeding user tolerance
+            if not _sensory_exclude.is_empty():
+                if not passes_sensory_filter(row.get("sensory_tags"), _sensory_exclude):
+                    continue
 
             # Compute missing ingredients, detecting pantry coverage first.
             # When covered, collect any prep-state annotations (e.g. "melted butter"

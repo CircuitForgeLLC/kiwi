@@ -38,6 +38,7 @@ from app.services.recipe.browser_domains import (
 )
 from app.services.recipe.recipe_engine import RecipeEngine
 from app.services.recipe.time_effort import parse_time_effort
+from app.services.recipe.sensory import build_sensory_exclude
 from app.services.heimdall_orch import check_orch_budget
 from app.tiers import can_use
 
@@ -285,6 +286,10 @@ async def browse_recipes(
     def _browse(db_path: Path) -> dict:
         store = Store(db_path)
         try:
+            # Load sensory preferences
+            sensory_prefs_json = store.get_setting("sensory_preferences")
+            sensory_exclude = build_sensory_exclude(sensory_prefs_json)
+
             result = store.browse_recipes(
                 keywords=keywords,
                 page=page,
@@ -292,6 +297,7 @@ async def browse_recipes(
                 pantry_items=pantry_list,
                 q=q or None,
                 sort=sort,
+                sensory_exclude=sensory_exclude,
             )
 
             # ── Attach time/effort signals to each browse result ────────────────

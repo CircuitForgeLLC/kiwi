@@ -86,7 +86,7 @@ def test_hard_day_mode_uses_equipment_setting(tmp_store: MagicMock) -> None:
     result = engine.suggest(req)
 
     # Engine should have read the equipment setting
-    tmp_store.get_setting.assert_called_with("cooking_equipment")
+    tmp_store.get_setting.assert_any_call("cooking_equipment")
     # Result is a valid RecipeResult (no crash)
     assert result is not None
     assert hasattr(result, "suggestions")
@@ -106,5 +106,36 @@ def test_put_null_value_returns_422(tmp_store: MagicMock) -> None:
     resp = client.put(
         "/api/v1/settings/cooking_equipment",
         json={"value": None},
+    )
+    assert resp.status_code == 422
+
+
+def test_set_and_get_sensory_preferences(tmp_store: MagicMock) -> None:
+    """PUT then GET round-trips the sensory_preferences value."""
+    prefs = json.dumps({
+        "avoid_textures": ["mushy", "slimy"],
+        "max_smell": "pungent",
+        "max_noise": "loud",
+    })
+
+    put_resp = client.put(
+        "/api/v1/settings/sensory_preferences",
+        json={"value": prefs},
+    )
+    assert put_resp.status_code == 200
+    assert put_resp.json()["key"] == "sensory_preferences"
+    tmp_store.set_setting.assert_called_with("sensory_preferences", prefs)
+
+    tmp_store.get_setting.return_value = prefs
+    get_resp = client.get("/api/v1/settings/sensory_preferences")
+    assert get_resp.status_code == 200
+    assert get_resp.json()["value"] == prefs
+
+
+def test_sensory_preferences_unknown_key_still_422(tmp_store: MagicMock) -> None:
+    """Confirm unknown keys still 422 after adding sensory_preferences."""
+    resp = client.put(
+        "/api/v1/settings/sensory_taste_buds",
+        json={"value": "{}"},
     )
     assert resp.status_code == 422

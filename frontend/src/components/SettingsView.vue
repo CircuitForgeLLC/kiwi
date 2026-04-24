@@ -64,6 +64,89 @@
         </div>
       </section>
 
+      <!-- Sensory Preferences -->
+      <section class="mt-md">
+        <h3 class="text-lg font-semibold mb-xs">Sensory Preferences</h3>
+        <p class="text-sm text-secondary mb-md">
+          Tell Kiwi what your senses prefer. Recipes that don't match will be
+          filtered out quietly in Browse and Find. Leave everything unset and nothing is filtered.
+        </p>
+
+        <!-- Texture avoid pills -->
+        <div class="form-group">
+          <label class="form-label">
+            <span class="mr-xs">Texture — avoid</span>
+            <span class="text-xs text-muted">(select any textures you'd rather skip)</span>
+          </label>
+          <div class="flex flex-wrap gap-xs mt-xs" role="group" aria-label="Texture avoidance">
+            <button
+              v-for="tex in TEXTURE_OPTIONS"
+              :key="tex.tag"
+              :class="[
+                'sensory-pill',
+                settingsStore.sensoryPreferences.avoid_textures.includes(tex.tag)
+                  ? 'sensory-pill--avoided'
+                  : 'sensory-pill--neutral',
+              ]"
+              :aria-pressed="settingsStore.sensoryPreferences.avoid_textures.includes(tex.tag)"
+              @click="toggleTexture(tex.tag)"
+            >{{ tex.emoji }} {{ tex.label }}</button>
+          </div>
+        </div>
+
+        <!-- Smell tolerance -->
+        <div class="form-group mt-sm">
+          <label class="form-label">
+            <span class="mr-xs">Smell — max I'm ok with</span>
+            <span class="text-xs text-muted">(tap to set your limit; tap again to clear)</span>
+          </label>
+          <div class="flex flex-wrap gap-xs mt-xs" role="group" aria-label="Smell tolerance">
+            <button
+              v-for="(level, idx) in SMELL_LEVELS"
+              :key="String(level.value)"
+              :class="['sensory-pill', getSmellClass(level.value, idx)]"
+              :aria-pressed="settingsStore.sensoryPreferences.max_smell === level.value"
+              @click="toggleSmell(level.value)"
+            >{{ level.emoji }} {{ level.label }}</button>
+          </div>
+          <p v-if="settingsStore.sensoryPreferences.max_smell" class="text-xs text-muted mt-xs">
+            Recipes stronger than <strong>{{ smellLabel(settingsStore.sensoryPreferences.max_smell) }}</strong> will be hidden.
+          </p>
+        </div>
+
+        <!-- Noise tolerance -->
+        <div class="form-group mt-sm">
+          <label class="form-label">
+            <span class="mr-xs">Noise — max I'm ok with</span>
+            <span class="text-xs text-muted">(tap to set your limit; tap again to clear)</span>
+          </label>
+          <div class="flex flex-wrap gap-xs mt-xs" role="group" aria-label="Noise tolerance">
+            <button
+              v-for="(level, idx) in NOISE_LEVELS"
+              :key="String(level.value)"
+              :class="['sensory-pill', getNoiseClass(level.value, idx)]"
+              :aria-pressed="settingsStore.sensoryPreferences.max_noise === level.value"
+              @click="toggleNoise(level.value)"
+            >{{ level.emoji }} {{ level.label }}</button>
+          </div>
+          <p v-if="settingsStore.sensoryPreferences.max_noise" class="text-xs text-muted mt-xs">
+            Recipes louder than <strong>{{ noiseLabel(settingsStore.sensoryPreferences.max_noise) }}</strong> will be hidden.
+          </p>
+        </div>
+
+        <div class="flex-start gap-sm mt-sm">
+          <button
+            class="btn btn-primary btn-sm"
+            :disabled="settingsStore.loading"
+            @click="settingsStore.saveSensory()"
+          >
+            <span v-if="settingsStore.loading">Saving…</span>
+            <span v-else-if="settingsStore.saved">Saved!</span>
+            <span v-else>Save sensory preferences</span>
+          </button>
+        </div>
+      </section>
+
       <!-- Units -->
       <section class="mt-md">
         <h3 class="text-lg font-semibold mb-xs">Units</h3>
@@ -261,6 +344,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useSettingsStore } from '../stores/settings'
 import { useRecipesStore } from '../stores/recipes'
 import { householdAPI, type HouseholdStatus } from '../services/api'
+import type { TextureTag, SmellLevel, NoiseLevel } from '../services/api'
 import { useOrchUsage } from '../composables/useOrchUsage'
 
 const settingsStore = useSettingsStore()
@@ -411,6 +495,84 @@ onMounted(async () => {
   await settingsStore.load()
   await loadHouseholdStatus()
 })
+
+// ── Sensory taxonomy ───────────────────────────────────────────────────────
+
+const TEXTURE_OPTIONS: { tag: TextureTag; label: string; emoji: string }[] = [
+  { tag: 'mushy',   label: 'Mushy',   emoji: '🦫' },
+  { tag: 'slimy',   label: 'Slimy',   emoji: '🫙' },
+  { tag: 'crunchy', label: 'Crunchy', emoji: '🥜' },
+  { tag: 'chewy',   label: 'Chewy',   emoji: '🍖' },
+  { tag: 'creamy',  label: 'Creamy',  emoji: '🥣' },
+  { tag: 'chunky',  label: 'Chunky',  emoji: '🫕' },
+]
+
+const SMELL_LEVELS: { value: SmellLevel; label: string; emoji: string }[] = [
+  { value: 'mild',      label: 'Mild',      emoji: '🌿' },
+  { value: 'aromatic',  label: 'Aromatic',  emoji: '🌸' },
+  { value: 'pungent',   label: 'Pungent',   emoji: '🧄' },
+  { value: 'fermented', label: 'Fermented', emoji: '🧀' },
+]
+
+const NOISE_LEVELS: { value: NoiseLevel; label: string; emoji: string }[] = [
+  { value: 'quiet',    label: 'Quiet',    emoji: '🤫' },
+  { value: 'moderate', label: 'Moderate', emoji: '🍳' },
+  { value: 'loud',     label: 'Loud',     emoji: '🔥' },
+  { value: 'very_loud', label: 'Very loud', emoji: '💥' },
+]
+
+function smellLabel(value: SmellLevel): string {
+  return SMELL_LEVELS.find(l => l.value === value)?.label ?? ''
+}
+
+function noiseLabel(value: NoiseLevel): string {
+  return NOISE_LEVELS.find(l => l.value === value)?.label ?? ''
+}
+
+function toggleTexture(tag: TextureTag) {
+  const current = settingsStore.sensoryPreferences.avoid_textures
+  const updated = current.includes(tag)
+    ? current.filter(t => t !== tag)
+    : [...current, tag]
+  settingsStore.sensoryPreferences = {
+    ...settingsStore.sensoryPreferences,
+    avoid_textures: updated,
+  }
+}
+
+function toggleSmell(value: SmellLevel) {
+  const current = settingsStore.sensoryPreferences.max_smell
+  settingsStore.sensoryPreferences = {
+    ...settingsStore.sensoryPreferences,
+    max_smell: current === value ? null : value,
+  }
+}
+
+function toggleNoise(value: NoiseLevel) {
+  const current = settingsStore.sensoryPreferences.max_noise
+  settingsStore.sensoryPreferences = {
+    ...settingsStore.sensoryPreferences,
+    max_noise: current === value ? null : value,
+  }
+}
+
+function getSmellClass(value: SmellLevel, idx: number): string {
+  const maxSmell = settingsStore.sensoryPreferences.max_smell
+  if (!maxSmell) return 'sensory-pill--neutral'
+  const maxIdx = SMELL_LEVELS.findIndex(l => l.value === maxSmell)
+  if (idx === maxIdx) return 'sensory-pill--limit'
+  if (idx < maxIdx) return 'sensory-pill--ok'
+  return 'sensory-pill--neutral'
+}
+
+function getNoiseClass(value: NoiseLevel, idx: number): string {
+  const maxNoise = settingsStore.sensoryPreferences.max_noise
+  if (!maxNoise) return 'sensory-pill--neutral'
+  const maxIdx = NOISE_LEVELS.findIndex(l => l.value === maxNoise)
+  if (idx === maxIdx) return 'sensory-pill--limit'
+  if (idx < maxIdx) return 'sensory-pill--ok'
+  return 'sensory-pill--neutral'
+}
 </script>
 
 <style scoped>
@@ -566,5 +728,50 @@ onMounted(async () => {
   width: 1rem;
   height: 1rem;
   flex-shrink: 0;
+}
+
+/* ── Sensory pills ───────────────────────────────────────────────────────── */
+
+.sensory-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 9999px;
+  border: 1.5px solid var(--color-border, #e0e0e0);
+  background: transparent;
+  color: var(--color-text-secondary, #888);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  user-select: none;
+}
+
+.sensory-pill:hover {
+  opacity: 0.85;
+}
+
+.sensory-pill--avoided {
+  background: rgba(220, 80, 60, 0.18);
+  border-color: rgba(220, 80, 60, 0.40);
+  color: #f08070;
+}
+
+.sensory-pill--ok {
+  background: rgba(74, 140, 64, 0.15);
+  border-color: rgba(74, 140, 64, 0.35);
+  color: #7fc073;
+}
+
+.sensory-pill--limit {
+  background: rgba(200, 140, 30, 0.18);
+  border-color: rgba(200, 140, 30, 0.45);
+  color: #c8a020;
+}
+
+.sensory-pill--neutral {
+  background: transparent;
+  border-color: var(--color-border, #e0e0e0);
+  color: var(--color-text-secondary, #888);
 }
 </style>
