@@ -152,3 +152,24 @@ class BuildRequest(BaseModel):
 
     template_id: str
     role_overrides: dict[str, str] = Field(default_factory=dict)
+
+
+class StreamTokenRequest(BaseModel):
+    """Request body for POST /recipes/stream-token.
+
+    Pantry items and dietary constraints are fetched from the DB at request
+    time — the client does not supply them here.
+    """
+    level: int = Field(4, ge=3, le=4, description="Recipe level: 3=styled, 4=wildcard")
+    wildcard_confirmed: bool = Field(False, description="Required true for level 4")
+
+
+class StreamTokenResponse(BaseModel):
+    """Response from POST /recipes/stream-token.
+
+    The frontend opens EventSource at stream_url?token=<token> to receive
+    SSE chunks directly from the coordinator.
+    """
+    stream_url: str
+    token: str
+    expires_in_s: int
