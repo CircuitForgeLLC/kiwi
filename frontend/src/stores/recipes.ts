@@ -151,6 +151,7 @@ export const useRecipesStore = defineStore('recipes', () => {
   const pantryMatchOnly = ref(false)
   const complexityFilter = ref<string | null>(null)
   const maxTimeMin = ref<number | null>(null)
+  const maxTotalMin = ref<number | null>(null)
   const nutritionFilters = ref<NutritionFilters>({
     max_calories: null,
     max_sugar_g: null,
@@ -205,6 +206,7 @@ export const useRecipesStore = defineStore('recipes', () => {
       pantry_match_only: pantryMatchOnly.value,
       complexity_filter: complexityFilter.value,
       max_time_min: maxTimeMin.value,
+      max_total_min: maxTotalMin.value,
     }
   }
 
@@ -384,6 +386,7 @@ export const useRecipesStore = defineStore('recipes', () => {
     pantryMatchOnly,
     complexityFilter,
     maxTimeMin,
+    maxTotalMin,
     nutritionFilters,
     dismissedIds,
     dismissedCount,

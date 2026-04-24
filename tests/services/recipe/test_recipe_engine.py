@@ -134,3 +134,39 @@ def test_suggest_returns_no_assembly_results(store_with_recipes):
     result = engine.suggest(req)
     assembly_ids = [s.id for s in result.suggestions if s.id < 0]
     assert assembly_ids == [], f"Found assembly results in suggest(): {assembly_ids}"
+
+
+# ── _within_time tests (kiwi#52) ──────────────────────────────────────────────
+
+def test_within_time_no_directions_passes():
+    """Empty directions -> True (don't hide recipes with no data)."""
+    from app.services.recipe.recipe_engine import _within_time
+    assert _within_time([], max_total_min=10) is True
+
+
+def test_within_time_no_time_signals_passes():
+    """Directions with no time signals -> total_min == 0 -> True."""
+    from app.services.recipe.recipe_engine import _within_time
+    steps = ["mix together", "pour over ice", "serve immediately"]
+    assert _within_time(steps, max_total_min=5) is True
+
+
+def test_within_time_under_limit_passes():
+    """Recipe with 10 min total and limit of 15 -> passes."""
+    from app.services.recipe.recipe_engine import _within_time
+    steps = ["cook for 10 minutes", "serve"]
+    assert _within_time(steps, max_total_min=15) is True
+
+
+def test_within_time_at_limit_passes():
+    """Recipe exactly at limit -> passes (inclusive boundary)."""
+    from app.services.recipe.recipe_engine import _within_time
+    steps = ["simmer for 10 minutes"]
+    assert _within_time(steps, max_total_min=10) is True
+
+
+def test_within_time_over_limit_fails():
+    """Recipe with 45 min total and limit of 30 -> fails."""
+    from app.services.recipe.recipe_engine import _within_time
+    steps = ["brown onions for 15 minutes", "simmer for 30 minutes"]
+    assert _within_time(steps, max_total_min=30) is False

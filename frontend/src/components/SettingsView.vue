@@ -233,6 +233,44 @@
         </div>
       </section>
 
+      <!-- Time-First Layout -->
+      <section class="mt-md">
+        <h3 class="text-lg font-semibold mb-xs">Recipe Search Layout</h3>
+        <p class="text-sm text-secondary mb-sm">
+          Choose how the Find tab looks when you search for recipes.
+        </p>
+        <div class="flex flex-col gap-xs" role="radiogroup" aria-label="Recipe search layout">
+          <label
+            v-for="opt in timeFirstLayoutOptions"
+            :key="opt.value"
+            class="flex-start gap-sm time-layout-option"
+          >
+            <input
+              type="radio"
+              name="time_first_layout"
+              :value="opt.value"
+              :checked="settingsStore.timeFirstLayout === opt.value"
+              @change="settingsStore.timeFirstLayout = opt.value"
+            />
+            <span>
+              <strong>{{ opt.label }}</strong>
+              <span class="text-xs text-muted ml-xs">{{ opt.description }}</span>
+            </span>
+          </label>
+        </div>
+        <div class="flex-start gap-sm mt-sm">
+          <button
+            class="btn btn-primary btn-sm"
+            :disabled="settingsStore.loading"
+            @click="settingsStore.save()"
+          >
+            <span v-if="settingsStore.loading">Saving…</span>
+            <span v-else-if="settingsStore.saved">✓ Saved!</span>
+            <span v-else>Save</span>
+          </button>
+        </div>
+      </section>
+
       <!-- Display Preferences -->
       <section class="mt-md">
         <h3 class="text-lg font-semibold mb-xs">Display</h3>
@@ -345,11 +383,18 @@ import { useSettingsStore } from '../stores/settings'
 import { useRecipesStore } from '../stores/recipes'
 import { householdAPI, type HouseholdStatus } from '../services/api'
 import type { TextureTag, SmellLevel, NoiseLevel } from '../services/api'
+import type { TimeFirstLayout } from '../stores/settings'
 import { useOrchUsage } from '../composables/useOrchUsage'
 
 const settingsStore = useSettingsStore()
 const recipesStore = useRecipesStore()
 const { enabled: orchPillEnabled, setEnabled: setOrchPillEnabled } = useOrchUsage()
+
+const timeFirstLayoutOptions: Array<{ value: TimeFirstLayout; label: string; description: string }> = [
+  { value: 'auto',       label: 'Auto',        description: 'Shows a time selector when recipes are available.' },
+  { value: 'time_first', label: 'Time First',  description: 'Always show the time bucket selector at the top.' },
+  { value: 'normal',     label: 'Normal',      description: 'Standard layout — no time selector shown.' },
+]
 
 const sortedCookLog = computed(() =>
   [...recipesStore.cookLog].sort((a, b) => b.cookedAt - a.cookedAt)
@@ -727,6 +772,20 @@ function getNoiseClass(value: NoiseLevel, idx: number): string {
   accent-color: var(--color-primary);
   width: 1rem;
   height: 1rem;
+  flex-shrink: 0;
+}
+
+/* ── Time-first layout option ────────────────────────────────────────────── */
+
+.time-layout-option {
+  cursor: pointer;
+  padding: var(--spacing-xs, 0.25rem) 0;
+  align-items: flex-start;
+}
+
+.time-layout-option input[type="radio"] {
+  accent-color: var(--color-primary);
+  margin-top: 0.15rem;
   flex-shrink: 0;
 }
 

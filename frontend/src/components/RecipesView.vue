@@ -102,6 +102,28 @@
         Tap "Find recipes" again to apply.
       </p>
 
+      <!-- Time Budget selector (kiwi#52) -->
+      <!-- Shows when time_first_layout != 'normal' (auto or time_first) -->
+      <div v-if="settingsStore.timeFirstLayout !== 'normal'" class="form-group time-bucket-group">
+        <label class="form-label">How much time do you have?</label>
+        <div class="flex flex-wrap gap-sm">
+          <button
+            v-for="bucket in timeBuckets"
+            :key="bucket.label"
+            :class="['btn', 'btn-sm', 'time-bucket-btn',
+              recipesStore.maxTotalMin === bucket.value ? 'time-bucket-active' : 'btn-secondary']"
+            @click="recipesStore.maxTotalMin = recipesStore.maxTotalMin === bucket.value ? null : bucket.value"
+            :aria-pressed="recipesStore.maxTotalMin === bucket.value"
+          >
+            {{ bucket.label }}
+          </button>
+        </div>
+        <p class="form-hint">
+          Filters by time found in recipe steps.
+          <span v-if="!recipesStore.maxTotalMin">No time limit set.</span>
+        </p>
+      </div>
+
       <!-- Dietary Preferences (collapsible) -->
       <details class="collapsible form-group" @toggle="(e: Event) => dietaryOpen = (e.target as HTMLDetailsElement).open">
         <summary class="collapsible-summary filter-summary" :aria-expanded="dietaryOpen">
@@ -696,6 +718,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRecipesStore } from '../stores/recipes'
+import { useSettingsStore } from '../stores/settings'
 import { useInventoryStore } from '../stores/inventory'
 import { useSavedRecipesStore } from '../stores/savedRecipes'
 import RecipeDetailPanel from './RecipeDetailPanel.vue'
@@ -710,6 +733,7 @@ import { recipesAPI } from '../services/api'
 
 const recipesStore = useRecipesStore()
 const inventoryStore = useInventoryStore()
+const settingsStore = useSettingsStore()
 
 // Tab state
 type TabId = 'find' | 'browse' | 'saved' | 'community' | 'build'
@@ -961,6 +985,15 @@ const activeNutritionFilterCount = computed(() =>
 )
 
 const activeLevel = computed(() => levels.find(l => l.value === recipesStore.level))
+
+// Time budget buckets for the time-first entry selector (kiwi#52)
+const timeBuckets = [
+  { label: '15 min', value: 15 },
+  { label: '30 min', value: 30 },
+  { label: '45 min', value: 45 },
+  { label: '1 hour', value: 60 },
+  { label: '90 min', value: 90 },
+]
 
 const cuisineStyles = [
   { id: 'italian',           label: 'Italian' },
@@ -1475,6 +1508,23 @@ details[open] .collapsible-summary::before {
   font-weight: 400;
   opacity: 0.85;
   margin-left: auto;
+}
+
+/* Time bucket selector (kiwi#52) */
+.time-bucket-group {
+  margin-top: var(--spacing-sm, 0.5rem);
+}
+
+.time-bucket-btn {
+  min-width: 4.5rem;
+  border-radius: var(--radius-full, 9999px);
+  font-weight: 500;
+}
+
+.time-bucket-active {
+  background: var(--color-primary, #1a6b4a);
+  color: white;
+  border-color: var(--color-primary, #1a6b4a);
 }
 
 /* Preset grid — auto-fill 2+ columns */

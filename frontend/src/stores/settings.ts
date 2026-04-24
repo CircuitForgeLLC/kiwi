@@ -11,12 +11,15 @@ import type { UnitSystem } from '../utils/units'
 import type { SensoryPreferences } from '../services/api'
 import { DEFAULT_SENSORY_PREFERENCES } from '../services/api'
 
+export type TimeFirstLayout = 'auto' | 'time_first' | 'normal'
+
 export const useSettingsStore = defineStore('settings', () => {
   // State
   const cookingEquipment = ref<string[]>([])
   const unitSystem = ref<UnitSystem>('metric')
   const shoppingLocale = ref<string>('us')
   const sensoryPreferences = ref<SensoryPreferences>({ ...DEFAULT_SENSORY_PREFERENCES })
+  const timeFirstLayout = ref<TimeFirstLayout>('auto')
   const loading = ref(false)
   const saved = ref(false)
 
@@ -24,11 +27,12 @@ export const useSettingsStore = defineStore('settings', () => {
   async function load() {
     loading.value = true
     try {
-      const [rawEquipment, rawUnits, rawLocale, rawSensory] = await Promise.allSettled([
+      const [rawEquipment, rawUnits, rawLocale, rawSensory, rawTimeFirst] = await Promise.allSettled([
         settingsAPI.getSetting('cooking_equipment'),
         settingsAPI.getSetting('unit_system'),
         settingsAPI.getSetting('shopping_locale'),
         settingsAPI.getSetting('sensory_preferences'),
+        settingsAPI.getSetting('time_first_layout'),
       ])
       if (rawEquipment.status === 'fulfilled' && rawEquipment.value) {
         cookingEquipment.value = JSON.parse(rawEquipment.value)
@@ -46,6 +50,9 @@ export const useSettingsStore = defineStore('settings', () => {
           sensoryPreferences.value = { ...DEFAULT_SENSORY_PREFERENCES }
         }
       }
+      if (rawTimeFirst.status === 'fulfilled' && rawTimeFirst.value) {
+        timeFirstLayout.value = rawTimeFirst.value as TimeFirstLayout
+      }
     } catch (err: unknown) {
       console.error('Failed to load settings:', err)
     } finally {
@@ -61,6 +68,7 @@ export const useSettingsStore = defineStore('settings', () => {
         settingsAPI.setSetting('unit_system', unitSystem.value),
         settingsAPI.setSetting('shopping_locale', shoppingLocale.value),
         settingsAPI.setSetting('sensory_preferences', JSON.stringify(sensoryPreferences.value)),
+        settingsAPI.setSetting('time_first_layout', timeFirstLayout.value),
       ])
       saved.value = true
       setTimeout(() => {
@@ -95,6 +103,7 @@ export const useSettingsStore = defineStore('settings', () => {
     unitSystem,
     shoppingLocale,
     sensoryPreferences,
+    timeFirstLayout,
     loading,
     saved,
 

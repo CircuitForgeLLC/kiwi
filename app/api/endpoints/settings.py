@@ -10,7 +10,7 @@ from app.db.store import Store
 
 router = APIRouter()
 
-_ALLOWED_KEYS = frozenset({"cooking_equipment", "unit_system", "shopping_locale", "sensory_preferences"})
+_ALLOWED_KEYS = frozenset({"cooking_equipment", "unit_system", "shopping_locale", "sensory_preferences", "time_first_layout"})
 
 
 class SettingBody(BaseModel):

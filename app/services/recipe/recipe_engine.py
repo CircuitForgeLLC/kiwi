@@ -25,6 +25,7 @@ from app.services.recipe.element_classifier import ElementClassifier
 from app.services.recipe.grocery_links import GroceryLinkBuilder
 from app.services.recipe.substitution_engine import SubstitutionEngine
 from app.services.recipe.sensory import SensoryExclude, build_sensory_exclude, passes_sensory_filter
+from app.services.recipe.time_effort import parse_time_effort
 
 _LEFTOVER_DAILY_MAX_FREE = 5
 
@@ -613,6 +614,21 @@ def _estimate_time_min(directions: list[str], complexity: str) -> int:
     return max(10, 20 + steps * 4)  # moderate
 
 
+def _within_time(directions: list[str], max_total_min: int) -> bool:
+    """Return True if parsed total time (active + passive) is within max_total_min.
+
+    Graceful degradation:
+    - Empty directions -> True (no data, don't hide)
+    - total_min == 0 (no time signals found) -> True (unparseable, don't hide)
+    """
+    if not directions:
+        return True
+    profile = parse_time_effort(directions)
+    if profile.total_min == 0:
+        return True
+    return profile.total_min <= max_total_min
+
+
 def _classify_method_complexity(
     directions: list[str],
     available_equipment: list[str] | None = None,
@@ -805,6 +821,10 @@ class RecipeEngine:
 
             # Max time filter (#58)
             if req.max_time_min is not None and row_time_min > req.max_time_min:
+                continue
+
+            # Total time filter (kiwi#52) — uses parsed time from directions
+            if req.max_total_min is not None and not _within_time(directions, req.max_total_min):
                 continue
 
             # Level 2: also add dietary constraint swaps from substitution_pairs

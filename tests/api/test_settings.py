@@ -139,3 +139,31 @@ def test_sensory_preferences_unknown_key_still_422(tmp_store: MagicMock) -> None
         json={"value": "{}"},
     )
     assert resp.status_code == 422
+
+
+def test_set_and_get_time_first_layout(tmp_store: MagicMock) -> None:
+    """PUT then GET round-trips the time_first_layout value."""
+    layout_value = "time_first"
+
+    put_resp = client.put(
+        "/api/v1/settings/time_first_layout",
+        json={"value": layout_value},
+    )
+    assert put_resp.status_code == 200
+    assert put_resp.json()["key"] == "time_first_layout"
+    assert put_resp.json()["value"] == layout_value
+    tmp_store.set_setting.assert_called_with("time_first_layout", layout_value)
+
+    tmp_store.get_setting.return_value = layout_value
+    get_resp = client.get("/api/v1/settings/time_first_layout")
+    assert get_resp.status_code == 200
+    assert get_resp.json()["value"] == layout_value
+
+
+def test_time_first_layout_unknown_key_still_422(tmp_store: MagicMock) -> None:
+    """Confirm unknown keys still 422 after adding time_first_layout."""
+    resp = client.put(
+        "/api/v1/settings/time_first_mode",
+        json={"value": "time_first"},
+    )
+    assert resp.status_code == 422
