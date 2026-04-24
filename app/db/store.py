@@ -1190,7 +1190,7 @@ class Store:
 
         cols = (
             f"SELECT id, title, category, keywords, ingredient_names,"
-            f"       calories, fat_g, protein_g, sodium_mg FROM {c}recipes"
+            f"       calories, fat_g, protein_g, sodium_mg, directions FROM {c}recipes"
         )
 
         if keywords is None:
@@ -1268,7 +1268,7 @@ class Store:
         ph = ",".join("?" * len(recipe_ids))
         rows = self._fetch_all(
             f"SELECT id, title, category, keywords, ingredient_names,"
-            f"       calories, fat_g, protein_g, sodium_mg"
+            f"       calories, fat_g, protein_g, sodium_mg, directions"
             f" FROM {c}recipes WHERE id IN ({ph}) ORDER BY id ASC",
             tuple(recipe_ids),
         )
@@ -1280,6 +1280,7 @@ class Store:
                 "category":  r["category"],
                 "match_pct": None,
             }
+            entry["directions"] = r.get("directions")
             if pantry_set:
                 names = r.get("ingredient_names") or []
                 if names:
@@ -1318,7 +1319,7 @@ class Store:
 
         # ── Fetch candidate pool from FTS ────────────────────────────────────
         base_cols = (
-            f"SELECT r.id, r.title, r.category, r.ingredient_names"
+            f"SELECT r.id, r.title, r.category, r.ingredient_names, r.directions"
             f" FROM {c}recipes r"
         )
 
@@ -1385,6 +1386,7 @@ class Store:
                 "title":     row["title"],
                 "category":  row["category"],
                 "match_pct": match_pct,
+                "directions": row.get("directions"),
             })
 
         scored.sort(key=lambda r: (-(r["match_pct"] or 0), r["id"]))

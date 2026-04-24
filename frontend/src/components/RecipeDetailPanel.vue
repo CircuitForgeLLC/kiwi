@@ -51,7 +51,15 @@
         </div>
 
         <!-- Ingredients: have vs. need in a two-column layout -->
-        <div class="ingredients-grid">
+        <details open class="ingredients-collapsible">
+          <summary class="ingredients-collapsible-summary">
+            Ingredients
+            <span class="ingr-summary-counts">
+              <span v-if="recipe.matched_ingredients?.length" class="ingr-count ingr-count-have">{{ recipe.matched_ingredients.length }} ✓</span>
+              <span v-if="recipe.missing_ingredients?.length" class="ingr-count ingr-count-need">{{ recipe.missing_ingredients.length }} needed</span>
+            </span>
+          </summary>
+          <div class="ingredients-grid">
           <div v-if="recipe.matched_ingredients?.length > 0" class="ingredient-col ingredient-col-have">
             <h3 class="col-label col-label-have">From your pantry</h3>
             <ul class="ingredient-list">
@@ -97,6 +105,35 @@
               @click="toggleSelectAll"
             >{{ checkedIngredients.size === recipe.missing_ingredients.length ? 'Deselect all' : 'Select all' }}</button>
           </div>
+          </div>
+        </details>
+
+        <!-- Time & effort summary cards -->
+        <div v-if="recipe.time_effort" class="effort-summary">
+          <div class="effort-card effort-card-active">
+            <span class="effort-label">Active</span>
+            <span class="effort-value">{{ formatDetailMin(recipe.time_effort.active_min) }}</span>
+          </div>
+          <div v-if="recipe.time_effort.passive_min > 0" class="effort-card effort-card-passive">
+            <span class="effort-label">Hands-off</span>
+            <span class="effort-value">{{ formatDetailMin(recipe.time_effort.passive_min) }}</span>
+          </div>
+          <div class="effort-card effort-card-total">
+            <span class="effort-label">Total</span>
+            <span class="effort-value">{{ formatDetailMin(recipe.time_effort.total_min) }}</span>
+          </div>
+          <div class="effort-level-badge" :class="'effort-' + recipe.time_effort.effort_label">
+            {{ recipe.time_effort.effort_label }}
+          </div>
+        </div>
+
+        <!-- Equipment chips -->
+        <div v-if="recipe.time_effort?.equipment?.length" class="equipment-chips">
+          <span
+            v-for="eq in recipe.time_effort.equipment"
+            :key="eq"
+            class="equipment-chip"
+          >{{ EQUIPMENT_ICONS[eq] ?? '🍴' }} {{ eq }}</span>
         </div>
 
         <!-- Swap candidates -->
@@ -145,13 +182,27 @@
           </ul>
         </div>
 
-        <!-- Directions -->
-        <div v-if="recipe.directions.length > 0" class="detail-section">
-          <h3 class="section-label">Steps</h3>
-          <ol class="directions-list">
-            <li v-for="(step, i) in recipe.directions" :key="i" class="text-sm direction-step">{{ step }}</li>
+        <!-- Directions (annotated) -->
+        <details open v-if="recipe.directions.length > 0" class="steps-collapsible">
+          <summary class="steps-collapsible-summary">
+            Steps <span class="steps-count">({{ recipe.directions.length }})</span>
+          </summary>
+          <ol class="directions-list directions-list-annotated">
+            <li
+              v-for="(step, i) in recipe.directions"
+              :key="i"
+              class="text-sm direction-step direction-step-annotated"
+              :class="{ 'step-passive': stepAnalysis(i)?.is_passive }"
+            >
+              <div class="step-badge-row">
+                <span v-if="stepAnalysis(i)?.is_passive" class="step-type-badge step-type-wait">Wait</span>
+                <span v-else-if="stepAnalysis(i)" class="step-type-badge step-type-active">Active</span>
+              </div>
+              <p class="step-text">{{ step }}</p>
+              <p v-if="passiveHint(stepAnalysis(i))" class="step-passive-hint">{{ passiveHint(stepAnalysis(i)) }}</p>
+            </li>
           </ol>
-        </div>
+        </details>
 
         <!-- Bottom padding so last step isn't hidden behind sticky footer -->
         <div style="height: var(--spacing-xl)" />
@@ -217,7 +268,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRecipesStore } from '../stores/recipes'
 import { useSavedRecipesStore } from '../stores/savedRecipes'
 import { inventoryAPI } from '../services/api'
-import type { RecipeSuggestion, GroceryLink } from '../services/api'
+import type { RecipeSuggestion, GroceryLink, StepAnalysis, TimeEffortProfile } from '../services/api'
 import SaveRecipeModal from './SaveRecipeModal.vue'
 
 const dialogRef = ref<HTMLElement | null>(null)
@@ -323,6 +374,39 @@ function scaleIngredient(ing: string, scale: number): string {
   }
 
   return scaled + ing.slice(m[0].length)
+}
+
+// Time & effort helpers
+function formatDetailMin(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return m === 0 ? `${h} hr` : `${h} hr ${m} min`
+}
+
+const EQUIPMENT_ICONS: Record<string, string> = {
+  oven: '♨',
+  stovetop: '🔥',
+  blender: '⚡',
+  'food processor': '⚡',
+  microwave: '📡',
+  grill: '🔥',
+  'slow cooker': '⏲',
+  'instant pot': '⏲',
+  mixer: '🌀',
+  skillet: '🍳',
+  'cast iron': '🍳',
+  wok: '🍳',
+}
+
+function stepAnalysis(i: number): StepAnalysis | null {
+  return props.recipe.time_effort?.step_analyses?.[i] ?? null
+}
+
+function passiveHint(analysis: StepAnalysis | null): string {
+  if (!analysis?.is_passive) return ''
+  if (analysis.detected_minutes) return `~${analysis.detected_minutes} min hands-off`
+  return 'Hands-off time'
 }
 
 // Shopping: add purchased ingredients to pantry
@@ -869,6 +953,234 @@ function handleCook() {
 .direction-step {
   margin-bottom: var(--spacing-sm);
   line-height: 1.6;
+}
+
+/* ── Ingredients collapsible ────────────────────────────── */
+.ingredients-collapsible {
+  margin-bottom: var(--spacing-md);
+}
+
+.ingredients-collapsible-summary {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) 0;
+  color: var(--color-text-primary);
+}
+
+.ingredients-collapsible-summary::-webkit-details-marker {
+  display: none;
+}
+
+.ingredients-collapsible-summary::before {
+  content: '\25B6';
+  font-size: 10px;
+  color: var(--color-text-muted);
+  transition: transform 0.15s;
+  display: inline-block;
+}
+
+details[open].ingredients-collapsible .ingredients-collapsible-summary::before {
+  transform: rotate(90deg);
+}
+
+.ingr-summary-counts {
+  display: flex;
+  gap: var(--spacing-xs);
+  margin-left: auto;
+}
+
+.ingr-count {
+  font-size: var(--font-size-xs);
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+}
+
+.ingr-count-have {
+  background: var(--color-success-bg, #dcfce7);
+  color: var(--color-success, #16a34a);
+}
+
+.ingr-count-need {
+  background: var(--color-warning-bg, #fef9c3);
+  color: var(--color-warning, #ca8a04);
+}
+
+/* ── Effort summary cards ───────────────────────────────── */
+.effort-summary {
+  display: flex;
+  gap: var(--spacing-xs);
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: var(--spacing-sm);
+}
+
+.effort-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-md, 8px);
+  min-width: 64px;
+}
+
+.effort-card-active {
+  background: var(--color-success-bg, #dcfce7);
+}
+
+.effort-card-passive {
+  background: var(--color-info-bg, #dbeafe);
+}
+
+.effort-card-total {
+  background: var(--color-bg-secondary, #f5f5f5);
+}
+
+.effort-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.effort-value {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.effort-level-badge {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: capitalize;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  margin-left: auto;
+}
+
+.effort-quick {
+  background: var(--color-success-bg, #dcfce7);
+  color: var(--color-success, #16a34a);
+}
+
+.effort-moderate {
+  background: var(--color-info-bg, #dbeafe);
+  color: var(--color-info-light, #2563eb);
+}
+
+.effort-involved {
+  background: var(--color-warning-bg, #fef9c3);
+  color: var(--color-warning, #ca8a04);
+}
+
+/* ── Equipment chips ────────────────────────────────────── */
+.equipment-chips {
+  display: flex;
+  gap: var(--spacing-xs);
+  flex-wrap: wrap;
+  margin-bottom: var(--spacing-md);
+}
+
+.equipment-chip {
+  font-size: var(--font-size-xs);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-bg-secondary, #f5f5f5);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+}
+
+/* ── Steps collapsible ──────────────────────────────────── */
+.steps-collapsible {
+  margin-bottom: var(--spacing-md);
+}
+
+.steps-collapsible-summary {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+  padding: var(--spacing-xs) 0;
+  color: var(--color-text-primary);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.steps-collapsible-summary::-webkit-details-marker {
+  display: none;
+}
+
+.steps-collapsible-summary::before {
+  content: '\25B6';
+  font-size: 10px;
+  color: var(--color-text-muted);
+  transition: transform 0.15s;
+  display: inline-block;
+}
+
+details[open].steps-collapsible .steps-collapsible-summary::before {
+  transform: rotate(90deg);
+}
+
+.steps-count {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.directions-list-annotated {
+  padding-left: var(--spacing-md);
+}
+
+.direction-step-annotated {
+  margin-bottom: var(--spacing-md);
+  padding: var(--spacing-sm);
+  border-radius: var(--radius-sm, 4px);
+  border-left: 3px solid var(--color-border);
+}
+
+.step-passive {
+  border-left-color: var(--color-info-light, #60a5fa);
+  background: var(--color-info-bg, #dbeafe);
+}
+
+.step-badge-row {
+  margin-bottom: 4px;
+}
+
+.step-type-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 1px 6px;
+  border-radius: var(--radius-pill);
+}
+
+.step-type-active {
+  background: var(--color-success-bg, #dcfce7);
+  color: var(--color-success, #16a34a);
+}
+
+.step-type-wait {
+  background: var(--color-info-bg, #dbeafe);
+  color: var(--color-info-light, #2563eb);
+}
+
+.step-text {
+  margin: 0;
+  line-height: 1.6;
+}
+
+.step-passive-hint {
+  margin: 4px 0 0;
+  font-size: var(--font-size-xs);
+  color: var(--color-info-light, #2563eb);
+  font-style: italic;
 }
 
 /* ── Sticky footer ──────────────────────────────────────── */

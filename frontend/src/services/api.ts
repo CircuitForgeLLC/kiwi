@@ -500,6 +500,7 @@ export interface RecipeSuggestion {
   source_url: string | null
   complexity: 'easy' | 'moderate' | 'involved' | null
   estimated_time_min: number | null
+  time_effort: TimeEffortProfile | null
 }
 
 export interface NutritionFilters {
@@ -911,11 +912,29 @@ export interface BrowserSubcategory {
   recipe_count: number
 }
 
+// ── Time & Effort types ───────────────────────────────────────────────────
+
+export interface StepAnalysis {
+  is_passive: boolean
+  detected_minutes: number | null
+}
+
+export interface TimeEffortProfile {
+  active_min: number
+  passive_min: number
+  total_min: number
+  effort_label: 'quick' | 'moderate' | 'involved'
+  equipment: string[]
+  step_analyses: StepAnalysis[]
+}
+
 export interface BrowserRecipe {
   id: number
   title: string
   category: string | null
   match_pct: number | null
+  active_min: number | null
+  passive_min: number | null
 }
 
 export interface BrowserResult {

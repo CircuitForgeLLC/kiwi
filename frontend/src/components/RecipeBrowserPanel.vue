@@ -163,6 +163,19 @@
                   {{ Math.round(recipe.match_pct * 100) }}%
                 </span>
 
+                <!-- Time & effort split pill -->
+                <span
+                  v-if="recipe.active_min !== null"
+                  class="time-split-pill"
+                  :title="`~${formatMin(recipe.active_min)} active · ~${formatMin(recipe.passive_min ?? 0)} passive`"
+                >
+                  <span class="pill-active">🧑‍🍳 ~{{ formatMin(recipe.active_min) }}</span>
+                  <span
+                    v-if="recipe.passive_min !== null && recipe.passive_min > 0"
+                    class="pill-passive"
+                  >💤 ~{{ formatMin(recipe.passive_min) }}</span>
+                </span>
+
                 <!-- Save toggle -->
                 <button
                   class="btn btn-secondary btn-xs"
@@ -338,6 +351,18 @@ function matchBadgeClass(pct: number): string {
   if (pct >= 0.8) return 'status-success'
   if (pct >= 0.5) return 'status-warning'
   return 'status-secondary'
+}
+
+/**
+ * Format minutes as a compact display string.
+ * < 60 → "15m"
+ * >= 60 → "1h 30m" (omits minutes when zero: "2h")
+ */
+function formatMin(minutes: number): string {
+  if (minutes < 60) return `${minutes}m`
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return m === 0 ? `${h}h` : `${h}h ${m}m`
 }
 
 onMounted(async () => {
@@ -698,6 +723,37 @@ async function submitTag() {
 
 .flex-shrink-0 {
   flex-shrink: 0;
+}
+
+/* ── Time & effort split pill ──────────────────────────────────────────── */
+.time-split-pill {
+  display: inline-flex;
+  align-items: stretch;
+  border-radius: var(--radius-pill, 999px);
+  overflow: hidden;
+  font-size: var(--font-size-xs, 0.72rem);
+  white-space: nowrap;
+  flex-shrink: 0;
+  border: 1px solid transparent;
+}
+
+.pill-active {
+  padding: 2px 6px;
+  background: rgba(232, 168, 32, 0.18);
+  color: #f0bc48;
+  border-radius: var(--radius-pill, 999px) 0 0 var(--radius-pill, 999px);
+}
+
+/* When there is no passive segment, active gets full pill rounding */
+.time-split-pill:not(:has(.pill-passive)) .pill-active {
+  border-radius: var(--radius-pill, 999px);
+}
+
+.pill-passive {
+  padding: 2px 6px;
+  background: rgba(41, 128, 185, 0.15);
+  color: #5dade2;
+  border-radius: 0 var(--radius-pill, 999px) var(--radius-pill, 999px) 0;
 }
 
 /* ── Community tag CTA ──────────────────────────────────────────────────── */

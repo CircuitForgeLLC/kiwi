@@ -37,6 +37,7 @@ from app.services.recipe.browser_domains import (
     get_subcategory_names,
 )
 from app.services.recipe.recipe_engine import RecipeEngine
+from app.services.recipe.time_effort import parse_time_effort
 from app.services.heimdall_orch import check_orch_budget
 from app.tiers import can_use
 
@@ -293,6 +294,25 @@ async def browse_recipes(
                 sort=sort,
             )
 
+            # ── Attach time/effort signals to each browse result ────────────────
+            import json as _json
+            for recipe_row in result.get("recipes", []):
+                directions_raw = recipe_row.get("directions") or []
+                if isinstance(directions_raw, str):
+                    try:
+                        directions_raw = _json.loads(directions_raw)
+                    except Exception:
+                        directions_raw = []
+                if directions_raw:
+                    _profile = parse_time_effort(directions_raw)
+                    recipe_row["active_min"] = _profile.active_min
+                    recipe_row["passive_min"] = _profile.passive_min
+                else:
+                    recipe_row["active_min"] = None
+                    recipe_row["passive_min"] = None
+                # Remove directions from browse payload — not needed by the card UI
+                recipe_row.pop("directions", None)
+
             # Community tag fallback: if FTS returned nothing for a subcategory,
             # check whether accepted community tags exist for this location and
             # fetch those corpus recipes directly by ID.
@@ -310,6 +330,22 @@ async def browse_recipes(
                             offset = (page - 1) * page_size
                             paged_ids = community_ids[offset: offset + page_size]
                             recipes = store.fetch_recipes_by_ids(paged_ids, pantry_list)
+                            import json as _json_c
+                            for recipe_row in recipes:
+                                directions_raw = recipe_row.get("directions") or []
+                                if isinstance(directions_raw, str):
+                                    try:
+                                        directions_raw = _json_c.loads(directions_raw)
+                                    except Exception:
+                                        directions_raw = []
+                                if directions_raw:
+                                    _profile = parse_time_effort(directions_raw)
+                                    recipe_row["active_min"] = _profile.active_min
+                                    recipe_row["passive_min"] = _profile.passive_min
+                                else:
+                                    recipe_row["active_min"] = None
+                                    recipe_row["passive_min"] = None
+                                recipe_row.pop("directions", None)
                             result = {
                                 "recipes": recipes,
                                 "total": len(community_ids),
@@ -434,4 +470,57 @@ async def get_recipe(recipe_id: int, session: CloudUser = Depends(get_session)) 
     recipe = await asyncio.to_thread(_get, session.db, recipe_id)
     if not recipe:
         raise HTTPException(status_code=404, detail="Recipe not found.")
-    return recipe
+
+    # Normalize corpus record into RecipeSuggestion shape so RecipeDetailPanel
+    # can render it without knowing it came from a direct DB lookup.
+    ingredient_names = recipe.get("ingredient_names") or []
+    if isinstance(ingredient_names, str):
+        import json as _json
+        try:
+            ingredient_names = _json.loads(ingredient_names)
+        except Exception:
+            ingredient_names = []
+
+    _directions_for_te = recipe.get("directions") or []
+    if isinstance(_directions_for_te, str):
+        import json as _json2
+        try:
+            _directions_for_te = _json2.loads(_directions_for_te)
+        except Exception:
+            _directions_for_te = []
+
+    if _directions_for_te:
+        _te = parse_time_effort(_directions_for_te)
+        _time_effort_out: dict | None = {
+            "active_min": _te.active_min,
+            "passive_min": _te.passive_min,
+            "total_min": _te.total_min,
+            "effort_label": _te.effort_label,
+            "equipment": _te.equipment,
+            "step_analyses": [
+                {"is_passive": sa.is_passive, "detected_minutes": sa.detected_minutes}
+                for sa in _te.step_analyses
+            ],
+        }
+    else:
+        _time_effort_out = None
+
+    return {
+        "id": recipe.get("id"),
+        "title": recipe.get("title", ""),
+        "match_count": 0,
+        "matched_ingredients": ingredient_names,
+        "missing_ingredients": [],
+        "directions": recipe.get("directions") or [],
+        "prep_notes": [],
+        "swap_candidates": [],
+        "element_coverage": {},
+        "notes": recipe.get("notes") or "",
+        "level": 1,
+        "is_wildcard": False,
+        "nutrition": None,
+        "source_url": recipe.get("source_url") or None,
+        "complexity": None,
+        "estimated_time_min": None,
+        "time_effort": _time_effort_out,
+    }
