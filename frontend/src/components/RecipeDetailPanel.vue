@@ -20,7 +20,17 @@
               @click="showSaveModal = true"
               :aria-label="isSaved ? 'Edit saved recipe' : 'Save recipe'"
             >{{ isSaved ? '★ Saved' : '☆ Save' }}</button>
-            <button class="btn-close" @click="$emit('close')" aria-label="Close panel">✕</button>
+            <!-- Cook mode toggle -->
+          <button
+            v-if="recipe.directions.length > 0"
+            class="btn btn-cook"
+            :class="{ 'btn-cook--active': cookModeActive }"
+            @click="cookModeActive ? exitCookMode() : enterCookMode()"
+            :aria-label="cookModeActive ? 'Exit cook mode' : 'Enter cook mode'"
+            :aria-pressed="cookModeActive"
+          >{{ cookModeActive ? '✕ Exit' : 'Cook' }}</button>
+
+          <button class="btn-close" @click="$emit('close')" aria-label="Close panel">✕</button>
           </div>
         </div>
         <p v-if="recipe.notes" class="detail-notes">{{ recipe.notes }}</p>
@@ -33,8 +43,19 @@
         >View original ↗</a>
       </div>
 
-      <!-- Scrollable body -->
-      <div class="detail-body">
+      <!-- Cook mode bar: progress + step counter -->
+      <div v-if="cookModeActive" class="cook-mode-bar" role="status" :aria-label="`Step ${cookStep + 1} of ${cookStepCount}`">
+        <div class="cook-progress-track">
+          <div
+            class="cook-progress-fill"
+            :style="{ width: `${cookProgress * 100}%` }"
+          ></div>
+        </div>
+        <span class="cook-step-counter">Step {{ cookStep + 1 }} of {{ cookStepCount }}</span>
+      </div>
+
+      <!-- Normal scrollable body -->
+      <div v-if="!cookModeActive" class="detail-body">
 
         <!-- Serving multiplier -->
         <div class="serving-scale-row">
@@ -208,6 +229,47 @@
         <div style="height: var(--spacing-xl)" />
       </div>
 
+      <!-- Cook mode: single-step view -->
+      <div
+        v-else
+        class="detail-body cook-step-view"
+        @touchstart.passive="onTouchStart"
+        @touchend.passive="onTouchEnd"
+      >
+        <div class="cook-step-label">STEP {{ cookStep + 1 }}</div>
+
+        <div v-if="currentStepAnalysis" class="cook-step-badge-row">
+          <span
+            class="cook-step-badge"
+            :class="currentStepAnalysis.is_passive ? 'cook-badge--wait' : 'cook-badge--active'"
+          >{{ currentStepAnalysis.is_passive ? 'Wait' : 'Active' }}</span>
+        </div>
+
+        <p class="cook-step-text">{{ recipe.directions[cookStep] }}</p>
+
+        <p
+          v-if="currentStepAnalysis?.detected_minutes != null"
+          class="cook-step-hint"
+        >~{{ currentStepAnalysis.detected_minutes }} min hands-off</p>
+
+        <div class="cook-nav">
+          <button
+            class="btn cook-nav-prev"
+            :class="{ 'cook-nav--disabled': cookStep === 0 }"
+            :disabled="cookStep === 0"
+            :aria-label="cookStep === 0 ? 'No previous step' : 'Previous step'"
+            @click="prevStep"
+          >← Prev</button>
+
+          <button
+            class="btn cook-nav-next"
+            :class="{ 'cook-nav--done': isLastStep }"
+            :aria-label="isLastStep ? 'Done cooking' : 'Next step'"
+            @click="nextStep"
+          >{{ isLastStep ? 'Done ✓' : 'Next →' }}</button>
+        </div>
+      </div>
+
       <!-- Sticky footer -->
       <div class="detail-footer">
         <div v-if="cookDone" class="cook-success">
@@ -275,7 +337,19 @@ const dialogRef = ref<HTMLElement | null>(null)
 let previousFocus: HTMLElement | null = null
 
 function handleKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape') emit('close')
+  if (e.key === 'Escape') {
+    emit('close')
+    return
+  }
+  if (cookModeActive.value) {
+    if (e.key === 'ArrowRight') {
+      e.preventDefault()
+      nextStep()
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault()
+      prevStep()
+    }
+  }
 }
 
 onMounted(() => {
@@ -311,6 +385,67 @@ const showSaveModal = ref(false)
 const isSaved = computed(() => savedStore.isSaved(props.recipe.id))
 
 const cookDone = ref(false)
+
+// ── Cook mode ─────────────────────────────────────────────
+const cookModeActive = ref(false)
+const cookStep = ref(0) // 0-indexed
+
+function enterCookMode() {
+  cookModeActive.value = true
+  cookStep.value = 0
+}
+
+function exitCookMode() {
+  cookModeActive.value = false
+  cookStep.value = 0
+}
+
+function nextStep() {
+  const lastIdx = props.recipe.directions.length - 1
+  if (cookStep.value < lastIdx) {
+    cookStep.value++
+  } else {
+    handleCook()
+    exitCookMode()
+  }
+}
+
+function prevStep() {
+  if (cookStep.value > 0) cookStep.value--
+}
+
+// Reads step_analyses from kiwi#50 time_effort — null-safe
+const currentStepAnalysis = computed(() => {
+  return props.recipe.time_effort?.step_analyses?.[cookStep.value] ?? null
+})
+
+const cookStepCount = computed(() => props.recipe.directions.length)
+const isLastStep = computed(() => cookStep.value === cookStepCount.value - 1)
+const cookProgress = computed(() =>
+  cookStepCount.value > 1 ? cookStep.value / (cookStepCount.value - 1) : 1
+)
+
+// Touch state for swipe navigation
+const touchStartX = ref(0)
+const touchStartY = ref(0)
+
+function onTouchStart(e: TouchEvent) {
+  touchStartX.value = e.changedTouches[0]!.clientX
+  touchStartY.value = e.changedTouches[0]!.clientY
+}
+
+function onTouchEnd(e: TouchEvent) {
+  const dx = e.changedTouches[0]!.clientX - touchStartX.value
+  const dy = e.changedTouches[0]!.clientY - touchStartY.value
+  // Require predominantly horizontal gesture
+  if (Math.abs(dx) >= 40 && Math.abs(dy) < 80) {
+    if (dx < 0) {
+      nextStep()    // swipe left → next
+    } else {
+      prevStep()    // swipe right → prev
+    }
+  }
+}
 const shareCopied = ref(false)
 
 // Serving scale multiplier: 1×, 2×, 3×, 4×
@@ -572,6 +707,36 @@ function handleCook() {
 .btn-saved {
   color: var(--color-warning);
   border-color: var(--color-warning);
+}
+
+/* ── Cook mode button ───────────────────────────────────── */
+.btn-cook {
+  font-size: var(--font-size-sm);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  background: rgba(232, 168, 32, 0.15);
+  border: 1px solid rgba(232, 168, 32, 0.3);
+  color: #f0bc48;
+  border-radius: var(--radius-sm, 4px);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btn-cook:hover {
+  background: rgba(232, 168, 32, 0.25);
+  border-color: rgba(232, 168, 32, 0.5);
+}
+
+.btn-cook--active {
+  background: rgba(232, 168, 32, 0.22);
+  border-color: rgba(232, 168, 32, 0.5);
+}
+
+@media (max-width: 380px) {
+  .btn-cook {
+    padding: 2px 8px;
+    font-size: var(--font-size-xs);
+  }
 }
 
 .btn-close {
@@ -1181,6 +1346,149 @@ details[open].steps-collapsible .steps-collapsible-summary::before {
   font-size: var(--font-size-xs);
   color: var(--color-info-light, #2563eb);
   font-style: italic;
+}
+
+/* ── Cook mode bar ──────────────────────────────────────── */
+.cook-mode-bar {
+  flex-shrink: 0;
+  padding: var(--spacing-sm) var(--spacing-md) var(--spacing-xs);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cook-progress-track {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.cook-progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  background: #f0bc48;
+  transition: width 0.25s ease;
+}
+
+.cook-step-counter {
+  font-size: 11px;
+  color: rgba(255, 248, 235, 0.38);
+  letter-spacing: 0.02em;
+}
+
+/* ── Cook mode step view ────────────────────────────────── */
+.cook-step-view {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-lg) var(--spacing-md) var(--spacing-md);
+  gap: var(--spacing-sm);
+}
+
+.cook-step-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(255, 248, 235, 0.35);
+}
+
+.cook-step-badge-row {
+  display: flex;
+  gap: var(--spacing-xs);
+}
+
+.cook-step-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.cook-badge--active {
+  background: rgba(232, 168, 32, 0.18);
+  color: #f0bc48;
+  border: 1px solid rgba(232, 168, 32, 0.35);
+}
+
+.cook-badge--wait {
+  background: rgba(96, 165, 250, 0.15);
+  color: #93c5fd;
+  border: 1px solid rgba(96, 165, 250, 0.3);
+}
+
+.cook-step-text {
+  font-size: 15px;
+  font-weight: 500;
+  color: rgba(255, 248, 235, 0.92);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.cook-step-hint {
+  font-size: 11px;
+  color: rgba(255, 248, 235, 0.38);
+  margin: 0;
+}
+
+/* ── Cook mode navigation ───────────────────────────────── */
+.cook-nav {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-top: auto;
+  padding-top: var(--spacing-md);
+}
+
+.cook-nav-prev {
+  flex: 1;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  border-radius: var(--radius-md, 8px);
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.cook-nav--disabled {
+  opacity: 0.35;
+  pointer-events: none;
+  cursor: default;
+}
+
+.cook-nav-next {
+  flex: 2;
+  background: rgba(232, 168, 32, 0.18);
+  border: 1px solid rgba(232, 168, 32, 0.4);
+  color: #f0bc48;
+  border-radius: var(--radius-md, 8px);
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.cook-nav-next:hover {
+  background: rgba(232, 168, 32, 0.28);
+}
+
+.cook-nav--done {
+  background: rgba(127, 192, 115, 0.18);
+  border-color: rgba(127, 192, 115, 0.4);
+  color: #7fc073;
+}
+
+.cook-nav--done:hover {
+  background: rgba(127, 192, 115, 0.28);
 }
 
 /* ── Sticky footer ──────────────────────────────────────── */
