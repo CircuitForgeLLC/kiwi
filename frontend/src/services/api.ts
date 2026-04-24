@@ -525,6 +525,12 @@ export interface RecipeResult {
   rate_limit_count: number
 }
 
+export interface StreamTokenResponse {
+  stream_url: string
+  token: string
+  expires_in_s: number
+}
+
 export type RecipeJobStatusValue = 'queued' | 'running' | 'done' | 'failed'
 
 export interface RecipeJobStatus {
@@ -645,6 +651,18 @@ export const recipesAPI = {
   },
   async buildRecipe(req: BuildRequest): Promise<RecipeSuggestion> {
     const response = await api.post('/recipes/build', req)
+    return response.data
+  },
+
+  /** Issue a one-time stream token for LLM recipe generation (Paid tier / BYOK only). */
+  async getRecipeStreamToken(params: {
+    level: 3 | 4
+    wildcard_confirmed?: boolean
+  }): Promise<StreamTokenResponse> {
+    const response = await api.post('/recipes/stream-token', {
+      level: params.level,
+      wildcard_confirmed: params.wildcard_confirmed ?? false,
+    })
     return response.data
   },
 }
