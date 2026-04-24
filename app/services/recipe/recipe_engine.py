@@ -26,6 +26,7 @@ from app.services.recipe.grocery_links import GroceryLinkBuilder
 from app.services.recipe.substitution_engine import SubstitutionEngine
 from app.services.recipe.sensory import SensoryExclude, build_sensory_exclude, passes_sensory_filter
 from app.services.recipe.time_effort import parse_time_effort
+from app.services.recipe.reranker import rerank_suggestions
 
 _LEFTOVER_DAILY_MAX_FREE = 5
 
@@ -880,11 +881,21 @@ class RecipeEngine:
                 estimated_time_min=row_time_min,
             ))
 
-        # Sort corpus results — assembly templates are now served from a dedicated tab.
-        # Hard day mode: primary sort by tier (0=premade, 1=simple, 2=moderate),
-        # then by match_count within each tier.
-        # Normal mode: sort by match_count descending.
-        if req.hard_day_mode and hard_day_tier_map:
+        # Sort corpus results.
+        # Paid+ tier: cross-encoder reranker orders by full pantry + dietary fit.
+        # Free tier (or reranker failure): overlap sort with hard_day_mode tier grouping.
+        reranked = rerank_suggestions(req, suggestions)
+        if reranked is not None:
+            # Reranker provided relevance order. In hard_day_mode, still respect
+            # tier grouping as primary sort; reranker order applies within each tier.
+            if req.hard_day_mode and hard_day_tier_map:
+                suggestions = sorted(
+                    reranked,
+                    key=lambda s: hard_day_tier_map.get(s.id, 1),
+                )
+            else:
+                suggestions = reranked
+        elif req.hard_day_mode and hard_day_tier_map:
             suggestions = sorted(
                 suggestions,
                 key=lambda s: (hard_day_tier_map.get(s.id, 1), -s.match_count),

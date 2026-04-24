@@ -170,3 +170,37 @@ def test_within_time_over_limit_fails():
     from app.services.recipe.recipe_engine import _within_time
     steps = ["brown onions for 15 minutes", "simmer for 30 minutes"]
     assert _within_time(steps, max_total_min=30) is False
+
+
+# ── Reranker tier-gating tests ────────────────────────────────────────────────
+
+def test_paid_tier_suggest_populates_rerank_score(store_with_recipes, monkeypatch):
+    """Paid tier: at least one suggestion should have rerank_score populated."""
+    monkeypatch.setenv("CF_RERANKER_MOCK", "1")
+    try:
+        from circuitforge_core.reranker import reset_reranker
+        reset_reranker()
+    except ImportError:
+        pytest.skip("cf-core reranker not installed")
+
+    from app.services.recipe.recipe_engine import RecipeEngine
+    from app.models.schemas.recipe import RecipeRequest
+    engine = RecipeEngine(store_with_recipes)
+    req = RecipeRequest(pantry_items=["butter", "parmesan", "pasta"], level=1, tier="paid")
+    result = engine.suggest(req)
+    # Need at least _MIN_CANDIDATES for reranker to fire
+    from app.services.recipe.reranker import _MIN_CANDIDATES
+    if len(result.suggestions) >= _MIN_CANDIDATES:
+        assert any(s.rerank_score is not None for s in result.suggestions)
+
+    reset_reranker()
+
+
+def test_free_tier_suggest_has_no_rerank_score(store_with_recipes):
+    """Free tier: rerank_score must be None on all suggestions."""
+    from app.services.recipe.recipe_engine import RecipeEngine
+    from app.models.schemas.recipe import RecipeRequest
+    engine = RecipeEngine(store_with_recipes)
+    req = RecipeRequest(pantry_items=["butter", "parmesan"], level=1, tier="free")
+    result = engine.suggest(req)
+    assert all(s.rerank_score is None for s in result.suggestions)

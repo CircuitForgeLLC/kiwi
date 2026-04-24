@@ -43,6 +43,7 @@ class RecipeSuggestion(BaseModel):
     source_url: str | None = None
     complexity: str | None = None  # 'easy' | 'moderate' | 'involved'
     estimated_time_min: int | None = None  # derived from step count + method signals
+    rerank_score: float | None = None  # cross-encoder relevance score (paid+ only, None for free tier)
 
 
 class GroceryLink(BaseModel):
