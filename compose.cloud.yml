@@ -23,6 +23,10 @@ services:
       CF_ORCH_URL: http://host.docker.internal:7700
       # Product identifier for coordinator analytics — per-product VRAM/request breakdown
       CF_APP_NAME: kiwi
+      # cf-orch streaming proxy — coordinator URL + product key for /proxy/authorize
+      # COORDINATOR_KIWI_KEY must be set in .env (never commit the value)
+      COORDINATOR_URL: http://10.1.10.71:7700
+      COORDINATOR_KIWI_KEY: ${COORDINATOR_KIWI_KEY:-}
       # Community PostgreSQL — shared across CF products; unset = community features unavailable (fail soft)
       COMMUNITY_DB_URL: ${COMMUNITY_DB_URL:-}
       COMMUNITY_PSEUDONYM_SALT: ${COMMUNITY_PSEUDONYM_SALT:-}
