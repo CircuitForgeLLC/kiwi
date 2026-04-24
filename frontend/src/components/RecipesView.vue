@@ -342,6 +342,15 @@
           <span v-else>Suggest Recipes</span>
         </button>
         <button
+          v-if="recipesStore.level === 3 || recipesStore.level === 4"
+          class="btn btn-secondary btn-sm"
+          :disabled="isStreaming || recipesStore.loading || pantryItems.length === 0"
+          @click="streamRecipe(recipesStore.level as 3 | 4, recipesStore.wildcardConfirmed)"
+          title="Stream recipe generation token-by-token via cf-orch"
+        >
+          {{ isStreaming ? 'Streaming…' : 'Stream (L' + recipesStore.level + ')' }}
+        </button>
+        <button
           v-if="recipesStore.dismissedCount > 0"
           class="btn btn-ghost btn-sm"
           @click="recipesStore.clearDismissed()"
@@ -358,6 +367,16 @@
     <!-- Error -->
     <div v-if="recipesStore.error" role="alert" class="status-badge status-error mb-md">
       {{ recipesStore.error }}
+    </div>
+
+    <!-- Streaming recipe generation panel -->
+    <div v-if="isStreaming || streamChunks || streamError" class="stream-panel">
+      <div v-if="isStreaming" class="stream-status">
+        <span class="stream-dot" aria-hidden="true"></span>
+        Generating recipe…
+      </div>
+      <div v-if="streamError" class="stream-error text-sm">{{ streamError }}</div>
+      <pre v-if="streamChunks" class="stream-output">{{ streamChunks }}</pre>
     </div>
 
     <!-- Screen reader announcement for loading + results -->
@@ -728,8 +747,13 @@ import CommunityFeedPanel from './CommunityFeedPanel.vue'
 import BuildYourOwnTab from './BuildYourOwnTab.vue'
 import OrchUsagePill from './OrchUsagePill.vue'
 import type { ForkResult } from '../stores/community'
-import type { RecipeSuggestion, GroceryLink } from '../services/api'
+import type { RecipeSuggestion, GroceryLink, StreamTokenResponse } from '../services/api'
 import { recipesAPI } from '../services/api'
+
+// Streaming state
+const isStreaming = ref(false)
+const streamChunks = ref('')
+const streamError = ref<string | null>(null)
 
 const recipesStore = useRecipesStore()
 const inventoryStore = useInventoryStore()
@@ -1123,6 +1147,49 @@ function onNutritionInput(key: NutritionKey, e: Event) {
   const target = e.target as HTMLInputElement
   const val = parseFloat(target.value)
   recipesStore.nutritionFilters[key] = isNaN(val) ? null : val
+}
+
+// Streaming recipe generation
+async function streamRecipe(level: 3 | 4, wildcardConfirmed = false) {
+  isStreaming.value = true
+  streamChunks.value = ''
+  streamError.value = null
+
+  let tokenData: StreamTokenResponse
+  try {
+    tokenData = await recipesAPI.getRecipeStreamToken({ level, wildcard_confirmed: wildcardConfirmed })
+  } catch (err: unknown) {
+    isStreaming.value = false
+    streamError.value = err instanceof Error ? err.message : 'Failed to start stream'
+    return
+  }
+
+  const url = `${tokenData.stream_url}?token=${encodeURIComponent(tokenData.token)}`
+  const es = new EventSource(url)
+
+  es.onmessage = (e: MessageEvent) => {
+    try {
+      const data = JSON.parse(e.data)
+      if (data.done) {
+        es.close()
+        isStreaming.value = false
+      } else if (data.error) {
+        es.close()
+        isStreaming.value = false
+        streamError.value = data.error
+      } else if (data.chunk) {
+        streamChunks.value += data.chunk
+      }
+    } catch {
+      // ignore malformed events
+    }
+  }
+
+  es.onerror = () => {
+    es.close()
+    isStreaming.value = false
+    streamError.value = 'Stream connection lost'
+  }
 }
 
 // Suggest handler
@@ -1737,5 +1804,49 @@ details[open] .collapsible-summary::before {
 .undo-toast .btn-link {
   min-height: 24px;
   padding: 2px 4px;
+}
+
+.stream-panel {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 8px);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.stream-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.stream-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-warning);
+  animation: stream-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes stream-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.stream-error {
+  color: var(--color-danger, #e05c5c);
+  margin-bottom: 0.5rem;
+}
+
+.stream-output {
+  font-family: inherit;
+  white-space: pre-wrap;
+  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  margin: 0;
+  max-height: 400px;
+  overflow-y: auto;
 }
 </style>
