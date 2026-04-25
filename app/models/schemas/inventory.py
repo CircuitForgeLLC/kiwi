@@ -122,6 +122,7 @@ class InventoryItemResponse(BaseModel):
     secondary_state: Optional[str] = None
     secondary_uses: Optional[List[str]] = None
     secondary_warning: Optional[str] = None
+    secondary_discard_signs: Optional[str] = None
     status: str
     notes: Optional[str]
     disposal_reason: Optional[str] = None

@@ -157,54 +157,160 @@ class ExpirationPredictor:
     # These are NOT spoilage extensions — they describe a qualitative state
     # change where the ingredient is specifically suited for certain preparations.
     # Sources: USDA FoodKeeper, food science, culinary tradition.
+    #
+    # Fields:
+    #   window_days        — days past nominal expiry still usable in secondary state
+    #   label              — short UI label for the state
+    #   uses               — recipe contexts suited to this state (shown in UI)
+    #   warning            — safety note, calm tone, None if none needed
+    #   discard_signs      — qualitative signs the item has gone past the secondary window
+    #   constraints_exclude — dietary constraint labels that suppress this entry entirely
+    #                         (e.g. alcohol-containing items suppressed for halal/alcohol-free)
     SECONDARY_WINDOW: dict[str, dict] = {
         'bread': {
             'window_days': 5,
             'label': 'stale',
             'uses': ['croutons', 'stuffing', 'bread pudding', 'French toast', 'panzanella'],
             'warning': 'Check for mold before use — discard if any is visible.',
+            'discard_signs': 'Visible mold (any colour), or unpleasant smell beyond dry/yeasty.',
+            'constraints_exclude': [],
         },
         'bakery': {
             'window_days': 3,
             'label': 'day-old',
-            'uses': ['French toast', 'bread pudding', 'crumbles'],
+            'uses': ['French toast', 'bread pudding', 'crumbles', 'trifle base', 'cake pops', 'streusel topping', 'bread crumbs'],
             'warning': 'Check for mold before use — discard if any is visible.',
+            'discard_signs': 'Visible mold, sliminess, or strong sour smell.',
+            'constraints_exclude': [],
         },
         'bananas': {
             'window_days': 5,
             'label': 'overripe',
             'uses': ['banana bread', 'smoothies', 'pancakes', 'muffins'],
             'warning': None,
+            'discard_signs': 'Leaking liquid, fermented smell, or mold on skin.',
+            'constraints_exclude': [],
         },
         'milk': {
             'window_days': 3,
             'label': 'sour',
-            'uses': ['pancakes', 'quick breads', 'baking', 'sauces'],
+            'uses': ['pancakes', 'scones', 'waffles', 'muffins', 'quick breads', 'béchamel', 'baked mac and cheese'],
             'warning': 'Use only in cooked recipes — do not drink.',
+            'discard_signs': 'Chunky texture, strong unpleasant smell beyond tangy, or visible separation with grey colour.',
+            'constraints_exclude': [],
         },
         'dairy': {
             'window_days': 2,
             'label': 'sour',
-            'uses': ['pancakes', 'quick breads', 'baking'],
+            'uses': ['pancakes', 'scones', 'quick breads', 'muffins', 'waffles'],
             'warning': 'Use only in cooked recipes — do not drink.',
+            'discard_signs': 'Strong unpleasant smell, unusual colour, or chunky texture.',
+            'constraints_exclude': [],
         },
         'cheese': {
             'window_days': 14,
-            'label': 'well-aged',
-            'uses': ['broth', 'soups', 'risotto', 'gratins'],
+            'label': 'rind-ready',
+            'uses': ['parmesan broth', 'minestrone', 'ribollita', 'risotto', 'polenta', 'bean soups', 'gratins'],
             'warning': None,
+            'discard_signs': 'Soft or wet texture on hard cheese, pink or black mold (white/green surface mold on hard cheese can be cut off with 1cm margin).',
+            'constraints_exclude': [],
         },
         'rice': {
             'window_days': 2,
             'label': 'day-old',
-            'uses': ['fried rice', 'rice bowls', 'rice porridge'],
+            'uses': ['fried rice', 'onigiri', 'rice porridge', 'congee', 'arancini', 'stuffed peppers', 'rice fritters'],
             'warning': 'Refrigerate immediately after cooking — do not leave at room temp.',
+            'discard_signs': 'Slimy texture, unusual smell, or more than 4 days since cooking.',
+            'constraints_exclude': [],
         },
         'tortillas': {
             'window_days': 5,
             'label': 'stale',
             'uses': ['chilaquiles', 'migas', 'tortilla soup', 'casserole'],
+            'warning': 'Check for mold, especially if stored in a sealed bag — discard if any is visible.',
+            'discard_signs': 'Visible mold (check seams and edges), or strong sour smell.',
+            'constraints_exclude': [],
+        },
+        # ── New entries ──────────────────────────────────────────────────────
+        'apples': {
+            'window_days': 7,
+            'label': 'soft',
+            'uses': ['applesauce', 'apple butter', 'baked apples', 'apple crisp', 'smoothies', 'chutney'],
             'warning': None,
+            'discard_signs': 'Large bruised areas with fermented smell, visible mold, or liquid leaking from skin.',
+            'constraints_exclude': [],
+        },
+        'leafy_greens': {
+            'window_days': 2,
+            'label': 'wilting',
+            'uses': ['sautéed greens', 'soups', 'smoothies', 'frittata', 'pasta add-in', 'stir fry'],
+            'warning': None,
+            'discard_signs': 'Slimy texture, strong unpleasant smell, or yellowed and mushy leaves.',
+            'constraints_exclude': [],
+        },
+        'tomatoes': {
+            'window_days': 4,
+            'label': 'soft',
+            'uses': ['roasted tomatoes', 'tomato sauce', 'shakshuka', 'bruschetta', 'soup', 'salsa'],
+            'warning': None,
+            'discard_signs': 'Broken skin with liquid pooling, mold, or fermented smell.',
+            'constraints_exclude': [],
+        },
+        'cooked_pasta': {
+            'window_days': 3,
+            'label': 'day-old',
+            'uses': ['pasta frittata', 'pasta salad', 'baked pasta', 'soup add-in', 'fried pasta cakes'],
+            'warning': 'Refrigerate within 2 hours of cooking.',
+            'discard_signs': 'Slimy texture, off smell, or more than 4 days since cooking.',
+            'constraints_exclude': [],
+        },
+        'cooked_potatoes': {
+            'window_days': 3,
+            'label': 'day-old',
+            'uses': ['potato pancakes', 'hash browns', 'potato soup', 'gnocchi', 'twice-baked potatoes', 'croquettes'],
+            'warning': 'Refrigerate within 2 hours of cooking.',
+            'discard_signs': 'Slimy texture, off smell, or more than 4 days since cooking.',
+            'constraints_exclude': [],
+        },
+        'yogurt': {
+            'window_days': 7,
+            'label': 'tangy',
+            'uses': ['marinades', 'flatbreads', 'smoothies', 'tzatziki', 'baked goods', 'salad dressings'],
+            'warning': None,
+            'discard_signs': 'Pink or orange discolouration, visible mold, or strongly unpleasant smell (not just tangy).',
+            'constraints_exclude': [],
+        },
+        'cream': {
+            'window_days': 2,
+            'label': 'sour',
+            'uses': ['soups', 'sauces', 'scones', 'quick breads', 'mashed potatoes'],
+            'warning': 'Use in cooked recipes only. Discard if the smell is strongly unpleasant rather than tangy.',
+            'discard_signs': 'Strong unpleasant smell beyond tangy, unusual colour, or chunky texture.',
+            'constraints_exclude': [],
+        },
+        'wine': {
+            'window_days': 4,
+            'label': 'open',
+            'uses': ['pan sauces', 'braises', 'risotto', 'marinades', 'poaching liquid', 'wine reduction'],
+            'warning': None,
+            'discard_signs': 'Strong vinegar smell (still usable in braises/marinades), or visible cloudiness with off-smell.',
+            'constraints_exclude': ['halal', 'alcohol-free'],
+        },
+        'cooked_beans': {
+            'window_days': 3,
+            'label': 'day-old',
+            'uses': ['refried beans', 'bean soup', 'bean fritters', 'hummus', 'bean dip', 'grain bowls'],
+            'warning': 'Refrigerate within 2 hours of cooking.',
+            'discard_signs': 'Slimy texture, off smell, or more than 4 days since cooking.',
+            'constraints_exclude': [],
+        },
+        'cooked_meat': {
+            'window_days': 2,
+            'label': 'leftover',
+            'uses': ['grain bowls', 'tacos', 'soups', 'fried rice', 'sandwiches', 'hash', 'pasta add-in'],
+            'warning': 'Refrigerate within 2 hours of cooking.',
+            'discard_signs': 'Off smell, slimy texture, or more than 3–4 days since cooking.',
+            'constraints_exclude': [],
         },
     }
 
@@ -223,10 +329,15 @@ class ExpirationPredictor:
     ) -> dict | None:
         """Return secondary use info if the item is in its post-expiry secondary window.
 
-        Returns a dict with label, uses, warning, days_past, and window_days when the
-        item is past its nominal expiry date but still within the secondary use window.
+        Returns a dict with label, uses, warning, discard_signs, constraints_exclude,
+        days_past, and window_days when the item is past its nominal expiry date but
+        still within the secondary use window.
         Returns None in all other cases (unknown category, no window defined, not yet
         expired, or past the secondary window).
+
+        Callers should apply constraints_exclude against user dietary constraints
+        and suppress the result entirely if any excluded constraint is active.
+        See filter_secondary_by_constraints().
         """
         if not category or not expiry_date:
             return None
@@ -243,12 +354,31 @@ class ExpirationPredictor:
                     'label': entry['label'],
                     'uses': list(entry['uses']),
                     'warning': entry['warning'],
+                    'discard_signs': entry.get('discard_signs'),
+                    'constraints_exclude': list(entry.get('constraints_exclude') or []),
                     'days_past': days_past,
                     'window_days': entry['window_days'],
                 }
         except ValueError:
             pass
         return None
+
+    @staticmethod
+    def filter_secondary_by_constraints(
+        sec: dict | None,
+        user_constraints: list[str],
+    ) -> dict | None:
+        """Suppress secondary state entirely if any excluded constraint is active.
+
+        Call after secondary_state() when user dietary constraints are available.
+        Returns sec unchanged when no constraints match, or None when suppressed.
+        """
+        if sec is None:
+            return None
+        excluded = sec.get('constraints_exclude') or []
+        if any(c.lower() in [e.lower() for e in excluded] for c in user_constraints):
+            return None
+        return sec
 
     # Keyword lists are checked in declaration order — most specific first.
     # Rules:

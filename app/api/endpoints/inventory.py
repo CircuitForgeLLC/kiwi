@@ -43,8 +43,8 @@ router = APIRouter()
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _enrich_item(item: dict) -> dict:
-    """Attach computed fields: opened_expiry_date, secondary_state/uses/warning."""
+def _enrich_item(item: dict, user_constraints: list[str] | None = None) -> dict:
+    """Attach computed fields: opened_expiry_date, secondary_state/uses/warning/discard_signs."""
     from datetime import date, timedelta
     opened = item.get("opened_date")
     if opened:
@@ -58,13 +58,16 @@ def _enrich_item(item: dict) -> dict:
     if "opened_expiry_date" not in item:
         item = {**item, "opened_expiry_date": None}
 
-    # Secondary use window — check sell-by date (not opened expiry)
+    # Secondary use window — check sell-by date (not opened expiry).
+    # Apply dietary constraint filter (e.g. wine suppressed for halal/alcohol-free).
     sec = _predictor.secondary_state(item.get("category"), item.get("expiration_date"))
+    sec = _predictor.filter_secondary_by_constraints(sec, user_constraints or [])
     item = {
         **item,
         "secondary_state": sec["label"] if sec else None,
         "secondary_uses": sec["uses"] if sec else None,
         "secondary_warning": sec["warning"] if sec else None,
+        "secondary_discard_signs": sec["discard_signs"] if sec else None,
     }
     return item
 
