@@ -11,6 +11,42 @@ def store(tmp_path: Path) -> Store:
     s.close()
 
 
+class TestProductsSchema:
+    """Verify migrations 037/038 allow 'visual_capture' as a valid source."""
+
+    def test_products_accepts_visual_capture_source(self, store):
+        """Migration 037: products.source CHECK includes 'visual_capture'."""
+        store.conn.execute(
+            "INSERT INTO products (name, source) VALUES (?, ?)",
+            ("Test Product", "visual_capture"),
+        )
+        store.conn.commit()
+        row = store.conn.execute(
+            "SELECT source FROM products WHERE name='Test Product'"
+        ).fetchone()
+        assert row[0] == "visual_capture"
+
+    def test_inventory_items_accepts_visual_capture_source(self, store):
+        """Migration 038: inventory_items.source CHECK includes 'visual_capture'."""
+        store.conn.execute(
+            "INSERT INTO products (name, source) VALUES (?, ?)",
+            ("Temp Product", "manual"),
+        )
+        store.conn.commit()
+        product_id = store.conn.execute(
+            "SELECT id FROM products WHERE name='Temp Product'"
+        ).fetchone()[0]
+        store.conn.execute(
+            "INSERT INTO inventory_items (product_id, location, source) VALUES (?, ?, ?)",
+            (product_id, "pantry", "visual_capture"),
+        )
+        store.conn.commit()
+        row = store.conn.execute(
+            "SELECT source FROM inventory_items WHERE product_id=?", (product_id,)
+        ).fetchone()
+        assert row[0] == "visual_capture"
+
+
 class TestMigration:
     def test_captured_products_table_exists(self, store):
         cur = store.conn.execute(
