@@ -3,6 +3,12 @@ import vue from '@vitejs/plugin-vue'
 import { VitePWA } from 'vite-plugin-pwa'
 import { fileURLToPath, URL } from 'node:url'
 
+// Ensure start_url/scope match the deployment base path so the PWA launches
+// at the correct URL (e.g. /kiwi/ in cloud, / in local dev) rather than the
+// site root (which on menagerie.circuitforge.tech is the account page).
+const rawBase = process.env.VITE_BASE_URL ?? '/'
+const appBase = rawBase.endsWith('/') ? rawBase : rawBase + '/'
+
 export default defineConfig({
   plugins: [
     vue(),
@@ -21,8 +27,8 @@ export default defineConfig({
         background_color: '#1e1c1a',
         display: 'standalone',
         orientation: 'portrait',
-        scope: '/',
-        start_url: '/',
+        scope: appBase,
+        start_url: appBase,
         icons: [
           {
             src: '/icons/icon-192.png',
