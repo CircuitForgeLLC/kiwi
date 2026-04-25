@@ -43,6 +43,12 @@ router = APIRouter()
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+def _user_constraints(store) -> list[str]:
+    """Load active dietary constraints from user settings (comma-separated string)."""
+    raw = store.get_setting("dietary_constraints") or ""
+    return [c.strip() for c in raw.split(",") if c.strip()]
+
+
 def _enrich_item(item: dict, user_constraints: list[str] | None = None) -> dict:
     """Attach computed fields: opened_expiry_date, secondary_state/uses/warning/discard_signs."""
     from datetime import date, timedelta
@@ -215,13 +221,15 @@ async def list_inventory_items(
     store: Store = Depends(get_store),
 ):
     items = await asyncio.to_thread(store.list_inventory, location, item_status)
-    return [InventoryItemResponse.model_validate(_enrich_item(i)) for i in items]
+    constraints = await asyncio.to_thread(_user_constraints, store)
+    return [InventoryItemResponse.model_validate(_enrich_item(i, constraints)) for i in items]
 
 
 @router.get("/items/expiring", response_model=List[InventoryItemResponse])
 async def get_expiring_items(days: int = 7, store: Store = Depends(get_store)):
     items = await asyncio.to_thread(store.expiring_soon, days)
-    return [InventoryItemResponse.model_validate(_enrich_item(i)) for i in items]
+    constraints = await asyncio.to_thread(_user_constraints, store)
+    return [InventoryItemResponse.model_validate(_enrich_item(i, constraints)) for i in items]
 
 
 @router.get("/items/{item_id}", response_model=InventoryItemResponse)
@@ -229,7 +237,8 @@ async def get_inventory_item(item_id: int, store: Store = Depends(get_store)):
     item = await asyncio.to_thread(store.get_inventory_item, item_id)
     if not item:
         raise HTTPException(status_code=404, detail="Inventory item not found")
-    return InventoryItemResponse.model_validate(_enrich_item(item))
+    constraints = await asyncio.to_thread(_user_constraints, store)
+    return InventoryItemResponse.model_validate(_enrich_item(item, constraints))
 
 
 @router.patch("/items/{item_id}", response_model=InventoryItemResponse)
@@ -246,7 +255,8 @@ async def update_inventory_item(
     item = await asyncio.to_thread(store.update_inventory_item, item_id, **updates)
     if not item:
         raise HTTPException(status_code=404, detail="Inventory item not found")
-    return InventoryItemResponse.model_validate(_enrich_item(item))
+    constraints = await asyncio.to_thread(_user_constraints, store)
+    return InventoryItemResponse.model_validate(_enrich_item(item, constraints))
 
 
 @router.post("/items/{item_id}/open", response_model=InventoryItemResponse)
@@ -260,7 +270,8 @@ async def mark_item_opened(item_id: int, store: Store = Depends(get_store)):
     )
     if not item:
         raise HTTPException(status_code=404, detail="Inventory item not found")
-    return InventoryItemResponse.model_validate(_enrich_item(item))
+    constraints = await asyncio.to_thread(_user_constraints, store)
+    return InventoryItemResponse.model_validate(_enrich_item(item, constraints))
 
 
 @router.post("/items/{item_id}/consume", response_model=InventoryItemResponse)
@@ -289,7 +300,8 @@ async def consume_item(
         )
     if not item:
         raise HTTPException(status_code=404, detail="Inventory item not found")
-    return InventoryItemResponse.model_validate(_enrich_item(item))
+    constraints = await asyncio.to_thread(_user_constraints, store)
+    return InventoryItemResponse.model_validate(_enrich_item(item, constraints))
 
 
 @router.post("/items/{item_id}/discard", response_model=InventoryItemResponse)
@@ -313,7 +325,8 @@ async def discard_item(
     )
     if not item:
         raise HTTPException(status_code=404, detail="Inventory item not found")
-    return InventoryItemResponse.model_validate(_enrich_item(item))
+    constraints = await asyncio.to_thread(_user_constraints, store)
+    return InventoryItemResponse.model_validate(_enrich_item(item, constraints))
 
 
 @router.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
