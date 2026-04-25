@@ -1,9 +1,79 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
+import { VitePWA } from 'vite-plugin-pwa'
 import { fileURLToPath, URL } from 'node:url'
 
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [
+    vue(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      // generateSW strategy: Workbox builds the service worker at build time.
+      // autoUpdate means new versions install in the background and activate
+      // on next navigation — no "click to reload" prompt needed.
+      strategies: 'generateSW',
+      includeAssets: ['icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-192.png', 'icons/maskable-512.png'],
+      manifest: {
+        name: 'Kiwi — Pantry Tracker',
+        short_name: 'Kiwi',
+        description: 'Track your pantry, cut food waste, get recipe ideas from what you have.',
+        theme_color: '#e8a820',
+        background_color: '#1e1c1a',
+        display: 'standalone',
+        orientation: 'portrait',
+        scope: '/',
+        start_url: '/',
+        icons: [
+          {
+            src: '/icons/icon-192.png',
+            sizes: '192x192',
+            type: 'image/png',
+          },
+          {
+            src: '/icons/icon-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+          },
+          {
+            src: '/icons/maskable-192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+          {
+            src: '/icons/maskable-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable',
+          },
+        ],
+      },
+      workbox: {
+        // Precache the built JS/CSS/HTML shell. API calls are always network-first.
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        runtimeCaching: [
+          {
+            // API: network-first, fall back to cache for 1 minute
+            urlPattern: /^\/api\//,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'kiwi-api-cache',
+              expiration: { maxEntries: 50, maxAgeSeconds: 60 },
+            },
+          },
+          {
+            // Google Fonts: cache-first (fonts rarely change)
+            urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\//,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'google-fonts',
+              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
+            },
+          },
+        ],
+      },
+    }),
+  ],
   base: process.env.VITE_BASE_URL ?? '/',
   resolve: {
     alias: {
