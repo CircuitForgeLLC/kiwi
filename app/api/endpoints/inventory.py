@@ -37,6 +37,7 @@ from app.models.schemas.inventory import (
     TagCreate,
     TagResponse,
 )
+from app.models.schemas.label_capture import LabelConfirmRequest
 
 router = APIRouter()
 
@@ -349,6 +350,31 @@ class BarcodeScanTextRequest(BaseModel):
     auto_add_to_inventory: bool = True
 
 
+def _captured_to_product_info(row: dict) -> dict:
+    """Convert a captured_products row to the product_info dict shape used by
+    the barcode scan flow (mirrors what OpenFoodFactsService returns)."""
+    macros: dict = {}
+    for field in ("calories", "fat_g", "saturated_fat_g", "carbs_g", "sugar_g",
+                  "fiber_g", "protein_g", "sodium_mg", "serving_size_g"):
+        if row.get(field) is not None:
+            macros[field] = row[field]
+    return {
+        "name": row.get("product_name") or row.get("barcode", "Unknown Product"),
+        "brand": row.get("brand"),
+        "category": None,
+        "nutrition_data": macros,
+        "ingredient_names": row.get("ingredient_names") or [],
+        "allergens": row.get("allergens") or [],
+        "source": "visual_capture",
+    }
+
+
+def _gap_message(tier: str, has_visual_capture: bool) -> str:
+    if has_visual_capture:
+        return "We couldn't find this product. Photograph the nutrition label to add it."
+    return "Not found in any product database — add manually"
+
+
 @router.post("/scan/text", response_model=BarcodeScanResponse)
 async def scan_barcode_text(
     body: BarcodeScanTextRequest,
@@ -359,10 +385,21 @@ async def scan_barcode_text(
     log.info("scan auth=%s tier=%s barcode=%r", _auth_label(session.user_id), session.tier, body.barcode)
     from app.services.openfoodfacts import OpenFoodFactsService
     from app.services.expiration_predictor import ExpirationPredictor
+    from app.tiers import can_use
 
-    off = OpenFoodFactsService()
     predictor = ExpirationPredictor()
-    product_info = await off.lookup_product(body.barcode)
+    has_visual_capture = can_use("visual_label_capture", session.tier, session.has_byok)
+
+    # 1. Check local captured-products cache before hitting FDC/OFF
+    cached = await asyncio.to_thread(store.get_captured_product, body.barcode)
+    if cached and cached.get("confirmed_by_user"):
+        product_info: dict | None = _captured_to_product_info(cached)
+        product_source = "visual_capture"
+    else:
+        off = OpenFoodFactsService()
+        product_info = await off.lookup_product(body.barcode)
+        product_source = "openfoodfacts"
+
     inventory_item = None
 
     if product_info and body.auto_add_to_inventory:
@@ -373,7 +410,7 @@ async def scan_barcode_text(
             brand=product_info.get("brand"),
             category=product_info.get("category"),
             nutrition_data=product_info.get("nutrition_data", {}),
-            source="openfoodfacts",
+            source=product_source,
             source_data=product_info,
         )
         exp = predictor.predict_expiration(
@@ -399,6 +436,7 @@ async def scan_barcode_text(
         result_product = None
 
     product_found = product_info is not None
+    needs_capture = not product_found and has_visual_capture
     return BarcodeScanResponse(
         success=True,
         barcodes_found=1,
@@ -408,8 +446,9 @@ async def scan_barcode_text(
             "product": result_product,
             "inventory_item": InventoryItemResponse.model_validate(inventory_item) if inventory_item else None,
             "added_to_inventory": inventory_item is not None,
-            "needs_manual_entry": not product_found,
-            "message": "Added to inventory" if inventory_item else "Not found in any product database — add manually",
+            "needs_manual_entry": not product_found and not needs_capture,
+            "needs_visual_capture": needs_capture,
+            "message": "Added to inventory" if inventory_item else _gap_message(session.tier, needs_capture),
         }],
         message="Barcode processed",
     )
@@ -426,6 +465,9 @@ async def scan_barcode_image(
 ):
     """Scan a barcode from an uploaded image. Requires Phase 2 scanner integration."""
     log.info("scan_image auth=%s tier=%s", _auth_label(session.user_id), session.tier)
+    from app.tiers import can_use
+    has_visual_capture = can_use("visual_label_capture", session.tier, session.has_byok)
+
     temp_dir = Path("/tmp/kiwi_barcode_scans")
     temp_dir.mkdir(parents=True, exist_ok=True)
     temp_file = temp_dir / f"{uuid.uuid4()}_{file.filename}"
@@ -448,7 +490,16 @@ async def scan_barcode_image(
         results = []
         for bc in barcodes:
             code = bc["data"]
-            product_info = await off.lookup_product(code)
+
+            # Check local visual-capture cache before hitting FDC/OFF
+            cached = await asyncio.to_thread(store.get_captured_product, code)
+            if cached and cached.get("confirmed_by_user"):
+                product_info: dict | None = _captured_to_product_info(cached)
+                product_source = "visual_capture"
+            else:
+                product_info = await off.lookup_product(code)
+                product_source = "openfoodfacts"
+
             inventory_item = None
             if product_info and auto_add_to_inventory:
                 product, _ = await asyncio.to_thread(
@@ -458,7 +509,7 @@ async def scan_barcode_image(
                     brand=product_info.get("brand"),
                     category=product_info.get("category"),
                     nutrition_data=product_info.get("nutrition_data", {}),
-                    source="openfoodfacts",
+                    source=product_source,
                     source_data=product_info,
                 )
                 exp = predictor.predict_expiration(
@@ -466,7 +517,7 @@ async def scan_barcode_image(
                     location,
                     product_name=product_info.get("name", code),
                     tier=session.tier,
-            has_byok=session.has_byok,
+                    has_byok=session.has_byok,
                 )
                 resolved_qty = product_info.get("pack_quantity") or quantity
                 resolved_unit = product_info.get("pack_unit") or "count"
@@ -478,13 +529,17 @@ async def scan_barcode_image(
                     expiration_date=str(exp) if exp else None,
                     source="barcode_scan",
                 )
+            product_found = product_info is not None
+            needs_capture = not product_found and has_visual_capture
             results.append({
                 "barcode": code,
                 "barcode_type": bc.get("type", "unknown"),
-                "product": ProductResponse.model_validate(product) if product_info else None,
+                "product": ProductResponse.model_validate(product_info) if product_info else None,
                 "inventory_item": InventoryItemResponse.model_validate(inventory_item) if inventory_item else None,
                 "added_to_inventory": inventory_item is not None,
-                "message": "Added to inventory" if inventory_item else "Barcode scanned",
+                "needs_manual_entry": not product_found and not needs_capture,
+                "needs_visual_capture": needs_capture,
+                "message": "Added to inventory" if inventory_item else _gap_message(session.tier, needs_capture),
             })
         return BarcodeScanResponse(
             success=True, barcodes_found=len(barcodes), results=results,
@@ -493,6 +548,143 @@ async def scan_barcode_image(
     finally:
         if temp_file.exists():
             temp_file.unlink()
+
+
+# ── Visual label capture (kiwi#79) ────────────────────────────────────────────
+
+@router.post("/scan/label-capture")
+async def capture_nutrition_label(
+    file: UploadFile = File(...),
+    barcode: str = Form(...),
+    store: Store = Depends(get_store),
+    session: CloudUser = Depends(get_session),
+):
+    """Photograph a nutrition label for an unenriched product (paid tier).
+
+    Sends the image to the vision model and returns structured nutrition data
+    for user review.  Fields extracted with confidence < 0.7 should be
+    highlighted in amber in the UI.
+    """
+    from app.tiers import can_use
+    from app.models.schemas.label_capture import LabelCaptureResponse
+    from app.services.label_capture import extract_label, needs_review as _needs_review
+
+    if not can_use("visual_label_capture", session.tier, session.has_byok):
+        raise HTTPException(status_code=403, detail="Visual label capture requires a Paid tier or higher.")
+    log.info("label_capture tier=%s barcode=%r", session.tier, barcode)
+
+    image_bytes = await file.read()
+    extraction = await asyncio.to_thread(extract_label, image_bytes)
+
+    return LabelCaptureResponse(
+        barcode=barcode,
+        product_name=extraction.get("product_name"),
+        brand=extraction.get("brand"),
+        serving_size_g=extraction.get("serving_size_g"),
+        calories=extraction.get("calories"),
+        fat_g=extraction.get("fat_g"),
+        saturated_fat_g=extraction.get("saturated_fat_g"),
+        carbs_g=extraction.get("carbs_g"),
+        sugar_g=extraction.get("sugar_g"),
+        fiber_g=extraction.get("fiber_g"),
+        protein_g=extraction.get("protein_g"),
+        sodium_mg=extraction.get("sodium_mg"),
+        ingredient_names=extraction.get("ingredient_names") or [],
+        allergens=extraction.get("allergens") or [],
+        confidence=extraction.get("confidence", 0.0),
+        needs_review=_needs_review(extraction),
+    )
+
+
+@router.post("/scan/label-confirm")
+async def confirm_nutrition_label(
+    body: LabelConfirmRequest,
+    store: Store = Depends(get_store),
+    session: CloudUser = Depends(get_session),
+):
+    """Confirm and save a user-reviewed label extraction.
+
+    Saves the product to the local cache so future scans of the same barcode
+    resolve instantly without another capture.  Optionally adds the item to
+    the user's inventory.
+    """
+    from app.tiers import can_use
+    from app.models.schemas.label_capture import LabelConfirmResponse
+    from app.services.expiration_predictor import ExpirationPredictor
+
+    if not can_use("visual_label_capture", session.tier, session.has_byok):
+        raise HTTPException(status_code=403, detail="Visual label capture requires a Paid tier or higher.")
+    log.info("label_confirm tier=%s barcode=%r", session.tier, body.barcode)
+
+    # Persist to local visual-capture cache
+    await asyncio.to_thread(
+        store.save_captured_product,
+        body.barcode,
+        product_name=body.product_name,
+        brand=body.brand,
+        serving_size_g=body.serving_size_g,
+        calories=body.calories,
+        fat_g=body.fat_g,
+        saturated_fat_g=body.saturated_fat_g,
+        carbs_g=body.carbs_g,
+        sugar_g=body.sugar_g,
+        fiber_g=body.fiber_g,
+        protein_g=body.protein_g,
+        sodium_mg=body.sodium_mg,
+        ingredient_names=body.ingredient_names,
+        allergens=body.allergens,
+        confidence=body.confidence,
+        confirmed_by_user=True,
+    )
+
+    product_id: int | None = None
+    inventory_item_id: int | None = None
+
+    if body.auto_add:
+        predictor = ExpirationPredictor()
+        nutrition = {}
+        for field in ("calories", "fat_g", "saturated_fat_g", "carbs_g", "sugar_g",
+                      "fiber_g", "protein_g", "sodium_mg", "serving_size_g"):
+            val = getattr(body, field, None)
+            if val is not None:
+                nutrition[field] = val
+
+        product, _ = await asyncio.to_thread(
+            store.get_or_create_product,
+            body.product_name or body.barcode,
+            body.barcode,
+            brand=body.brand,
+            category=None,
+            nutrition_data=nutrition,
+            source="visual_capture",
+            source_data={},
+        )
+        product_id = product["id"]
+
+        exp = predictor.predict_expiration(
+            "",
+            body.location,
+            product_name=body.product_name or body.barcode,
+            tier=session.tier,
+            has_byok=session.has_byok,
+        )
+        inv_item = await asyncio.to_thread(
+            store.add_inventory_item,
+            product_id, body.location,
+            quantity=body.quantity,
+            unit="count",
+            expiration_date=str(exp) if exp else None,
+            source="visual_capture",
+        )
+        inventory_item_id = inv_item["id"]
+
+    return LabelConfirmResponse(
+        ok=True,
+        barcode=body.barcode,
+        product_id=product_id,
+        inventory_item_id=inventory_item_id,
+        message="Product saved" + (" and added to inventory" if body.auto_add else ""),
+    )
 
 
 # ── Tags ──────────────────────────────────────────────────────────────────────

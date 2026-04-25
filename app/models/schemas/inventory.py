@@ -142,6 +142,7 @@ class BarcodeScanResult(BaseModel):
     inventory_item: Optional[InventoryItemResponse]
     added_to_inventory: bool
     needs_manual_entry: bool = False
+    needs_visual_capture: bool = False  # Paid tier offer when no product data found
     message: str
 
 

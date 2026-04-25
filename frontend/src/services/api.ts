@@ -111,7 +111,48 @@ export interface BarcodeScanResult {
   inventory_item: InventoryItem | null
   added_to_inventory: boolean
   needs_manual_entry: boolean
+  needs_visual_capture: boolean
   message: string
+}
+
+export interface LabelCaptureResult {
+  barcode: string
+  product_name: string | null
+  brand: string | null
+  serving_size_g: number | null
+  calories: number | null
+  fat_g: number | null
+  saturated_fat_g: number | null
+  carbs_g: number | null
+  sugar_g: number | null
+  fiber_g: number | null
+  protein_g: number | null
+  sodium_mg: number | null
+  ingredient_names: string[]
+  allergens: string[]
+  confidence: number
+  needs_review: boolean
+}
+
+export interface LabelConfirmRequest {
+  barcode: string
+  product_name?: string | null
+  brand?: string | null
+  serving_size_g?: number | null
+  calories?: number | null
+  fat_g?: number | null
+  saturated_fat_g?: number | null
+  carbs_g?: number | null
+  sugar_g?: number | null
+  fiber_g?: number | null
+  protein_g?: number | null
+  sodium_mg?: number | null
+  ingredient_names?: string[]
+  allergens?: string[]
+  confidence?: number
+  location?: string
+  quantity?: number
+  auto_add?: boolean
 }
 
 export interface BarcodeScanResponse {
@@ -342,6 +383,32 @@ export const inventoryAPI = {
         'Content-Type': 'multipart/form-data',
       },
     })
+    return response.data
+  },
+
+  /**
+   * Upload a nutrition label photo for an unenriched barcode (paid tier).
+   * Returns extracted fields + confidence score for user review.
+   */
+  async captureLabelPhoto(
+    file: File,
+    barcode: string
+  ): Promise<LabelCaptureResult> {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('barcode', barcode)
+    const response = await api.post('/inventory/scan/label-capture', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000, // vision inference can take ~5–10s
+    })
+    return response.data
+  },
+
+  /**
+   * Confirm a user-reviewed label extraction and save to the local cache.
+   */
+  async confirmLabelCapture(data: LabelConfirmRequest): Promise<{ ok: boolean; product_id?: number; inventory_item_id?: number; message: string }> {
+    const response = await api.post('/inventory/scan/label-confirm', data)
     return response.data
   },
 }

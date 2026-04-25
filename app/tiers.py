@@ -44,6 +44,7 @@ KIWI_FEATURES: dict[str, str] = {
 
     # Paid tier
     "receipt_ocr":           "paid",   # BYOK-unlockable
+    "visual_label_capture":  "paid",   # Camera capture for unenriched barcodes (kiwi#79)
     "recipe_suggestions":    "paid",   # BYOK-unlockable
     "expiry_llm_matching":   "paid",   # BYOK-unlockable
     "meal_planning":         "free",

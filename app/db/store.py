@@ -60,7 +60,9 @@ class Store:
                     # saved recipe columns
                     "style_tags",
                     # meal plan columns
-                    "meal_types"):
+                    "meal_types",
+                    # captured_products columns
+                    "allergens"):
             if key in d and isinstance(d[key], str):
                 try:
                     d[key] = json.loads(d[key])
@@ -1639,3 +1641,73 @@ class Store:
         cur = self.conn.execute("DELETE FROM shopping_list_items")
         self.conn.commit()
         return cur.rowcount
+
+    # ── Captured products (visual label cache) ────────────────────────────────
+
+    def get_captured_product(self, barcode: str) -> dict | None:
+        """Look up a locally-captured product by barcode.
+
+        Returns the row dict (ingredient_names and allergens already decoded as
+        lists) or None if the barcode has not been captured yet.
+        """
+        return self._fetch_one(
+            "SELECT * FROM captured_products WHERE barcode = ?", (barcode,)
+        )
+
+    def save_captured_product(
+        self,
+        barcode: str,
+        *,
+        product_name: str | None = None,
+        brand: str | None = None,
+        serving_size_g: float | None = None,
+        calories: float | None = None,
+        fat_g: float | None = None,
+        saturated_fat_g: float | None = None,
+        carbs_g: float | None = None,
+        sugar_g: float | None = None,
+        fiber_g: float | None = None,
+        protein_g: float | None = None,
+        sodium_mg: float | None = None,
+        ingredient_names: list[str] | None = None,
+        allergens: list[str] | None = None,
+        confidence: float | None = None,
+        confirmed_by_user: bool = True,
+        source: str = "visual_capture",
+    ) -> dict:
+        """Insert or replace a captured product row, returning the saved dict."""
+        return self._insert_returning(
+            """INSERT INTO captured_products
+               (barcode, product_name, brand, serving_size_g, calories,
+                fat_g, saturated_fat_g, carbs_g, sugar_g, fiber_g,
+                protein_g, sodium_mg, ingredient_names, allergens,
+                confidence, confirmed_by_user, source)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(barcode) DO UPDATE SET
+                 product_name      = excluded.product_name,
+                 brand             = excluded.brand,
+                 serving_size_g    = excluded.serving_size_g,
+                 calories          = excluded.calories,
+                 fat_g             = excluded.fat_g,
+                 saturated_fat_g   = excluded.saturated_fat_g,
+                 carbs_g           = excluded.carbs_g,
+                 sugar_g           = excluded.sugar_g,
+                 fiber_g           = excluded.fiber_g,
+                 protein_g         = excluded.protein_g,
+                 sodium_mg         = excluded.sodium_mg,
+                 ingredient_names  = excluded.ingredient_names,
+                 allergens         = excluded.allergens,
+                 confidence        = excluded.confidence,
+                 confirmed_by_user = excluded.confirmed_by_user,
+                 source            = excluded.source,
+                 captured_at       = datetime('now')
+               RETURNING *""",
+            (
+                barcode, product_name, brand, serving_size_g, calories,
+                fat_g, saturated_fat_g, carbs_g, sugar_g, fiber_g,
+                protein_g, sodium_mg,
+                self._dump(ingredient_names or []),
+                self._dump(allergens or []),
+                confidence, 1 if confirmed_by_user else 0, source,
+            ),
+        )

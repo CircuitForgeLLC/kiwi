@@ -138,6 +138,103 @@
         </div>
       </div>
 
+      <!-- Label Capture Panel (paid tier — appears after gap detection) -->
+      <div v-if="capturePhase !== null" class="label-capture-panel">
+
+        <!-- Offer phase -->
+        <div v-if="capturePhase === 'offer'" class="capture-offer">
+          <p class="capture-offer-text">We couldn't find this product. Photograph the nutrition label to add it.</p>
+          <div class="capture-offer-actions">
+            <button class="btn btn-primary" type="button" @click="triggerCaptureLabelInput">
+              Capture label
+            </button>
+            <button class="btn btn-ghost" type="button" @click="dismissCapture">
+              Skip
+            </button>
+          </div>
+          <input
+            ref="captureFileInput"
+            type="file"
+            accept="image/*"
+            capture="environment"
+            style="display: none"
+            @change="handleLabelPhotoSelect"
+          />
+        </div>
+
+        <!-- Uploading / processing phase -->
+        <div v-else-if="capturePhase === 'uploading'" class="capture-processing">
+          <div class="loading-inline">
+            <div class="spinner spinner-sm"></div>
+            <span>Reading the label…</span>
+          </div>
+        </div>
+
+        <!-- Review phase -->
+        <div v-else-if="capturePhase === 'reviewing' && captureExtraction" class="capture-review">
+          <p class="capture-review-note">
+            Check the details below.
+            <span v-if="captureExtraction.needs_review" class="capture-review-low-conf">
+              Fields highlighted in amber weren't fully legible — please verify them.
+            </span>
+          </p>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Product name</label>
+              <input v-model="captureReview.product_name" type="text" class="form-input" placeholder="Product name" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Brand</label>
+              <input v-model="captureReview.brand" type="text" class="form-input" placeholder="Brand (optional)" />
+            </div>
+          </div>
+
+          <p class="form-section-label">Nutrition per serving</p>
+          <div class="capture-nutrition-grid">
+            <div
+              v-for="field in captureNutritionFields"
+              :key="field.key"
+              class="form-group"
+            >
+              <label
+                :class="['form-label', { 'capture-field-amber': captureExtraction.needs_review && captureExtraction[field.src as keyof typeof captureExtraction] == null }]"
+              >{{ field.label }}</label>
+              <input
+                v-model="captureReview[field.key as keyof typeof captureReview]"
+                type="number"
+                min="0"
+                step="0.1"
+                class="form-input"
+                :placeholder="field.unit"
+              />
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-top: var(--spacing-sm)">
+            <label class="form-label">Ingredients (comma-separated)</label>
+            <input v-model="captureReview.ingredients" type="text" class="form-input" placeholder="flour, water, salt…" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Allergens (comma-separated)</label>
+            <input v-model="captureReview.allergens" type="text" class="form-input" placeholder="wheat, milk…" />
+          </div>
+
+          <div class="capture-review-actions">
+            <button class="btn btn-primary" type="button" :disabled="captureLoading" @click="confirmCapture">
+              <span v-if="captureLoading"><div class="spinner spinner-sm"></div></span>
+              <span v-else>Looks good — save</span>
+            </button>
+            <button class="btn btn-ghost" type="button" @click="capturePhase = 'offer'">
+              Retake photo
+            </button>
+            <button class="btn btn-ghost" type="button" @click="dismissCapture">
+              Discard
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Camera Scan Panel -->
       <div v-if="scanMode === 'camera'" class="scan-panel">
         <div class="upload-area" @click="triggerBarcodeInput">
@@ -622,7 +719,7 @@ import { storeToRefs } from 'pinia'
 import { useInventoryStore } from '../stores/inventory'
 import { useSettingsStore } from '../stores/settings'
 import { inventoryAPI } from '../services/api'
-import type { InventoryItem } from '../services/api'
+import type { InventoryItem, LabelCaptureResult } from '../services/api'
 import { formatQuantity } from '../utils/units'
 import EditItemModal from './EditItemModal.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
@@ -684,6 +781,16 @@ function daysLabel(dateStr: string): string {
 const scanMode = ref<'gun' | 'camera' | 'manual'>('gun')
 
 // Options for button groups
+// Label capture nutrition field descriptors used in the review form
+const captureNutritionFields = [
+  { key: 'calories',      src: 'calories',      label: 'Calories',    unit: 'kcal' },
+  { key: 'fat_g',         src: 'fat_g',         label: 'Total fat',   unit: 'g' },
+  { key: 'saturated_fat_g', src: 'saturated_fat_g', label: 'Saturated fat', unit: 'g' },
+  { key: 'carbs_g',       src: 'carbs_g',       label: 'Carbs',       unit: 'g' },
+  { key: 'protein_g',     src: 'protein_g',     label: 'Protein',     unit: 'g' },
+  { key: 'sodium_mg',     src: 'sodium_mg',     label: 'Sodium',      unit: 'mg' },
+]
+
 const locations = [
   { value: 'fridge', label: 'Fridge', icon: '🧊' },
   { value: 'freezer', label: 'Freezer', icon: '❄️' },
@@ -779,6 +886,29 @@ const barcodeLocation = ref('pantry')
 const barcodeQuantity = ref(1)
 const barcodeLoading = ref(false)
 const barcodeResults = ref<Array<{ type: string; message: string }>>([])
+
+// Label Capture Flow (kiwi#79)
+type CapturePhase = 'offer' | 'uploading' | 'reviewing' | null
+const capturePhase = ref<CapturePhase>(null)
+const captureBarcode = ref('')
+const captureLocation = ref('pantry')
+const captureQuantity = ref(1)
+const captureLoading = ref(false)
+const captureFileInput = ref<HTMLInputElement | null>(null)
+const captureExtraction = ref<LabelCaptureResult | null>(null)
+// Editable review form — populated from extraction, user may correct fields
+const captureReview = ref({
+  product_name: '',
+  brand: '',
+  calories: '' as string,
+  fat_g: '' as string,
+  saturated_fat_g: '' as string,
+  carbs_g: '' as string,
+  protein_g: '' as string,
+  sodium_mg: '' as string,
+  ingredients: '',
+  allergens: '',
+})
 
 // Manual Form
 const manualForm = ref({
@@ -935,6 +1065,15 @@ async function handleScannerGunInput() {
         message: `Added: ${productName}${productBrand} to ${scannerLocation.value}`,
       })
       await refreshItems()
+    } else if (item?.needs_visual_capture) {
+      captureBarcode.value = barcode
+      captureLocation.value = scannerLocation.value
+      captureQuantity.value = scannerQuantity.value
+      capturePhase.value = 'offer'
+      scannerResults.value.push({
+        type: 'info',
+        message: item.message,
+      })
     } else if (item?.needs_manual_entry) {
       // Barcode not found in any database — guide user to manual entry
       scannerResults.value.push({
@@ -1004,6 +1143,88 @@ async function handleBarcodeImageSelect(e: Event) {
     if (barcodeFileInput.value) {
       barcodeFileInput.value.value = ''
     }
+  }
+}
+
+// Label Capture Functions
+
+function triggerCaptureLabelInput() {
+  captureFileInput.value?.click()
+}
+
+function dismissCapture() {
+  capturePhase.value = null
+  captureBarcode.value = ''
+  captureExtraction.value = null
+}
+
+async function handleLabelPhotoSelect(e: Event) {
+  const target = e.target as HTMLInputElement
+  const file = target.files?.[0]
+  if (!file) return
+
+  captureLoading.value = true
+  capturePhase.value = 'uploading'
+
+  try {
+    const result = await inventoryAPI.captureLabelPhoto(file, captureBarcode.value)
+    captureExtraction.value = result
+    // Pre-populate the review form with extracted values
+    captureReview.value = {
+      product_name: result.product_name || '',
+      brand: result.brand || '',
+      calories: result.calories != null ? String(result.calories) : '',
+      fat_g: result.fat_g != null ? String(result.fat_g) : '',
+      saturated_fat_g: result.saturated_fat_g != null ? String(result.saturated_fat_g) : '',
+      carbs_g: result.carbs_g != null ? String(result.carbs_g) : '',
+      protein_g: result.protein_g != null ? String(result.protein_g) : '',
+      sodium_mg: result.sodium_mg != null ? String(result.sodium_mg) : '',
+      ingredients: (result.ingredient_names || []).join(', '),
+      allergens: (result.allergens || []).join(', '),
+    }
+    capturePhase.value = 'reviewing'
+  } catch {
+    showToast('Could not read the label. Please try again or add manually.', 'error')
+    capturePhase.value = 'offer'
+  } finally {
+    captureLoading.value = false
+    if (target) target.value = ''
+  }
+}
+
+async function confirmCapture() {
+  if (!captureBarcode.value) return
+
+  captureLoading.value = true
+  try {
+    const toNum = (s: string) => s ? parseFloat(s) || null : null
+    const toList = (s: string) => s.split(',').map(x => x.trim()).filter(Boolean)
+
+    await inventoryAPI.confirmLabelCapture({
+      barcode: captureBarcode.value,
+      product_name: captureReview.value.product_name || null,
+      brand: captureReview.value.brand || null,
+      calories: toNum(captureReview.value.calories),
+      fat_g: toNum(captureReview.value.fat_g),
+      saturated_fat_g: toNum(captureReview.value.saturated_fat_g),
+      carbs_g: toNum(captureReview.value.carbs_g),
+      protein_g: toNum(captureReview.value.protein_g),
+      sodium_mg: toNum(captureReview.value.sodium_mg),
+      ingredient_names: toList(captureReview.value.ingredients),
+      allergens: toList(captureReview.value.allergens),
+      confidence: captureExtraction.value?.confidence ?? 0,
+      location: captureLocation.value,
+      quantity: captureQuantity.value,
+      auto_add: true,
+    })
+    const name = captureReview.value.product_name || 'item'
+    showToast(`${name} saved and added to ${captureLocation.value}`, 'success')
+    await refreshItems()
+    dismissCapture()
+  } catch {
+    showToast('Could not save. Please try again.', 'error')
+  } finally {
+    captureLoading.value = false
   }
 }
 
@@ -1612,6 +1833,79 @@ function getItemClass(item: InventoryItem): string {
   background: var(--color-warning-bg, #fffbeb);
   color: var(--color-warning-dark, #92400e);
   border: 1px solid var(--color-warning-border, #fcd34d);
+}
+
+/* ============================================
+   LABEL CAPTURE FLOW (kiwi#79)
+   ============================================ */
+.label-capture-panel {
+  margin: var(--spacing-md) 0;
+  padding: var(--spacing-md);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.capture-offer-text {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin: 0 0 var(--spacing-md);
+}
+
+.capture-offer-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.capture-processing {
+  display: flex;
+  justify-content: center;
+  padding: var(--spacing-md) 0;
+}
+
+.capture-review-note {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin: 0 0 var(--spacing-md);
+}
+
+.capture-review-low-conf {
+  color: var(--color-amber, #d97706);
+  font-size: var(--font-size-xs);
+  display: block;
+  margin-top: var(--spacing-xs);
+}
+
+.form-section-label {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: var(--spacing-md) 0 var(--spacing-sm);
+}
+
+.capture-nutrition-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--spacing-sm);
+}
+
+/* Amber highlight for unread/low-confidence label fields */
+.capture-field-amber {
+  color: var(--color-amber, #d97706);
+}
+
+.capture-field-amber + input {
+  border-color: var(--color-amber, #d97706);
+}
+
+.capture-review-actions {
+  display: flex;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+  margin-top: var(--spacing-md);
 }
 
 /* ============================================
