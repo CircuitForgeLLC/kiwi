@@ -601,7 +601,7 @@ function toggleNoise(value: NoiseLevel) {
   }
 }
 
-function getSmellClass(value: SmellLevel, idx: number): string {
+function getSmellClass(_value: SmellLevel, idx: number): string {
   const maxSmell = settingsStore.sensoryPreferences.max_smell
   if (!maxSmell) return 'sensory-pill--neutral'
   const maxIdx = SMELL_LEVELS.findIndex(l => l.value === maxSmell)
@@ -610,7 +610,7 @@ function getSmellClass(value: SmellLevel, idx: number): string {
   return 'sensory-pill--neutral'
 }
 
-function getNoiseClass(value: NoiseLevel, idx: number): string {
+function getNoiseClass(_value: NoiseLevel, idx: number): string {
   const maxNoise = settingsStore.sensoryPreferences.max_noise
   if (!maxNoise) return 'sensory-pill--neutral'
   const maxIdx = NOISE_LEVELS.findIndex(l => l.value === maxNoise)

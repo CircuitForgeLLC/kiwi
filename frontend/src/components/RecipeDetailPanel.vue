@@ -330,7 +330,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRecipesStore } from '../stores/recipes'
 import { useSavedRecipesStore } from '../stores/savedRecipes'
 import { inventoryAPI } from '../services/api'
-import type { RecipeSuggestion, GroceryLink, StepAnalysis, TimeEffortProfile } from '../services/api'
+import type { RecipeSuggestion, GroceryLink, StepAnalysis } from '../services/api'
 import SaveRecipeModal from './SaveRecipeModal.vue'
 
 const dialogRef = ref<HTMLElement | null>(null)
