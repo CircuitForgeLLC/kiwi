@@ -11,7 +11,8 @@ import sqlite3
 import requests
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.cloud_session import CloudUser, CLOUD_DATA_ROOT, HEIMDALL_URL, HEIMDALL_ADMIN_TOKEN, get_session
+from app.cloud_session import CloudUser, CLOUD_DATA_ROOT, get_session
+from app.services.heimdall_orch import HEIMDALL_URL, HEIMDALL_ADMIN_TOKEN
 from app.db.store import Store
 from app.models.schemas.household import (
     HouseholdAcceptRequest,

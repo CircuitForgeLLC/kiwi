@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from app.db.store import Store
 
-from app.models.schemas.recipe import GroceryLink, NutritionPanel, RecipeRequest, RecipeResult, RecipeSuggestion, SwapCandidate
+from app.models.schemas.recipe import GroceryLink, NutritionPanel, RecipeRequest, RecipeResult, RecipeSuggestion, StepAnalysis, TimeEffortProfile, SwapCandidate
 from app.services.recipe.element_classifier import ElementClassifier
 from app.services.recipe.grocery_links import GroceryLinkBuilder
 from app.services.recipe.substitution_engine import SubstitutionEngine
@@ -34,6 +34,38 @@ _LEFTOVER_DAILY_MAX_FREE = 5
 _SWAP_STOPWORDS = frozenset({
     "a", "an", "the", "of", "in", "for", "with", "and", "or",
     "to", "from", "at", "by", "as", "on",
+})
+
+# Marketing / prep / packaging words stripped when tokenising product-label names
+# into individual ingredient tokens.  Parallel to Store._FTS_TOKEN_STOPWORDS —
+# both lists should agree.  Kept here to avoid a circular import at runtime.
+_PRODUCT_TOKEN_STOPWORDS = frozenset({
+    # Basic English stopwords
+    "a", "an", "the", "of", "in", "for", "with", "and", "or", "to",
+    "from", "at", "by", "as", "on", "into",
+    # Brand / marketing words that appear in product names
+    "lean", "cuisine", "healthy", "choice", "stouffer", "original",
+    "classic", "deluxe", "homestyle", "family", "style", "grade",
+    "premium", "select", "natural", "organic", "fresh", "lite",
+    "ready", "quick", "easy", "instant", "microwave", "frozen",
+    "brand", "size", "large", "small", "medium", "extra",
+    # Plant-based / alt-meat brand names
+    "daring", "gardein", "morningstar", "lightlife", "tofurky",
+    "quorn", "omni", "nuggs", "simulate",
+    # Preparation states
+    "cut", "diced", "sliced", "chopped", "minced", "shredded",
+    "cooked", "raw", "whole", "boneless", "skinless", "trimmed",
+    "pre", "prepared", "marinated", "seasoned", "breaded", "battered",
+    "grilled", "roasted", "smoked", "canned", "dried", "dehydrated",
+    "pieces", "piece", "strips", "strip", "chunks", "chunk",
+    "fillets", "fillet", "cutlets", "cutlet", "tenders", "nuggets",
+    # Units / packaging
+    "oz", "lb", "lbs", "pkg", "pack", "box", "can", "bag", "jar",
+    # Adjectives that aren't ingredients
+    "firm", "soft", "silken", "hard", "crispy", "crunchy", "smooth",
+    "mild", "spicy", "hot", "sweet", "savory", "unsalted", "salted",
+    "low", "high", "reduced", "free", "fat", "sodium", "sugar", "calorie",
+    "dairy", "gluten", "vegan", "plant", "based", "free",
 })
 
 # Maps product-label substrings to recipe-corpus canonical terms.
@@ -362,6 +394,13 @@ def _expand_pantry_set(
         for pattern, canonical in _PANTRY_LABEL_SYNONYMS.items():
             if pattern in lower:
                 expanded.add(canonical)
+
+        # Extract individual ingredient tokens from multi-word product names.
+        # "Organic Extra Firm Tofu" → adds "tofu"; "Brown Basmati Rice" → adds "rice".
+        # This catches plain ingredients that _PANTRY_LABEL_SYNONYMS doesn't translate.
+        for token in lower.split():
+            if len(token) >= 4 and token not in _PRODUCT_TOKEN_STOPWORDS:
+                expanded.add(token)
 
         # Secondary state expansion — adds terms like "stale bread", "day-old rice"
         if secondary_pantry_items and item in secondary_pantry_items:
@@ -736,9 +775,13 @@ class RecipeEngine:
         #   - match ratio: require ≥60% ingredient coverage to avoid low-signal results
         _l1 = req.level == 1 and not req.shopping_mode
         nf = req.nutrition_filters
+        # L1 uses a larger candidate pool — the ratio gate below will prune
+        # aggressively anyway, so we need more raw candidates to end up with
+        # enough results for a packaged-food / plant-based pantry.
+        _fts_limit = 60 if _l1 else 20
         rows = self._store.search_recipes_by_ingredients(
             req.pantry_items,
-            limit=20,
+            limit=_fts_limit,
             category=req.category or None,
             max_calories=nf.max_calories,
             max_sugar_g=nf.max_sugar_g,
@@ -749,8 +792,11 @@ class RecipeEngine:
         )
 
         # L1 strict defaults: cap missing ingredients and require a minimum ratio.
+        # 0.35 allows ~1/3 ingredient coverage — low enough for packaged/plant-based
+        # pantries that rarely match raw-ingredient corpus recipes 1:1, but still
+        # filters out recipes where only one common staple matched.
         _L1_MAX_MISSING_DEFAULT = 2
-        _L1_MIN_MATCH_RATIO = 0.6
+        _L1_MIN_MATCH_RATIO = 0.35
         effective_max_missing = req.max_missing
         if _l1 and effective_max_missing is None:
             effective_max_missing = _L1_MAX_MISSING_DEFAULT
@@ -834,9 +880,10 @@ class RecipeEngine:
                 except Exception:
                     directions = [directions]
 
-            # Compute complexity for every suggestion (used for badge + filter).
+            # Compute complexity + parse time effort once — reused for filters and response.
             row_complexity = _classify_method_complexity(directions, available_equipment)
             row_time_min = _estimate_time_min(directions, row_complexity)
+            row_time_effort = parse_time_effort(directions)
 
             # Filter and tier-rank by hard_day_mode
             if req.hard_day_mode:
@@ -856,9 +903,16 @@ class RecipeEngine:
             if req.max_time_min is not None and row_time_min > req.max_time_min:
                 continue
 
-            # Total time filter (kiwi#52) — uses parsed time from directions
-            if req.max_total_min is not None and not _within_time(directions, req.max_total_min):
-                continue
+            # Total time filter (kiwi#52).
+            # Prefer parsed time extracted from direction text (explicit "15 minutes" mentions).
+            # When directions contain no parseable time signals, fall back to the
+            # step-count estimate so the filter still has teeth on the corpus majority.
+            if req.max_total_min is not None:
+                if row_time_effort.total_min > 0:
+                    if row_time_effort.total_min > req.max_total_min:
+                        continue
+                elif row_time_min > req.max_total_min:
+                    continue
 
             # Level 2: also add dietary constraint swaps from substitution_pairs
             if req.level == 2 and req.constraints:
@@ -897,6 +951,20 @@ class RecipeEngine:
                 v is not None
                 for v in (nutrition.calories, nutrition.sugar_g, nutrition.carbs_g)
             )
+            te = TimeEffortProfile(
+                active_min=row_time_effort.active_min,
+                passive_min=row_time_effort.passive_min,
+                total_min=row_time_effort.total_min,
+                effort_label=row_time_effort.effort_label,
+                equipment=list(row_time_effort.equipment),
+                step_analyses=[
+                    StepAnalysis(
+                        is_passive=sa.is_passive,
+                        detected_minutes=sa.detected_minutes,
+                    )
+                    for sa in row_time_effort.step_analyses
+                ],
+            )
             suggestions.append(RecipeSuggestion(
                 id=row["id"],
                 title=row["title"],
@@ -905,12 +973,14 @@ class RecipeEngine:
                 swap_candidates=swap_candidates,
                 matched_ingredients=matched,
                 missing_ingredients=missing,
+                directions=directions,
                 prep_notes=sorted(prep_note_set),
                 level=req.level,
                 nutrition=nutrition if has_nutrition else None,
                 source_url=_build_source_url(row),
                 complexity=row_complexity,
                 estimated_time_min=row_time_min,
+                time_effort=te,
             ))
 
         # Sort corpus results.

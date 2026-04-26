@@ -4,6 +4,27 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 
+class StepAnalysis(BaseModel):
+    """Active/passive classification for one direction step."""
+    is_passive: bool
+    detected_minutes: int | None = None
+
+
+class TimeEffortProfile(BaseModel):
+    """Parsed time and effort profile for a recipe.
+
+    Mirrors app.services.recipe.time_effort.TimeEffortProfile (dataclass).
+    Serialised into RecipeSuggestion so the frontend can render the effort
+    summary without a second round-trip.
+    """
+    active_min: int = 0
+    passive_min: int = 0
+    total_min: int = 0
+    effort_label: str = "moderate"   # "quick" | "moderate" | "involved"
+    equipment: list[str] = Field(default_factory=list)
+    step_analyses: list[StepAnalysis] = Field(default_factory=list)
+
+
 class SwapCandidate(BaseModel):
     original_name: str
     substitute_name: str
@@ -43,6 +64,7 @@ class RecipeSuggestion(BaseModel):
     source_url: str | None = None
     complexity: str | None = None  # 'easy' | 'moderate' | 'involved'
     estimated_time_min: int | None = None  # derived from step count + method signals
+    time_effort: TimeEffortProfile | None = None  # full time/effort profile from parse_time_effort
     rerank_score: float | None = None  # cross-encoder relevance score (paid+ only, None for free tier)
 
 
