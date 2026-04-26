@@ -271,6 +271,24 @@
         </div>
       </section>
 
+      <!-- Data Sharing (cloud only) -->
+      <section v-if="isCloudMode" class="mt-md">
+        <h3 class="text-lg font-semibold mb-xs">Data Sharing</h3>
+        <label class="data-sharing-toggle flex-start gap-sm text-sm">
+          <input
+            type="checkbox"
+            :checked="magpieOptIn"
+            @change="setMagpieOptIn(($event.target as HTMLInputElement).checked)"
+          />
+          Share anonymized recipe ratings to help improve suggestions
+        </label>
+        <p class="text-xs text-muted mt-xs">
+          When enabled, Kiwi sends the recipe source ID, your star rating, and
+          style tags to CircuitForge. No personal information or pantry contents
+          are included.
+        </p>
+      </section>
+
       <!-- Display Preferences -->
       <section class="mt-md">
         <h3 class="text-lg font-semibold mb-xs">Display</h3>
@@ -381,7 +399,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useSettingsStore } from '../stores/settings'
 import { useRecipesStore } from '../stores/recipes'
-import { householdAPI, type HouseholdStatus } from '../services/api'
+import { householdAPI, settingsAPI, type HouseholdStatus } from '../services/api'
 import type { TextureTag, SmellLevel, NoiseLevel } from '../services/api'
 import type { TimeFirstLayout } from '../stores/settings'
 import { useOrchUsage } from '../composables/useOrchUsage'
@@ -389,6 +407,23 @@ import { useOrchUsage } from '../composables/useOrchUsage'
 const settingsStore = useSettingsStore()
 const recipesStore = useRecipesStore()
 const { enabled: orchPillEnabled, setEnabled: setOrchPillEnabled } = useOrchUsage()
+
+// Cloud mode — baked in at build time via VITE_CLOUD_MODE=true in cloud builds
+const isCloudMode = import.meta.env.VITE_CLOUD_MODE === 'true'
+
+// Data sharing — magpie opt-in (cloud mode only)
+const magpieOptIn = ref(false)
+
+async function loadMagpieOptIn(): Promise<void> {
+  if (!isCloudMode) return
+  const value = await settingsAPI.getSetting('magpie_opt_in')
+  magpieOptIn.value = value === 'true'
+}
+
+async function setMagpieOptIn(enabled: boolean): Promise<void> {
+  magpieOptIn.value = enabled
+  await settingsAPI.setSetting('magpie_opt_in', enabled ? 'true' : 'false')
+}
 
 const timeFirstLayoutOptions: Array<{ value: TimeFirstLayout; label: string; description: string }> = [
   { value: 'auto',       label: 'Auto',        description: 'Shows a time selector when recipes are available.' },
@@ -539,6 +574,7 @@ async function handleRemoveMember(userId: string) {
 onMounted(async () => {
   await settingsStore.load()
   await loadHouseholdStatus()
+  await loadMagpieOptIn()
 })
 
 // ── Sensory taxonomy ───────────────────────────────────────────────────────
@@ -762,13 +798,15 @@ function getNoiseClass(_value: NoiseLevel, idx: number): string {
   color: var(--color-text-muted);
 }
 
-.orch-pill-toggle {
+.orch-pill-toggle,
+.data-sharing-toggle {
   cursor: pointer;
   align-items: center;
   color: var(--color-text);
 }
 
-.orch-pill-toggle input[type="checkbox"] {
+.orch-pill-toggle input[type="checkbox"],
+.data-sharing-toggle input[type="checkbox"] {
   accent-color: var(--color-primary);
   width: 1rem;
   height: 1rem;

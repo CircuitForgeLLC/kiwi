@@ -17,6 +17,7 @@ from app.models.schemas.saved_recipe import (
     SaveRecipeRequest,
     UpdateSavedRecipeRequest,
 )
+from app.services.magpie_hook import fire_recipe_signal
 from app.tiers import can_use
 
 
@@ -60,7 +61,9 @@ async def save_recipe(
         row = store.save_recipe(req.recipe_id, req.notes, req.rating)
         return _to_summary(row, store)
 
-    return await asyncio.to_thread(_in_thread, session.db, _run)
+    result = await asyncio.to_thread(_in_thread, session.db, _run)
+    asyncio.create_task(fire_recipe_signal(session.db, req.recipe_id, req.rating, []))
+    return result
 
 
 @router.delete("/{recipe_id}", status_code=204)
@@ -87,7 +90,11 @@ async def update_saved_recipe(
         )
         return _to_summary(row, store)
 
-    return await asyncio.to_thread(_in_thread, session.db, _run)
+    result = await asyncio.to_thread(_in_thread, session.db, _run)
+    asyncio.create_task(
+        fire_recipe_signal(session.db, recipe_id, req.rating, req.style_tags or [])
+    )
+    return result
 
 
 @router.get("", response_model=list[SavedRecipeSummary])

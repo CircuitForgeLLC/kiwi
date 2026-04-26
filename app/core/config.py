@@ -43,6 +43,10 @@ class Settings:
         os.environ.get("BROWSE_COUNTS_PATH", str(DATA_DIR / "browse_counts.db"))
     )
 
+    # Magpie data flywheel — ingest endpoint for anonymized recipe signals
+    # Set MAGPIE_INGEST_URL to enable; leave unset (or None) to disable silently.
+    MAGPIE_INGEST_URL: str | None = os.environ.get("MAGPIE_INGEST_URL") or None
+
     # Community feature settings
     COMMUNITY_DB_URL: str | None = os.environ.get("COMMUNITY_DB_URL") or None
     COMMUNITY_PSEUDONYM_SALT: str = os.environ.get(
