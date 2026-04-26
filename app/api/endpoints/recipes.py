@@ -16,6 +16,7 @@ from app.db.store import Store
 from app.models.schemas.recipe import (
     AssemblyTemplateOut,
     BuildRequest,
+    LeftoversResponse,
     RecipeJobStatus,
     RecipeRequest,
     RecipeResult,
@@ -608,3 +609,33 @@ async def get_recipe(recipe_id: int, session: CloudUser = Depends(get_session)) 
         "estimated_time_min": None,
         "time_effort": _time_effort_out,
     }
+
+
+@router.post("/{recipe_id}/leftovers", response_model=LeftoversResponse)
+async def get_leftovers_shelf_life(
+    recipe_id: int,
+    session: CloudUser = Depends(get_session),
+) -> LeftoversResponse:
+    """Return cooked-leftover shelf-life estimate for a recipe.
+
+    Free tier: deterministic lookup (FDA/USDA table).
+    Deterministic path always runs; no tier gate needed.
+    """
+    def _get(db_path: Path, rid: int) -> LeftoversResponse:
+        from app.services.leftovers_predictor import predict_leftovers_from_row
+        store = Store(db_path)
+        try:
+            recipe = store.get_recipe(rid)
+        finally:
+            store.close()
+        if recipe is None:
+            raise HTTPException(status_code=404, detail="Recipe not found.")
+        result = predict_leftovers_from_row(recipe)
+        return LeftoversResponse(
+            fridge_days=result.fridge_days,
+            freeze_days=result.freeze_days,
+            freeze_by_day=result.freeze_by_day,
+            storage_advice=result.storage_advice,
+        )
+
+    return await asyncio.to_thread(_get, session.db, recipe_id)

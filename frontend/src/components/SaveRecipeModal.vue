@@ -46,7 +46,14 @@
 
         <!-- Style tags -->
         <div class="form-group">
-          <label class="form-label">Style tags</label>
+          <div class="flex-between mb-xs">
+            <label class="form-label" style="margin-bottom: 0;">Style tags</label>
+            <button
+              class="btn btn-secondary btn-xs"
+              :disabled="classifying"
+              @click="suggestTags"
+            >{{ classifying ? 'Suggesting…' : 'Suggest tags' }}</button>
+          </div>
           <div class="tags-wrap flex flex-wrap gap-xs mb-xs">
             <span
               v-for="tag in localTags"
@@ -89,6 +96,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useSavedRecipesStore } from '../stores/savedRecipes'
+import { savedRecipesAPI } from '../services/api'
 
 const SUGGESTED_TAGS = [
   'comforting', 'light', 'spicy', 'umami', 'sweet', 'savory', 'rich',
@@ -140,6 +148,7 @@ const localTags = ref<string[]>([...(existing.value?.style_tags ?? [])])
 const hoverRating = ref<number | null>(null)
 const tagInput = ref('')
 const saving = ref(false)
+const classifying = ref(false)
 
 const unusedSuggestions = computed(() =>
   SUGGESTED_TAGS.filter((s) => !localTags.value.includes(s))
@@ -171,6 +180,23 @@ function onTagKey(e: KeyboardEvent) {
   if (e.key === 'Enter' || e.key === ',') {
     e.preventDefault()
     commitTagInput()
+  }
+}
+
+async function suggestTags() {
+  classifying.value = true
+  try {
+    const suggestions = await savedRecipesAPI.classifyStyle(props.recipeId)
+    // Merge suggestions into localTags — new ones only, preserving user's existing tags
+    for (const tag of suggestions) {
+      if (!localTags.value.includes(tag)) {
+        localTags.value = [...localTags.value, tag]
+      }
+    }
+  } catch {
+    // Silently ignore — tier gate returns 403, no LLM returns empty list
+  } finally {
+    classifying.value = false
   }
 }
 

@@ -5,6 +5,7 @@ import asyncio
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 
 from app.cloud_session import CloudUser, get_session
 from app.db.store import Store
@@ -17,6 +18,10 @@ from app.models.schemas.saved_recipe import (
     UpdateSavedRecipeRequest,
 )
 from app.tiers import can_use
+
+
+class StyleClassifyResponse(BaseModel):
+    suggested_tags: list[str]
 
 router = APIRouter()
 
@@ -94,6 +99,27 @@ async def list_saved_recipes(
     def _run(store: Store) -> list[SavedRecipeSummary]:
         rows = store.get_saved_recipes(sort_by=sort_by, collection_id=collection_id)
         return [_to_summary(r, store) for r in rows]
+
+    return await asyncio.to_thread(_in_thread, session.db, _run)
+
+
+# ── style classifier (Paid / BYOK) ───────────────────────────────────────────
+
+@router.post("/{recipe_id}/classify-style", response_model=StyleClassifyResponse)
+async def classify_style(
+    recipe_id: int,
+    session: CloudUser = Depends(get_session),
+) -> StyleClassifyResponse:
+    if not can_use("style_classifier", session.tier, getattr(session, "has_byok", False)):
+        raise HTTPException(status_code=403, detail="Style classifier requires Paid tier or BYOK.")
+
+    def _run(store: Store) -> StyleClassifyResponse:
+        recipe = store.get_recipe(recipe_id)
+        if recipe is None:
+            raise HTTPException(status_code=404, detail="Recipe not found.")
+        from app.services.recipe.style_classifier import classify_style as _classify
+        tags = _classify(recipe)
+        return StyleClassifyResponse(suggested_tags=tags)
 
     return await asyncio.to_thread(_in_thread, session.db, _run)
 

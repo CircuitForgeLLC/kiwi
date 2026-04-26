@@ -694,6 +694,10 @@ export const recipesAPI = {
     const response = await api.get(`/recipes/${id}`)
     return response.data
   },
+  async getLeftovers(id: number): Promise<{ fridge_days: number; freeze_days: number | null; freeze_by_day: number | null; storage_advice: string }> {
+    const response = await api.post(`/recipes/${id}/leftovers`)
+    return response.data
+  },
   async listStaples(dietary?: string): Promise<Staple[]> {
     const response = await api.get('/staples/', { params: dietary ? { dietary } : undefined })
     return response.data
@@ -856,6 +860,10 @@ export const savedRecipesAPI = {
   },
   async removeFromCollection(collection_id: number, saved_recipe_id: number): Promise<void> {
     await api.delete(`/recipes/saved/collections/${collection_id}/members/${saved_recipe_id}`)
+  },
+  async classifyStyle(recipe_id: number): Promise<string[]> {
+    const response = await api.post(`/recipes/saved/${recipe_id}/classify-style`)
+    return response.data.suggested_tags
   },
 }
 

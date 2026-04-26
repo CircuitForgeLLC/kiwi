@@ -276,6 +276,31 @@
           <span class="cook-success-icon">✓</span>
           Enjoy your meal! Recipe dismissed from suggestions.
           <button class="btn btn-secondary btn-sm mt-xs" @click="$emit('close')">Close</button>
+
+          <!-- Leftover shelf-life section -->
+          <div v-if="leftoversLoading" class="leftovers-panel text-sm text-secondary mt-sm">
+            Working out storage info…
+          </div>
+          <div v-else-if="leftovers && !leftoversDismissed" class="leftovers-panel mt-sm">
+            <div class="leftovers-header flex-between">
+              <span class="text-sm font-semibold">Leftovers</span>
+              <button class="btn-icon btn-xs" @click="leftoversDismissed = true" aria-label="Dismiss storage info">✕</button>
+            </div>
+            <div class="leftovers-grid mt-xs">
+              <div class="leftovers-cell">
+                <span class="leftovers-icon">❄️</span>
+                <span class="text-sm">Fridge: <strong>{{ leftovers.fridge_days }} day{{ leftovers.fridge_days !== 1 ? 's' : '' }}</strong></span>
+              </div>
+              <div v-if="leftovers.freeze_days !== null" class="leftovers-cell">
+                <span class="leftovers-icon">🧊</span>
+                <span class="text-sm">Freezer: <strong>{{ leftovers.freeze_days }} day{{ leftovers.freeze_days !== 1 ? 's' : '' }}</strong></span>
+              </div>
+            </div>
+            <p v-if="leftovers.freeze_by_day" class="text-xs text-secondary mt-xs">
+              Freeze by day {{ leftovers.freeze_by_day }} for best results.
+            </p>
+            <p class="text-xs text-secondary mt-xs">{{ leftovers.storage_advice }}</p>
+          </div>
         </div>
         <template v-else>
           <button class="btn btn-secondary" @click="$emit('close')">Back</button>
@@ -329,7 +354,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRecipesStore } from '../stores/recipes'
 import { useSavedRecipesStore } from '../stores/savedRecipes'
-import { inventoryAPI } from '../services/api'
+import { inventoryAPI, recipesAPI } from '../services/api'
 import type { RecipeSuggestion, GroceryLink, StepAnalysis } from '../services/api'
 import SaveRecipeModal from './SaveRecipeModal.vue'
 
@@ -385,6 +410,12 @@ const showSaveModal = ref(false)
 const isSaved = computed(() => savedStore.isSaved(props.recipe.id))
 
 const cookDone = ref(false)
+
+// ── Leftover shelf-life ────────────────────────────────────
+type LeftoversData = { fridge_days: number; freeze_days: number | null; freeze_by_day: number | null; storage_advice: string }
+const leftovers = ref<LeftoversData | null>(null)
+const leftoversLoading = ref(false)
+const leftoversDismissed = ref(false)
 
 // ── Cook mode ─────────────────────────────────────────────
 const cookModeActive = ref(false)
@@ -622,10 +653,20 @@ function groceryLinkFor(ingredient: string): GroceryLink | undefined {
   return props.groceryLinks.find((l) => l.ingredient.toLowerCase() === needle)
 }
 
-function handleCook() {
+async function handleCook() {
   recipesStore.logCook(props.recipe.id, props.recipe.title)
   cookDone.value = true
   emit('cooked', props.recipe)
+  if (props.recipe.id) {
+    leftoversLoading.value = true
+    try {
+      leftovers.value = await recipesAPI.getLeftovers(props.recipe.id)
+    } catch {
+      // Silently skip — shelf life is supplemental info, not critical
+    } finally {
+      leftoversLoading.value = false
+    }
+  }
 }
 </script>
 
@@ -1557,5 +1598,34 @@ details[open].steps-collapsible .steps-collapsible-summary::before {
 .btn-sm {
   padding: var(--spacing-xs) var(--spacing-sm);
   font-size: var(--font-size-sm);
+}
+
+.leftovers-panel {
+  background: var(--color-surface-alt, var(--color-surface));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-sm);
+  text-align: left;
+}
+
+.leftovers-header {
+  align-items: center;
+}
+
+.leftovers-grid {
+  display: flex;
+  gap: var(--spacing-md);
+  flex-wrap: wrap;
+}
+
+.leftovers-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.leftovers-icon {
+  font-size: 1rem;
+  line-height: 1;
 }
 </style>

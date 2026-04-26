@@ -4,6 +4,14 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 
+class LeftoversResponse(BaseModel):
+    """Cooked-leftover shelf-life estimate returned by POST /recipes/{id}/leftovers."""
+    fridge_days: int
+    freeze_days: int | None = None   # None = not recommended
+    freeze_by_day: int | None = None  # day number from cook date to freeze by
+    storage_advice: str
+
+
 class StepAnalysis(BaseModel):
     """Active/passive classification for one direction step."""
     is_passive: bool
