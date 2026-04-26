@@ -27,12 +27,15 @@ export const useSavedRecipesStore = defineStore('savedRecipes', () => {
   async function load() {
     loading.value = true
     try {
-      const [items, cols] = await Promise.all([
+      // Fetch independently — a collections 403 (Free tier) must not prevent
+      // saved recipes from loading. Backend now returns [] for Free, but guard
+      // here too in case an older API version is deployed.
+      const [itemsResult, colsResult] = await Promise.allSettled([
         savedRecipesAPI.list({ sort_by: sortBy.value, collection_id: activeCollectionId.value ?? undefined }),
         savedRecipesAPI.listCollections(),
       ])
-      saved.value = items
-      collections.value = cols
+      if (itemsResult.status === 'fulfilled') saved.value = itemsResult.value
+      if (colsResult.status === 'fulfilled') collections.value = colsResult.value
     } finally {
       loading.value = false
     }

@@ -35,7 +35,7 @@ def _to_summary(row: dict, store: Store) -> SavedRecipeSummary:
     return SavedRecipeSummary(
         id=row["id"],
         recipe_id=row["recipe_id"],
-        title=row.get("title", ""),
+        title=row.get("title") or "",
         saved_at=row["saved_at"],
         notes=row.get("notes"),
         rating=row.get("rating"),
@@ -104,8 +104,10 @@ async def list_saved_recipes(
 async def list_collections(
     session: CloudUser = Depends(get_session),
 ) -> list[CollectionSummary]:
+    # Free users can list (they'll always have zero — creating requires Paid).
+    # Returning 403 here breaks savedStore.load() via Promise.all for non-Paid users.
     if not can_use("recipe_collections", session.tier):
-        raise HTTPException(status_code=403, detail="Collections require Paid tier.")
+        return []
     rows = await asyncio.to_thread(
         _in_thread, session.db, lambda s: s.get_collections()
     )

@@ -513,12 +513,12 @@
               <span v-if="recipe.estimated_time_min" class="status-badge status-neutral">~{{ recipe.estimated_time_min }}m</span>
               <span class="status-badge status-info">Level {{ recipe.level }}</span>
               <span v-if="recipe.is_wildcard" class="status-badge status-info">Wildcard</span>
-              <button
+              <span
                 v-if="recipe.id"
-                :class="['btn-icon', 'btn-bookmark', { active: recipesStore.isBookmarked(recipe.id) }]"
-                @click="recipesStore.toggleBookmark(recipe)"
-                :aria-label="recipesStore.isBookmarked(recipe.id) ? 'Remove bookmark: ' + recipe.title : 'Bookmark: ' + recipe.title"
-              >{{ recipesStore.isBookmarked(recipe.id) ? '★' : '☆' }}</button>
+                :class="['btn-icon', 'btn-bookmark', { active: savedStore.isSaved(recipe.id) }]"
+                :aria-label="savedStore.isSaved(recipe.id) ? 'Saved: ' + recipe.title : recipe.title"
+                :title="savedStore.isSaved(recipe.id) ? 'Saved' : 'Not saved'"
+              >{{ savedStore.isSaved(recipe.id) ? '★' : '☆' }}</span>
               <button
                 v-if="recipe.id"
                 class="btn-icon btn-dismiss"
@@ -1212,7 +1212,9 @@ onMounted(async () => {
   await savedStore.load()
 })
 
-// If Saved tab is empty after loading, bounce to Build Your Own
+// If Saved tab is empty after loading, bounce to Build Your Own.
+// No immediate: true — the immediate fire happens before onMounted runs load(),
+// so loading=false and count=0 is the initial unloaded state, not "empty after load".
 watch(
   () => ({ loading: savedStore.loading, count: savedStore.saved.length }),
   ({ loading, count }) => {
@@ -1220,7 +1222,6 @@ watch(
       activeTab.value = 'build'
     }
   },
-  { immediate: true },
 )
 </script>
 
