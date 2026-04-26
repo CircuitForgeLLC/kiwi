@@ -318,6 +318,8 @@ export const useRecipesStore = defineStore('recipes', () => {
     localStorage.removeItem(DISMISSED_KEY)
   }
 
+  // Orbital cadence: cookedAt anchors to completion, not to a schedule.
+  // Days-since display measures from this timestamp — no debt accumulates.
   function logCook(id: number, title: string) {
     const entry: CookLogEntry = { id, title, cookedAt: Date.now() }
     cookLog.value = [...cookLog.value, entry]
@@ -327,6 +329,13 @@ export const useRecipesStore = defineStore('recipes', () => {
   function clearCookLog() {
     cookLog.value = []
     localStorage.removeItem(COOK_LOG_KEY)
+  }
+
+  function lastCookedDaysAgo(recipeId: number): number | null {
+    const entries = cookLog.value.filter((e) => e.id === recipeId)
+    if (entries.length === 0) return null
+    const latestMs = Math.max(...entries.map((e) => e.cookedAt))
+    return Math.floor((Date.now() - latestMs) / 86_400_000)
   }
 
   function isBookmarked(id: number): boolean {
@@ -393,6 +402,7 @@ export const useRecipesStore = defineStore('recipes', () => {
     cookLog,
     logCook,
     clearCookLog,
+    lastCookedDaysAgo,
     bookmarks,
     isBookmarked,
     toggleBookmark,

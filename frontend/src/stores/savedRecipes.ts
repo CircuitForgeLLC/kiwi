@@ -11,7 +11,7 @@ export const useSavedRecipesStore = defineStore('savedRecipes', () => {
   const saved = ref<SavedRecipe[]>([])
   const collections = ref<RecipeCollection[]>([])
   const loading = ref(false)
-  const sortBy = ref<'saved_at' | 'rating' | 'title'>('saved_at')
+  const sortBy = ref<'saved_at' | 'rating' | 'title' | 'last_cooked'>('saved_at')
   const activeCollectionId = ref<number | null>(null)
 
   const savedIds = computed(() => new Set(saved.value.map((s) => s.recipe_id)))
@@ -31,7 +31,7 @@ export const useSavedRecipesStore = defineStore('savedRecipes', () => {
       // saved recipes from loading. Backend now returns [] for Free, but guard
       // here too in case an older API version is deployed.
       const [itemsResult, colsResult] = await Promise.allSettled([
-        savedRecipesAPI.list({ sort_by: sortBy.value, collection_id: activeCollectionId.value ?? undefined }),
+        savedRecipesAPI.list({ sort_by: sortBy.value === 'last_cooked' ? 'saved_at' : sortBy.value, collection_id: activeCollectionId.value ?? undefined }),
         savedRecipesAPI.listCollections(),
       ])
       if (itemsResult.status === 'fulfilled') saved.value = itemsResult.value

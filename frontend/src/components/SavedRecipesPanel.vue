@@ -32,6 +32,7 @@
             <option value="saved_at">Recently saved</option>
             <option value="rating">Highest rated</option>
             <option value="title">A–Z</option>
+            <option value="last_cooked">Last cooked</option>
           </select>
         </div>
 
@@ -46,7 +47,7 @@
       <!-- Recipe cards -->
       <div class="saved-list flex-col gap-sm">
         <div
-          v-for="recipe in store.saved"
+          v-for="recipe in sortedSaved"
           :key="recipe.id"
           class="card-sm saved-card"
           :class="{ 'card-success': recipe.rating !== null && recipe.rating >= 4 }"
@@ -79,8 +80,8 @@
             >{{ tag }}</span>
           </div>
 
-          <!-- Last cooked hint -->
-          <div v-if="lastCookedLabel(recipe.recipe_id)" class="last-cooked-hint text-xs text-muted mt-xs">
+          <!-- Last cooked chip (orbital cadence: neutral, no urgency) -->
+          <div v-if="lastCookedLabel(recipe.recipe_id)" class="last-cooked-chip text-xs mt-xs">
             {{ lastCookedLabel(recipe.recipe_id) }}
           </div>
 
@@ -165,20 +166,32 @@ const recipesStore = useRecipesStore()
 const editingRecipe = ref<SavedRecipe | null>(null)
 
 function lastCookedLabel(recipeId: number): string | null {
-  const entries = recipesStore.cookLog.filter((e) => e.id === recipeId)
-  if (entries.length === 0) return null
-  const latestMs = Math.max(...entries.map((e) => e.cookedAt))
-  const diffMs = Date.now() - latestMs
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
-  if (diffDays === 0) return 'Last made: today'
-  if (diffDays === 1) return 'Last made: yesterday'
-  if (diffDays < 7) return `Last made: ${diffDays} days ago`
-  if (diffDays < 14) return 'Last made: 1 week ago'
-  const diffWeeks = Math.floor(diffDays / 7)
-  if (diffDays < 60) return `Last made: ${diffWeeks} weeks ago`
-  const diffMonths = Math.floor(diffDays / 30)
-  return `Last made: ${diffMonths} month${diffMonths !== 1 ? 's' : ''} ago`
+  const days = recipesStore.lastCookedDaysAgo(recipeId)
+  if (days === null) return null
+  if (days === 0) return 'made today'
+  if (days === 1) return 'made yesterday'
+  if (days < 7) return `made ${days} days ago`
+  if (days < 14) return 'made 1 week ago'
+  const weeks = Math.floor(days / 7)
+  if (days < 60) return `made ${weeks} weeks ago`
+  const months = Math.floor(days / 30)
+  return `made ${months} month${months !== 1 ? 's' : ''} ago`
 }
+
+// Client-side last_cooked sort — resolves from localStorage cook log so no API change needed.
+// Recipes with a cook date surface oldest-first (natural "due for a revisit" order without
+// framing it that way). Recipes never cooked sort to the end.
+const sortedSaved = computed(() => {
+  if (store.sortBy !== 'last_cooked') return store.saved
+  return [...store.saved].sort((a, b) => {
+    const daysA = recipesStore.lastCookedDaysAgo(a.recipe_id)
+    const daysB = recipesStore.lastCookedDaysAgo(b.recipe_id)
+    if (daysA === null && daysB === null) return 0
+    if (daysA === null) return 1   // never cooked → end
+    if (daysB === null) return -1  // never cooked → end
+    return daysB - daysA           // oldest cooked first (largest days value first)
+  })
+})
 const showNewCollection = ref(false)
 
 // #44: two-step remove confirmation
@@ -363,9 +376,14 @@ async function createCollection() {
   padding: var(--spacing-xl);
 }
 
-.last-cooked-hint {
-  font-style: italic;
-  opacity: 0.75;
+.last-cooked-chip {
+  display: inline-block;
+  color: var(--color-text-muted, var(--color-secondary, #888));
+  background: var(--color-surface-subtle, transparent);
+  border-radius: var(--radius-sm, 4px);
+  padding: 0 var(--spacing-xs, 4px);
+  font-style: normal;
+  opacity: 0.8;
 }
 
 .modal-overlay {
