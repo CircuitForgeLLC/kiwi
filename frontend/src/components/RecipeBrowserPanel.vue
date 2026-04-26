@@ -527,8 +527,10 @@ function onTagSearchInput() {
   tagSearchDebounce = setTimeout(async () => {
     tagModal.value.searching = true
     try {
-      // Re-use the browser API: browse all recipes filtered by title substring
-      const res = await browserAPI.browse('_all', '_all', { page: 1, q })
+      // Use the first available domain with category=_all to search all recipes by title.
+      // Domain must be a real domain slug — '_all' is not valid at the browse endpoint.
+      const searchDomain = domains.value[0]?.id ?? 'cuisine'
+      const res = await browserAPI.browse(searchDomain, '_all', { page: 1, q })
       tagModal.value.results = (res.recipes ?? []).slice(0, 8).map(
         (r: { id: number; title: string }) => ({ id: r.id, title: r.title })
       )

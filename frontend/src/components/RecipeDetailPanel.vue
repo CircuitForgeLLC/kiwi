@@ -225,6 +225,23 @@
           </ol>
         </details>
 
+        <!-- Community tags — accepted location tags from other users -->
+        <div v-if="communityTags.length > 0" class="detail-section community-tags-section">
+          <h3 class="section-label">Community categories</h3>
+          <div class="community-tags-list">
+            <span
+              v-for="tag in communityTags"
+              :key="tag.id"
+              class="community-tag-chip"
+              :class="{ 'community-tag-chip--accepted': tag.accepted }"
+              :title="tag.accepted ? 'Confirmed by the community' : 'Pending confirmation'"
+            >
+              {{ tag.domain }} › {{ tag.category }}<template v-if="tag.subcategory"> › {{ tag.subcategory }}</template>
+              <span v-if="tag.accepted" class="community-tag-check" aria-label="Confirmed">✓</span>
+            </span>
+          </div>
+        </div>
+
         <!-- Bottom padding so last step isn't hidden behind sticky footer -->
         <div style="height: var(--spacing-xl)" />
       </div>
@@ -354,7 +371,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRecipesStore } from '../stores/recipes'
 import { useSavedRecipesStore } from '../stores/savedRecipes'
-import { inventoryAPI, recipesAPI } from '../services/api'
+import { inventoryAPI, recipesAPI, browserAPI } from '../services/api'
 import type { RecipeSuggestion, GroceryLink, StepAnalysis } from '../services/api'
 import SaveRecipeModal from './SaveRecipeModal.vue'
 
@@ -386,6 +403,12 @@ onMounted(() => {
     )
     ;(focusable ?? dialogRef.value)?.focus()
   })
+  // Load community tags in the background — non-critical, silently skip on error
+  browserAPI.listRecipeTags(props.recipe.id).then((tags) => {
+    communityTags.value = tags
+  }).catch(() => {
+    // Community tags are supplemental; silently skip on error
+  })
 })
 
 onUnmounted(() => {
@@ -410,6 +433,10 @@ const showSaveModal = ref(false)
 const isSaved = computed(() => savedStore.isSaved(props.recipe.id))
 
 const cookDone = ref(false)
+
+// ── Community tags ────────────────────────────────────────
+type CommunityTag = { id: number; domain: string; category: string; subcategory: string | null; pseudonym: string; upvotes: number; accepted: boolean }
+const communityTags = ref<CommunityTag[]>([])
 
 // ── Leftover shelf-life ────────────────────────────────────
 type LeftoversData = { fridge_days: number; freeze_days: number | null; freeze_by_day: number | null; storage_advice: string }
@@ -1627,5 +1654,40 @@ details[open].steps-collapsible .steps-collapsible-summary::before {
 .leftovers-icon {
   font-size: 1rem;
   line-height: 1;
+}
+
+/* ── Community tags section ──────────────────────────────── */
+.community-tags-section {
+  padding-top: var(--spacing-sm);
+}
+
+.community-tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-xs);
+}
+
+.community-tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 2px var(--spacing-sm);
+  border-radius: var(--radius-pill, 999px);
+  font-size: var(--font-size-xs, 0.72rem);
+  background: var(--color-bg-secondary);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.community-tag-chip--accepted {
+  background: rgba(124, 111, 205, 0.12);
+  color: var(--color-accent, #7c6fcd);
+  border-color: rgba(124, 111, 205, 0.3);
+}
+
+.community-tag-check {
+  font-size: 0.65rem;
+  opacity: 0.8;
 }
 </style>
