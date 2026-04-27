@@ -22,6 +22,8 @@ queries find recipes the food.com corpus tags alone would miss.
 """
 from __future__ import annotations
 
+import re
+
 
 # ---------------------------------------------------------------------------
 # Text-signal tables
@@ -121,6 +123,50 @@ _TIME_SIGNALS: list[tuple[str, list[str]]] = [
     ("time:Slow Cook",    ["slow cooker", "crockpot", "< 4 hours", "braise"]),
 ]
 
+# ---------------------------------------------------------------------------
+# Meal type signals — matched against TITLE ONLY (not ingredient text).
+# Ingredient names frequently contain words like "cake flour" or "sandwich
+# bread" which would produce false meal-type tags if matched against the full
+# title+ingredient string.
+# ---------------------------------------------------------------------------
+_MEAL_SIGNALS: list[tuple[str, list[str]]] = [
+    ("meal:Breakfast", [
+        "breakfast", "pancake", "waffle", "french toast", "scrambled egg",
+        "frittata", "hash brown", "hash browns", "breakfast burrito",
+        "breakfast sandwich", "breakfast casserole", "overnight oat",
+        "granola", "oatmeal", "muffin", "morning glory", "eggs benedict",
+        "shakshuka", "crepe", "scone",
+    ]),
+    ("meal:Dessert", [
+        "dessert", "cake", "cookie", "brownie", "cheesecake", "pudding",
+        "fudge", "ice cream", "sorbet", "cupcake", "mousse", "candy",
+        "truffle", "gelato", "donut", "doughnut", "cobbler", "crisp",
+        "crumble", "tiramisu", "eclair", "sundae", "milkshake", "parfait",
+        "biscotti", "macaron", "panna cotta", "baklava", "churro", "tart",
+        "torte", "strudel", "compote", "semifreddo",
+    ]),
+    ("meal:Snack", [
+        "snack", "appetizer", "dip", "chips", "popcorn", "trail mix",
+        "energy ball", "deviled egg", "cheese ball", "nachos",
+        "pretzel bites", "protein ball", "granola bar",
+    ]),
+    ("meal:Beverage", [
+        "smoothie", "cocktail", "mocktail", "lemonade", "limeade",
+        "margarita", "sangria", "punch", "milkshake", "milk shake",
+        "juice", "spritzer", "iced tea", "hot chocolate", "chai latte",
+        "mulled wine", "eggnog", "slushie", "frappe", "horchata",
+        "agua fresca", "shrub", "switchel",
+    ]),
+    ("meal:Lunch", [
+        "lunch", "sandwich", "panini", "grilled cheese", "wrap",
+        "lunchbox", "lunch box",
+    ]),
+    ("meal:Bread", [
+        "bread", "sourdough", "focaccia", "flatbread", "dinner roll",
+        "loaf", "baguette", "ciabatta", "brioche", "challah", "pita",
+    ]),
+]
+
 _MAIN_INGREDIENT_SIGNALS: list[tuple[str, list[str]]] = [
     ("main:Chicken",    ["chicken", "poultry", "turkey"]),
     ("main:Beef",       ["beef", "ground beef", "steak", "brisket", "pot roast"]),
@@ -196,6 +242,29 @@ def _match_signals(text: str, table: list[tuple[str, list[str]]]) -> list[str]:
     return [tag for tag, pats in table if any(p in text for p in pats)]
 
 
+def _match_title_signals(title: str, table: list[tuple[str, list[str]]]) -> list[str]:
+    """Match signals against title text only, using word-boundary + optional plural.
+
+    Pattern: `\\bWORD(?:s|es)?\\b`
+
+    This handles:
+    - Plurals: "cookie" matches "cookies", "sandwich" matches "sandwiches"
+    - Substring rejection: "cake" does NOT match "pancake" (no word boundary
+      before 'c' in pan|cake), "tart" does NOT match "tartare" (after "tart"
+      the 'a' is a word char, not a boundary)
+    - Avoids false positives from ingredient text ("cake flour", "sandwich bread")
+      by only matching the recipe title, not the full title+ingredient string.
+    """
+    t = title.lower()
+    return [
+        tag for tag, pats in table
+        if any(
+            re.search(r"\b" + re.escape(p.strip()) + r"(?:s|es)?\b", t)
+            for p in pats
+        )
+    ]
+
+
 def infer_tags(
     title: str,
     ingredient_names: list[str],
@@ -257,6 +326,9 @@ def infer_tags(
     tags.update(_match_signals(text, _DIETARY_SIGNALS))
     tags.update(_match_signals(text, _FLAVOR_SIGNALS))
     tags.update(_match_signals(text, _MAIN_INGREDIENT_SIGNALS))
+
+    # Meal type: title-only to avoid "cake flour" → meal:Dessert false positives
+    tags.update(_match_title_signals(title, _MEAL_SIGNALS))
 
     # 3. Time signals from corpus keywords + text
     corpus_text = " ".join(kw.lower() for kw in corpus_keywords)
