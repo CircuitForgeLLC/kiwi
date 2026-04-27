@@ -918,6 +918,14 @@ class RecipeEngine:
                 elif row_time_min > req.max_total_min:
                     continue
 
+            # Active (hands-on) time filter — independent of total time.
+            # Lets users request "≤30 min hands-on, any total" to include slow braises.
+            # Skips recipes where active_min == 0 (no time signals parsed) to avoid
+            # hiding valid results when the parser couldn't extract timing.
+            if req.max_active_min is not None and row_time_effort.active_min > 0:
+                if row_time_effort.active_min > req.max_active_min:
+                    continue
+
             # Level 2: also add dietary constraint swaps from substitution_pairs
             if req.level == 2 and req.constraints:
                 for ing in ingredient_names:

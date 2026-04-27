@@ -142,22 +142,40 @@
       <!-- Time Budget selector (kiwi#52) -->
       <!-- Shows when time_first_layout != 'normal' (auto or time_first) -->
       <div v-if="settingsStore.timeFirstLayout !== 'normal'" class="form-group time-bucket-group">
-        <label class="form-label">How much time do you have?</label>
-        <div class="flex flex-wrap gap-sm">
-          <button
-            v-for="bucket in timeBuckets"
-            :key="bucket.label"
-            :class="['btn', 'btn-sm', 'time-bucket-btn',
-              recipesStore.maxTotalMin === bucket.value ? 'time-bucket-active' : 'btn-secondary']"
-            @click="recipesStore.maxTotalMin = recipesStore.maxTotalMin === bucket.value ? null : bucket.value"
-            :aria-pressed="recipesStore.maxTotalMin === bucket.value"
-          >
-            {{ bucket.label }}
-          </button>
+        <!-- Hands-on / active time row -->
+        <div class="time-row">
+          <span class="time-row-label">Hands-on time</span>
+          <div class="flex flex-wrap gap-xs">
+            <button
+              v-for="bucket in activeTimeBuckets"
+              :key="'active-' + bucket.label"
+              :class="['btn', 'btn-sm', 'time-bucket-btn',
+                recipesStore.maxActiveMin === bucket.value ? 'time-bucket-active' : 'btn-secondary']"
+              @click="recipesStore.maxActiveMin = recipesStore.maxActiveMin === bucket.value ? null : bucket.value"
+              :aria-pressed="recipesStore.maxActiveMin === bucket.value"
+              :title="'Max ' + bucket.label + ' of active cooking'"
+            >{{ bucket.label }}</button>
+          </div>
         </div>
+
+        <!-- Total time (including passive waits) row -->
+        <div class="time-row">
+          <span class="time-row-label">Total time</span>
+          <div class="flex flex-wrap gap-xs">
+            <button
+              v-for="bucket in totalTimeBuckets"
+              :key="'total-' + bucket.label"
+              :class="['btn', 'btn-sm', 'time-bucket-btn',
+                recipesStore.maxTotalMin === bucket.value ? 'time-bucket-active' : 'btn-secondary']"
+              @click="recipesStore.maxTotalMin = recipesStore.maxTotalMin === bucket.value ? null : bucket.value"
+              :aria-pressed="recipesStore.maxTotalMin === bucket.value"
+              :title="'Max ' + bucket.label + ' start to finish'"
+            >{{ bucket.label }}</button>
+          </div>
+        </div>
+
         <p class="form-hint">
-          Filters by time found in recipe steps.
-          <span v-if="!recipesStore.maxTotalMin">No time limit set.</span>
+          Both limits apply when set. Hands-on excludes wait time (marinating, baking, etc.).
         </p>
       </div>
 
@@ -958,12 +976,21 @@ const activeNutritionFilterCount = computed(() =>
 const activeLevel = computed(() => levels.find(l => l.value === recipesStore.level))
 
 // Time budget buckets for the time-first entry selector (kiwi#52)
-const timeBuckets = [
+// Active = hands-on cooking; total = active + passive waits (marinating, baking, etc.)
+const activeTimeBuckets = [
   { label: '15 min', value: 15 },
   { label: '30 min', value: 30 },
   { label: '45 min', value: 45 },
-  { label: '1 hour', value: 60 },
+  { label: '1 hr', value: 60 },
+]
+
+const totalTimeBuckets = [
+  { label: '30 min', value: 30 },
+  { label: '1 hr', value: 60 },
   { label: '90 min', value: 90 },
+  { label: '2 hr', value: 120 },
+  { label: '3 hr', value: 180 },
+  { label: '4+ hr', value: 240 },
 ]
 
 const cuisineStyles = [
@@ -1529,10 +1556,28 @@ details[open] .collapsible-summary::before {
 /* Time bucket selector (kiwi#52) */
 .time-bucket-group {
   margin-top: var(--spacing-sm, 0.5rem);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.time-row {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+}
+
+.time-row-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  min-width: 6rem;
+  font-weight: 500;
 }
 
 .time-bucket-btn {
-  min-width: 4.5rem;
+  min-width: 4rem;
   border-radius: var(--radius-full, 9999px);
   font-weight: 500;
 }
@@ -1541,6 +1586,17 @@ details[open] .collapsible-summary::before {
   background: var(--color-primary, #1a6b4a);
   color: white;
   border-color: var(--color-primary, #1a6b4a);
+}
+
+@media (max-width: 480px) {
+  .time-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .time-row-label {
+    min-width: unset;
+  }
 }
 
 /* Preset grid — auto-fill 2+ columns */

@@ -627,6 +627,7 @@ export interface RecipeRequest {
   complexity_filter: string | null
   max_time_min: number | null
   max_total_min: number | null
+  max_active_min: number | null
 }
 
 export interface Staple {

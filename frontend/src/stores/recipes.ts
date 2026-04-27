@@ -152,6 +152,7 @@ export const useRecipesStore = defineStore('recipes', () => {
   const complexityFilter = ref<string | null>(null)
   const maxTimeMin = ref<number | null>(null)
   const maxTotalMin = ref<number | null>(null)
+  const maxActiveMin = ref<number | null>(null)
   const nutritionFilters = ref<NutritionFilters>({
     max_calories: null,
     max_sugar_g: null,
@@ -207,6 +208,7 @@ export const useRecipesStore = defineStore('recipes', () => {
       complexity_filter: complexityFilter.value,
       max_time_min: maxTimeMin.value,
       max_total_min: maxTotalMin.value,
+      max_active_min: maxActiveMin.value,
     }
   }
 
@@ -396,6 +398,7 @@ export const useRecipesStore = defineStore('recipes', () => {
     complexityFilter,
     maxTimeMin,
     maxTotalMin,
+    maxActiveMin,
     nutritionFilters,
     dismissedIds,
     dismissedCount,

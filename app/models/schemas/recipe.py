@@ -137,7 +137,8 @@ class RecipeRequest(BaseModel):
     pantry_match_only: bool = False  # when True, only return recipes with zero missing ingredients
     complexity_filter: str | None = None  # 'easy' | 'moderate' | 'involved' — None = any
     max_time_min: int | None = None  # filter by estimated cooking time ceiling
-    max_total_min: int | None = None  # filter by parsed total time from recipe directions
+    max_total_min: int | None = None  # filter by parsed total time (active + passive)
+    max_active_min: int | None = None  # filter by hands-on active time only
     unit_system: str = "metric"  # "metric" | "imperial"
 
 
