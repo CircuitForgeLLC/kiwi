@@ -93,7 +93,18 @@ class ElementClassifier:
         return self._heuristic_profile(name)
 
     def classify_batch(self, names: list[str]) -> list[IngredientProfile]:
-        return [self.classify(n) for n in names]
+        """Classify multiple names in one DB round-trip, falling back to heuristics."""
+        if not names:
+            return []
+        normalised = [n.lower().strip() for n in names]
+        c = self._store._cp
+        placeholders = ",".join("?" * len(normalised))
+        rows = self._store._fetch_all(
+            f"SELECT * FROM {c}ingredient_profiles WHERE name IN ({placeholders})",
+            tuple(normalised),
+        )
+        by_name = {r["name"]: self._row_to_profile(r) for r in rows}
+        return [by_name.get(n) or self._heuristic_profile(n) for n in normalised]
 
     def identify_gaps(self, profiles: list[IngredientProfile]) -> list[str]:
         """Return element names that have no coverage in the given profile list."""

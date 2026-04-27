@@ -534,160 +534,65 @@
         <p v-else>We didn't find matches at this level. Try <button class="btn btn-ghost btn-sm" @click="recipesStore.level = 1; handleSuggest()">Level 1 — Use What I Have</button> or adjust your filters.</p>
       </div>
 
-      <!-- Recipe Cards -->
+      <!-- Recipe Cards — compact summary; full detail opens in RecipeDetailPanel -->
       <div class="grid-auto mb-md">
         <div
           v-for="recipe in filteredSuggestions"
           :key="recipe.id"
-          class="card slide-up"
+          class="card recipe-card-compact slide-up"
+          role="article"
         >
-          <!-- Header row -->
-          <div class="flex-between mb-sm">
-            <h3 class="text-lg font-bold recipe-title">{{ recipe.title }}</h3>
-            <div class="flex flex-wrap gap-xs" style="align-items:center">
-              <span class="status-badge status-success">{{ recipe.match_count }} matched</span>
-              <span v-if="recipe.complexity" :class="['status-badge', `complexity-${recipe.complexity}`]">{{ recipe.complexity }}</span>
-              <span v-if="recipe.estimated_time_min" class="status-badge status-neutral">~{{ recipe.estimated_time_min }}m</span>
-              <span class="status-badge status-info">Level {{ recipe.level }}</span>
-              <span v-if="recipe.is_wildcard" class="status-badge status-info">Wildcard</span>
+          <!-- Title + actions -->
+          <div class="flex-between mb-xs" style="gap: var(--spacing-xs)">
+            <h3 class="text-base font-bold recipe-title" style="flex:1; min-width:0">{{ recipe.title }}</h3>
+            <div class="flex gap-xs" style="align-items:center; flex-shrink:0">
               <span
                 v-if="recipe.id"
                 :class="['btn-icon', 'btn-bookmark', { active: savedStore.isSaved(recipe.id) }]"
-                :aria-label="savedStore.isSaved(recipe.id) ? 'Saved: ' + recipe.title : recipe.title"
-                :title="savedStore.isSaved(recipe.id) ? 'Saved' : 'Not saved'"
+                :aria-label="savedStore.isSaved(recipe.id) ? 'Saved: ' + recipe.title : 'Save ' + recipe.title"
+                :title="savedStore.isSaved(recipe.id) ? 'Saved' : 'Save'"
               >{{ savedStore.isSaved(recipe.id) ? '★' : '☆' }}</span>
               <button
                 v-if="recipe.id"
                 class="btn-icon btn-dismiss"
-                @click="recipesStore.dismiss(recipe.id)"
+                @click.stop="recipesStore.dismiss(recipe.id)"
                 :aria-label="'Hide recipe: ' + recipe.title"
               >✕</button>
             </div>
           </div>
 
-          <!-- Notes -->
-          <p v-if="recipe.notes" class="text-sm text-secondary mb-sm">{{ recipe.notes }}</p>
-
-          <!-- Matched ingredients (what you already have) -->
-          <div v-if="recipe.matched_ingredients?.length > 0" class="ingredient-section mb-sm">
-            <p class="text-sm font-semibold ingredient-label ingredient-label-have">From your pantry:</p>
-            <div class="flex flex-wrap gap-xs mt-xs">
-              <span
-                v-for="ing in recipe.matched_ingredients"
-                :key="ing"
-                class="ingredient-chip ingredient-chip-have"
-              >{{ ing }}</span>
-            </div>
+          <!-- Badges row -->
+          <div class="flex flex-wrap gap-xs mb-sm">
+            <span class="status-badge status-success">{{ recipe.match_count }} matched</span>
+            <span v-if="recipe.complexity" :class="['status-badge', `complexity-${recipe.complexity}`]">{{ recipe.complexity }}</span>
+            <span v-if="recipe.estimated_time_min" class="status-badge status-neutral">~{{ recipe.estimated_time_min }}m</span>
+            <span class="status-badge status-info">L{{ recipe.level }}</span>
+            <span v-if="recipe.is_wildcard" class="status-badge status-info">Wildcard</span>
           </div>
 
-          <!-- Nutrition chips -->
-          <div v-if="recipe.nutrition" class="nutrition-chips mb-sm">
-            <span v-if="recipe.nutrition.calories != null" class="nutrition-chip">
-              <span aria-hidden="true">🔥</span><span class="sr-only">Calories:</span> {{ Math.round(recipe.nutrition.calories) }} kcal
-            </span>
-            <span v-if="recipe.nutrition.fat_g != null" class="nutrition-chip">
-              <span aria-hidden="true">🧈</span><span class="sr-only">Fat:</span> {{ recipe.nutrition.fat_g.toFixed(1) }}g fat
-            </span>
-            <span v-if="recipe.nutrition.protein_g != null" class="nutrition-chip">
-              <span aria-hidden="true">💪</span><span class="sr-only">Protein:</span> {{ recipe.nutrition.protein_g.toFixed(1) }}g protein
-            </span>
-            <span v-if="recipe.nutrition.carbs_g != null" class="nutrition-chip">
-              <span aria-hidden="true">🌾</span><span class="sr-only">Carbs:</span> {{ recipe.nutrition.carbs_g.toFixed(1) }}g carbs
-            </span>
-            <span v-if="recipe.nutrition.fiber_g != null" class="nutrition-chip">
-              <span aria-hidden="true">🌿</span><span class="sr-only">Fiber:</span> {{ recipe.nutrition.fiber_g.toFixed(1) }}g fiber
-            </span>
-            <span v-if="recipe.nutrition.sugar_g != null" class="nutrition-chip nutrition-chip-sugar">
-              <span aria-hidden="true">🍬</span><span class="sr-only">Sugar:</span> {{ recipe.nutrition.sugar_g.toFixed(1) }}g sugar
-            </span>
-            <span v-if="recipe.nutrition.sodium_mg != null" class="nutrition-chip">
-              <span aria-hidden="true">🧂</span><span class="sr-only">Sodium:</span> {{ Math.round(recipe.nutrition.sodium_mg) }}mg sodium
-            </span>
-            <span v-if="recipe.nutrition.servings != null" class="nutrition-chip nutrition-chip-servings">
-              <span aria-hidden="true">🍽️</span><span class="sr-only">Servings:</span> {{ recipe.nutrition.servings }} serving{{ recipe.nutrition.servings !== 1 ? 's' : '' }}
-            </span>
-            <span v-if="recipe.nutrition.estimated" class="nutrition-chip nutrition-chip-estimated" title="Estimated from ingredient profiles">
-              ~ estimated
-            </span>
+          <!-- Pantry ingredients preview (max 4 chips) -->
+          <div v-if="recipe.matched_ingredients?.length > 0" class="flex flex-wrap gap-xs mb-xs">
+            <span
+              v-for="ing in recipe.matched_ingredients.slice(0, 4)"
+              :key="ing"
+              class="ingredient-chip ingredient-chip-have"
+            >{{ ing }}</span>
+            <span
+              v-if="recipe.matched_ingredients.length > 4"
+              class="ingredient-chip ingredient-chip-have chip-overflow"
+            >+{{ recipe.matched_ingredients.length - 4 }} more</span>
           </div>
 
-          <!-- Missing ingredients -->
-          <div v-if="recipe.missing_ingredients.length > 0" class="mb-sm">
-            <p class="text-sm font-semibold text-secondary">To complete this recipe:</p>
-            <div class="flex flex-wrap gap-xs mt-xs">
-              <span
-                v-for="ing in recipe.missing_ingredients"
-                :key="ing"
-                class="status-badge status-info"
-              >{{ ing }}</span>
-            </div>
-          </div>
+          <!-- Missing count + calorie hint -->
+          <p class="text-sm text-secondary mb-sm recipe-card-meta">
+            <span v-if="recipe.missing_ingredients.length > 0">+{{ recipe.missing_ingredients.length }} needed</span>
+            <span v-if="recipe.missing_ingredients.length > 0 && recipe.nutrition?.calories != null"> · </span>
+            <span v-if="recipe.nutrition?.calories != null">{{ Math.round(recipe.nutrition.calories) }} kcal</span>
+          </p>
 
-          <!-- Grocery links for this recipe's missing ingredients -->
-          <div v-if="groceryLinksForRecipe(recipe).length > 0" class="mb-sm">
-            <p class="text-sm font-semibold">Buy online:</p>
-            <div class="flex flex-wrap gap-xs mt-xs">
-              <a
-                v-for="link in groceryLinksForRecipe(recipe)"
-                :key="link.ingredient + link.retailer"
-                :href="link.url"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="grocery-link status-badge status-info"
-                title="This is an affiliate link"
-              >
-                {{ link.ingredient }} @ {{ link.retailer }} ↗
-              </a>
-            </div>
-          </div>
-
-          <!-- Prep notes -->
-          <div v-if="recipe.prep_notes && recipe.prep_notes.length > 0" class="prep-notes mb-sm">
-            <p class="text-sm font-semibold">Before you start:</p>
-            <ul class="prep-notes-list mt-xs">
-              <li v-for="note in recipe.prep_notes" :key="note" class="text-sm prep-note-item">
-                {{ note }}
-              </li>
-            </ul>
-          </div>
-
-          <!-- Directions — always visible; this is the content people came for -->
-          <div v-if="recipe.directions.length > 0" class="directions-section">
-            <p class="text-sm font-semibold directions-label">Steps</p>
-            <ol class="directions-list mt-xs">
-              <li v-for="(step, idx) in recipe.directions" :key="idx" class="text-sm direction-step">
-                {{ step }}
-              </li>
-            </ol>
-          </div>
-
-          <!-- Swap candidates collapsible — shown after directions per M8 -->
-          <details
-            v-if="recipe.swap_candidates.length > 0"
-            class="collapsible mb-sm"
-            @toggle="(e: Event) => toggleSwapOpen(recipe.id, (e.target as HTMLDetailsElement).open)"
-          >
-            <summary class="text-sm font-semibold collapsible-summary" :aria-expanded="openSwapIds.has(recipe.id)">
-              Possible swaps ({{ recipe.swap_candidates.length }})
-            </summary>
-            <div class="card-secondary mt-xs">
-              <div
-                v-for="swap in recipe.swap_candidates"
-                :key="swap.original_name + swap.substitute_name"
-                class="swap-row text-sm"
-              >
-                <span class="font-semibold">{{ swap.original_name }}</span>
-                <span class="text-muted"> → </span>
-                <span class="font-semibold">{{ swap.substitute_name }}</span>
-                <span v-if="swap.constraint_label" class="status-badge status-info ml-xs">{{ swap.constraint_label }}</span>
-                <p v-if="swap.explanation" class="text-muted mt-xs">{{ swap.explanation }}</p>
-              </div>
-            </div>
-          </details>
-
-          <!-- Primary action: open detail panel -->
+          <!-- Primary action -->
           <div class="card-actions">
-            <button class="btn btn-primary btn-make" @click="openRecipe(recipe)">
+            <button class="btn btn-primary btn-sm btn-make" @click="openRecipe(recipe)">
               Make this
             </button>
           </div>
@@ -874,13 +779,6 @@ const dietaryOpen = ref(false)
 const advancedOpen = ref(false)
 
 // Per-recipe swap section open tracking (Set of recipe IDs whose swap <details> are open)
-// Uses reassignment instead of .add()/.delete() so Vue's ref() detects the change
-const openSwapIds = ref<Set<number>>(new Set())
-function toggleSwapOpen(recipeId: number, isOpen: boolean) {
-  const next = new Set(openSwapIds.value)
-  isOpen ? next.add(recipeId) : next.delete(recipeId)
-  openSwapIds.value = next
-}
 
 // Human-readable level labels for filter chips (avoids "Lv1" etc. for screen readers)
 const levelLabels: Record<number, string> = {
@@ -1102,13 +1000,6 @@ const secondaryPantryItems = computed<Record<string, string>>(() => {
   return result
 })
 
-// Grocery links relevant to a specific recipe's missing ingredients
-function groceryLinksForRecipe(recipe: RecipeSuggestion): GroceryLink[] {
-  if (!recipesStore.result) return []
-  return recipesStore.result.grocery_links.filter((link) =>
-    recipe.missing_ingredients.includes(link.ingredient)
-  )
-}
 
 // Tag input helpers — constraints
 function addConstraint(value: string) {
@@ -1764,7 +1655,7 @@ details[open] .collapsible-summary::before {
 .card-actions {
   border-top: 1px solid var(--color-border);
   padding-top: var(--spacing-sm);
-  margin-top: var(--spacing-sm);
+  margin-top: auto;
   display: flex;
   justify-content: flex-end;
 }
@@ -1772,6 +1663,22 @@ details[open] .collapsible-summary::before {
 .btn-make {
   font-size: var(--font-size-sm);
   padding: var(--spacing-xs) var(--spacing-md);
+}
+
+/* Compact recipe card — summary only; detail in RecipeDetailPanel */
+.recipe-card-compact {
+  display: flex;
+  flex-direction: column;
+  padding: var(--spacing-sm) var(--spacing-md);
+}
+
+.recipe-card-meta {
+  min-height: 1.25em; /* prevent layout shift when both fields absent */
+}
+
+.chip-overflow {
+  opacity: 0.75;
+  font-style: italic;
 }
 
 .spotlight-card {
