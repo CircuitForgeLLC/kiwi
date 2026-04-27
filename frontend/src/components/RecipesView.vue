@@ -3,7 +3,7 @@
 
     <!-- Tab bar: Find / Browse / Saved + Scan action button -->
     <div class="tab-bar-row flex gap-xs mb-md" style="align-items:center;">
-      <div role="tablist" aria-label="Recipe sections" class="flex gap-xs" style="flex:1;flex-wrap:wrap;">
+      <div role="tablist" aria-label="Recipe sections" class="tab-bar-scroll">
         <button
           v-for="tab in tabs"
           :key="tab.id"
@@ -14,11 +14,16 @@
           :class="['btn', 'tab-btn', activeTab === tab.id ? 'btn-primary' : 'btn-secondary']"
           @click="activateTab(tab.id)"
           @keydown="onTabKeydown"
-        >{{ tab.label }}</button>
+        >
+          <span v-if="tab.mobileLabel" class="desktop-only">{{ tab.label }}</span>
+          <span v-if="tab.mobileLabel" class="mobile-only">{{ tab.mobileLabel }}</span>
+          <template v-if="!tab.mobileLabel">{{ tab.label }}</template>
+        </button>
       </div>
       <!-- Scan recipe button — opens modal to photograph a recipe card -->
       <button
         class="btn btn-secondary scan-btn"
+        style="flex-shrink:0;"
         @click="scanModalOpen = true"
         title="Scan a recipe card or cookbook page"
         aria-label="Scan a recipe"
@@ -27,7 +32,7 @@
           <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
           <circle cx="12" cy="13" r="4"/>
         </svg>
-        Scan
+        <span class="desktop-only">Scan</span>
       </button>
     </div>
 
@@ -805,9 +810,9 @@ const settingsStore = useSettingsStore()
 
 // Tab state
 type TabId = 'find' | 'browse' | 'saved' | 'community' | 'build'
-const tabs: Array<{ id: TabId; label: string }> = [
+const tabs: Array<{ id: TabId; label: string; mobileLabel?: string }> = [
   { id: 'saved',     label: 'Saved' },
-  { id: 'build',     label: 'Build Your Own' },
+  { id: 'build',     label: 'Build Your Own', mobileLabel: 'Build' },
   { id: 'community', label: 'Community' },
   { id: 'find',      label: 'Find' },
   { id: 'browse',    label: 'Browse' },
@@ -1287,6 +1292,14 @@ watch(
 .tab-bar {
   border-bottom: 1px solid var(--color-border);
   padding-bottom: var(--spacing-sm);
+}
+
+/* Prevent theme's mobile .btn white-space:normal from wrapping tab labels */
+@media (max-width: 480px) {
+  .tab-btn {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
 }
 
 .tab-btn {

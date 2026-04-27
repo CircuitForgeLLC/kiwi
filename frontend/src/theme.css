@@ -436,6 +436,24 @@
   display: none;
 }
 
+/* Horizontally scrollable tab bar — for tab rows with many items */
+.tab-bar-scroll {
+  display: flex;
+  gap: var(--spacing-xs);
+  overflow-x: auto;
+  overflow-y: visible;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  min-width: 0;
+  width: 100%;
+  flex-wrap: nowrap;
+  padding-bottom: 2px;  /* prevent focus ring clipping */
+}
+
+.tab-bar-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 /* ============================================
    TEXT UTILITIES
    ============================================ */
