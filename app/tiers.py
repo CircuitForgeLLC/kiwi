@@ -15,6 +15,7 @@ KIWI_BYOK_UNLOCKABLE: frozenset[str] = frozenset({
     "recipe_suggestions",
     "expiry_llm_matching",
     "receipt_ocr",
+    "recipe_scan",
     "style_classifier",
     "meal_plan_llm",
     "meal_plan_llm_timing",
@@ -57,6 +58,9 @@ KIWI_FEATURES: dict[str, str] = {
     "style_classifier":      "paid",   # LLM auto-tag for saved recipe style tags; BYOK-unlockable
     "community_publish":     "paid",    # Publish plans/outcomes to community feed
     "community_fork_adapt":  "paid",    # Fork with LLM pantry adaptation (BYOK-unlockable)
+
+    # Paid tier (continued)
+    "recipe_scan":           "paid",   # BYOK-unlockable: photo -> structured recipe
 
     # Premium tier
     "multi_household":       "premium",

@@ -2,6 +2,7 @@ from fastapi import APIRouter
 from app.api.endpoints import health, receipts, export, inventory, ocr, recipes, settings, staples, feedback, feedback_attach, household, saved_recipes, imitate, meal_plans, orch_usage, session, shopping
 from app.api.endpoints.community import router as community_router
 from app.api.endpoints.corrections import router as corrections_router
+from app.api.endpoints.recipe_scan import router as recipe_scan_router
 from app.api.endpoints.recipe_tags import router as recipe_tags_router
 
 api_router = APIRouter()
@@ -13,6 +14,9 @@ api_router.include_router(ocr.router,            prefix="/receipts",       tags=
 api_router.include_router(export.router,                                   tags=["export"])
 api_router.include_router(inventory.router,      prefix="/inventory",      tags=["inventory"])
 api_router.include_router(saved_recipes.router,  prefix="/recipes/saved",  tags=["saved-recipes"])
+# recipe_scan_router registered BEFORE recipes.router so /recipes/scan and /recipes/user
+# take priority over /recipes/{recipe_id} (which would otherwise match them as int IDs).
+api_router.include_router(recipe_scan_router,    prefix="/recipes",        tags=["recipe-scan"])
 api_router.include_router(recipes.router,        prefix="/recipes",        tags=["recipes"])
 api_router.include_router(settings.router,       prefix="/settings",       tags=["settings"])
 api_router.include_router(staples.router,        prefix="/staples",        tags=["staples"])

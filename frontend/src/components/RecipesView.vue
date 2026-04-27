@@ -1,20 +1,52 @@
 <template>
   <div class="recipes-view">
 
-    <!-- Tab bar: Find / Browse / Saved -->
-    <div role="tablist" aria-label="Recipe sections" class="tab-bar flex gap-xs mb-md">
+    <!-- Tab bar: Find / Browse / Saved + Scan action button -->
+    <div class="tab-bar-row flex gap-xs mb-md" style="align-items:center;">
+      <div role="tablist" aria-label="Recipe sections" class="flex gap-xs" style="flex:1;flex-wrap:wrap;">
+        <button
+          v-for="tab in tabs"
+          :key="tab.id"
+          :id="`tab-${tab.id}`"
+          role="tab"
+          :aria-selected="activeTab === tab.id"
+          :tabindex="activeTab === tab.id ? 0 : -1"
+          :class="['btn', 'tab-btn', activeTab === tab.id ? 'btn-primary' : 'btn-secondary']"
+          @click="activateTab(tab.id)"
+          @keydown="onTabKeydown"
+        >{{ tab.label }}</button>
+      </div>
+      <!-- Scan recipe button — opens modal to photograph a recipe card -->
       <button
-        v-for="tab in tabs"
-        :key="tab.id"
-        :id="`tab-${tab.id}`"
-        role="tab"
-        :aria-selected="activeTab === tab.id"
-        :tabindex="activeTab === tab.id ? 0 : -1"
-        :class="['btn', 'tab-btn', activeTab === tab.id ? 'btn-primary' : 'btn-secondary']"
-        @click="activateTab(tab.id)"
-        @keydown="onTabKeydown"
-      >{{ tab.label }}</button>
+        class="btn btn-secondary scan-btn"
+        @click="scanModalOpen = true"
+        title="Scan a recipe card or cookbook page"
+        aria-label="Scan a recipe"
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+          <circle cx="12" cy="13" r="4"/>
+        </svg>
+        Scan
+      </button>
     </div>
+
+    <!-- Scan success toast -->
+    <div
+      v-if="lastScannedTitle"
+      class="undo-toast"
+      role="status"
+      aria-live="polite"
+    >
+      Saved "{{ lastScannedTitle }}" to your recipes.
+    </div>
+
+    <!-- Scan modal -->
+    <RecipeScanModal
+      v-if="scanModalOpen"
+      @close="scanModalOpen = false"
+      @saved="onScanSaved"
+    />
 
     <!-- Browse tab -->
     <RecipeBrowserPanel
@@ -746,9 +778,21 @@ import SavedRecipesPanel from './SavedRecipesPanel.vue'
 import CommunityFeedPanel from './CommunityFeedPanel.vue'
 import BuildYourOwnTab from './BuildYourOwnTab.vue'
 import OrchUsagePill from './OrchUsagePill.vue'
+import RecipeScanModal from './RecipeScanModal.vue'
 import type { ForkResult } from '../stores/community'
 import type { RecipeSuggestion, GroceryLink, StreamTokenResponse } from '../services/api'
 import { recipesAPI } from '../services/api'
+
+// ── Scan modal ────────────────────────────────────────────────────────────────
+const scanModalOpen = ref(false)
+const lastScannedTitle = ref<string | null>(null)
+
+function onScanSaved(recipe: { id: number; title: string }) {
+  lastScannedTitle.value = recipe.title
+  scanModalOpen.value = false
+  // Dismiss the toast after 4 seconds
+  setTimeout(() => { lastScannedTitle.value = null }, 4000)
+}
 
 // Streaming state
 const isStreaming = ref(false)

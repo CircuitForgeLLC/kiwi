@@ -1204,4 +1204,77 @@ export const DEFAULT_SENSORY_PREFERENCES: SensoryPreferences = {
   max_noise: null,
 }
 
+// ── Recipe Scanner (kiwi#9) ───────────────────────────────────────────────────
+
+export interface ScannedIngredient {
+  name: string
+  qty: string | null
+  unit: string | null
+  raw: string | null
+  in_pantry: boolean
+}
+
+export interface ScannedRecipe {
+  title: string | null
+  subtitle: string | null
+  servings: string | null
+  cook_time: string | null
+  source_note: string | null
+  ingredients: ScannedIngredient[]
+  steps: string[]
+  notes: string | null
+  tags: string[]
+  pantry_match_pct: number
+  confidence: 'high' | 'medium' | 'low'
+  warnings: string[]
+}
+
+export interface UserRecipe {
+  id: number
+  title: string
+  subtitle: string | null
+  servings: string | null
+  cook_time: string | null
+  source_note: string | null
+  ingredients: ScannedIngredient[]
+  steps: string[]
+  notes: string | null
+  tags: string[]
+  source: string
+  pantry_match_pct: number | null
+  created_at: string
+}
+
+export const recipeScanAPI = {
+  /** Scan 1-4 recipe photos. Returns structured recipe for review (not saved). */
+  scan(files: File[]): Promise<ScannedRecipe> {
+    const form = new FormData()
+    files.forEach((f) => form.append('files', f))
+    return api.post('/recipes/scan', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120_000, // VLM can be slow on first call
+    }).then((r) => r.data)
+  },
+
+  /** Save a reviewed/edited scanned recipe to user_recipes. */
+  saveScanned(recipe: Omit<ScannedRecipe, 'pantry_match_pct' | 'confidence' | 'warnings'> & { source?: string }): Promise<UserRecipe> {
+    return api.post('/recipes/scan/save', recipe).then((r) => r.data)
+  },
+
+  /** List all user-created recipes (scan + manual). */
+  listUserRecipes(): Promise<UserRecipe[]> {
+    return api.get('/recipes/user').then((r) => r.data)
+  },
+
+  /** Get a single user recipe by ID. */
+  getUserRecipe(id: number): Promise<UserRecipe> {
+    return api.get(`/recipes/user/${id}`).then((r) => r.data)
+  },
+
+  /** Delete a user recipe. */
+  deleteUserRecipe(id: number): Promise<void> {
+    return api.delete(`/recipes/user/${id}`).then(() => undefined)
+  },
+}
+
 export default api

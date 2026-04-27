@@ -61,6 +61,8 @@ class Store:
                     "style_tags",
                     # meal plan columns
                     "meal_types",
+                    # user_recipes columns
+                    "steps", "tags",
                     # captured_products columns
                     "allergens"):
             if key in d and isinstance(d[key], str):
@@ -1802,3 +1804,54 @@ class Store:
                 confidence, 1 if confirmed_by_user else 0, source,
             ),
         )
+
+    # ── User Recipes (kiwi#9) ──────────────────────────────────────────────────
+
+    def create_user_recipe(
+        self,
+        title: str,
+        ingredients: list[dict],
+        steps: list[str],
+        subtitle: str | None = None,
+        servings: str | None = None,
+        cook_time: str | None = None,
+        source_note: str | None = None,
+        notes: str | None = None,
+        tags: list[str] | None = None,
+        source: str = "manual",
+        pantry_match_pct: int | None = None,
+    ) -> dict[str, Any]:
+        return self._insert_returning(
+            """INSERT INTO user_recipes
+               (title, subtitle, servings, cook_time, source_note,
+                ingredients, steps, notes, tags, source, pantry_match_pct)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               RETURNING *""",
+            (
+                title, subtitle, servings, cook_time, source_note,
+                self._dump(ingredients),
+                self._dump(steps),
+                notes,
+                self._dump(tags or []),
+                source,
+                pantry_match_pct,
+            ),
+        )
+
+    def get_user_recipe(self, recipe_id: int) -> dict[str, Any] | None:
+        return self._fetch_one(
+            "SELECT * FROM user_recipes WHERE id = ?",
+            (recipe_id,),
+        )
+
+    def list_user_recipes(self) -> list[dict[str, Any]]:
+        return self._fetch_all(
+            "SELECT * FROM user_recipes ORDER BY created_at DESC",
+        )
+
+    def delete_user_recipe(self, recipe_id: int) -> bool:
+        cur = self.conn.execute(
+            "DELETE FROM user_recipes WHERE id = ?", (recipe_id,)
+        )
+        self.conn.commit()
+        return cur.rowcount > 0
