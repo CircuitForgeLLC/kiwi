@@ -26,7 +26,7 @@ DOMAINS: dict[str, dict] = {
         "label": "Cuisine",
         "categories": {
             "Italian": {
-                "keywords": ["italian", "pasta", "pizza", "risotto", "lasagna", "carbonara"],
+                "keywords": ["cuisine:Italian", "italian", "pasta", "pizza", "risotto", "lasagna", "carbonara"],
                 "subcategories": {
                     "Sicilian":   ["sicilian", "sicily", "arancini", "caponata",
                                    "involtini", "cannoli"],
@@ -43,8 +43,8 @@ DOMAINS: dict[str, dict] = {
                 },
             },
             "Mexican": {
-                "keywords": ["mexican", "taco", "enchilada", "burrito", "salsa",
-                             "guacamole", "mole", "tamale"],
+                "keywords": ["cuisine:Mexican", "mexican", "taco", "enchilada", "burrito",
+                             "salsa", "guacamole", "mole", "tamale"],
                 "subcategories": {
                     "Oaxacan":      ["oaxacan", "oaxaca", "mole negro", "tlayuda",
                                      "chapulines", "mezcal", "tasajo", "memelas"],
@@ -67,7 +67,9 @@ DOMAINS: dict[str, dict] = {
                 },
             },
             "Asian": {
-                "keywords": ["asian", "chinese", "japanese", "thai", "korean", "vietnamese",
+                "keywords": ["cuisine:Chinese", "cuisine:Japanese", "cuisine:Korean",
+                             "cuisine:Thai", "cuisine:Vietnamese",
+                             "asian", "chinese", "japanese", "thai", "korean", "vietnamese",
                              "stir fry", "stir-fry", "ramen", "sushi", "malaysian",
                              "taiwanese", "singaporean", "burmese", "cambodian",
                              "laotian", "mongolian", "hong kong"],
@@ -128,7 +130,7 @@ DOMAINS: dict[str, dict] = {
                 },
             },
             "Indian": {
-                "keywords": ["indian", "curry", "lentil", "dal", "tikka", "masala",
+                "keywords": ["cuisine:Indian", "indian", "curry", "lentil", "dal", "tikka", "masala",
                              "biryani", "naan", "chutney", "pakistani", "sri lankan",
                              "bangladeshi", "nepali"],
                 "subcategories": {
@@ -156,7 +158,8 @@ DOMAINS: dict[str, dict] = {
                 },
             },
             "Mediterranean": {
-                "keywords": ["mediterranean", "greek", "middle eastern", "turkish",
+                "keywords": ["cuisine:Mediterranean", "cuisine:Greek", "cuisine:Middle Eastern",
+                             "mediterranean", "greek", "middle eastern", "turkish",
                              "lebanese", "jewish", "palestinian", "yemeni", "egyptian",
                              "syrian", "iraqi", "jordanian"],
                 "subcategories": {
@@ -190,7 +193,8 @@ DOMAINS: dict[str, dict] = {
                 },
             },
             "American": {
-                "keywords": ["american", "southern", "comfort food", "cajun", "creole",
+                "keywords": ["cuisine:American", "cuisine:Southern", "cuisine:Cajun",
+                             "american", "southern", "comfort food", "cajun", "creole",
                              "hawaiian", "tex-mex", "soul food"],
                 "subcategories": {
                     "Southern":     ["southern", "soul food", "fried chicken",
@@ -214,10 +218,8 @@ DOMAINS: dict[str, dict] = {
                 },
             },
             "BBQ & Smoke": {
-                # Top-level keywords use broad corpus-friendly terms that appear in
-                # food.com keyword/category fields (e.g. "BBQ", "Oven BBQ", "Smoker").
-                # Subcategory keywords remain specific for drill-down filtering.
-                "keywords": ["bbq", "barbecue", "barbeque", "smoked", "smoky",
+                # Top-level keywords: cuisine:BBQ inferred tag + broad corpus terms.
+                "keywords": ["cuisine:BBQ", "bbq", "barbecue", "barbeque", "smoked", "smoky",
                              "smoke", "pit", "smoke ring", "low and slow",
                              "brisket", "pulled pork", "ribs", "spare ribs",
                              "baby back", "baby back ribs", "dry rub", "wet rub",
@@ -251,7 +253,8 @@ DOMAINS: dict[str, dict] = {
                 },
             },
             "European": {
-                "keywords": ["french", "german", "spanish", "british", "irish", "scottish",
+                "keywords": ["cuisine:French", "cuisine:German", "cuisine:Spanish",
+                             "french", "german", "spanish", "british", "irish", "scottish",
                              "welsh", "scandinavian", "nordic", "eastern european"],
                 "subcategories": {
                     "French":        ["french", "provencal", "beurre", "crepe",
@@ -281,7 +284,8 @@ DOMAINS: dict[str, dict] = {
                 },
             },
             "Latin American": {
-                "keywords": ["latin american", "peruvian", "argentinian", "colombian",
+                "keywords": ["cuisine:Latin American", "cuisine:Caribbean",
+                             "latin american", "peruvian", "argentinian", "colombian",
                              "cuban", "caribbean", "brazilian", "venezuelan", "chilean"],
                 "subcategories": {
                     "Peruvian":    ["peruvian", "ceviche", "lomo saltado", "anticucho",
@@ -425,12 +429,18 @@ DOMAINS: dict[str, dict] = {
     "meal_type": {
         "label": "Meal Type",
         "categories": {
+            # Keywords use two complementary sources:
+            #   1. inferred_tag phrases ("meal:X", "main:X") — indexed in recipe_browser_fts.inferred_tags.
+            #      FTS5 tokenises "meal:Breakfast" → ["meal","breakfast"], so the quoted phrase
+            #      "meal:Breakfast" matches exactly that consecutive token pair.
+            #   2. Corpus keyword/category text — only covers the ~1,200 keyword-tagged recipes.
+            #      Kept as a fallback; not the primary signal.
             "Breakfast": {
-                "keywords": ["breakfast", "brunch", "eggs", "pancakes", "waffles",
-                             "oatmeal", "muffin"],
+                "keywords": ["meal:Breakfast", "breakfast", "brunch", "pancakes",
+                             "waffles", "oatmeal", "muffin"],
                 "subcategories": {
-                    "Eggs":              ["egg", "omelette", "frittata", "quiche",
-                                          "scrambled", "benedict", "shakshuka"],
+                    "Eggs":              ["meal:Breakfast", "egg", "omelette", "frittata",
+                                          "quiche", "scrambled", "benedict", "shakshuka"],
                     "Pancakes & Waffles": ["pancake", "waffle", "crepe", "french toast"],
                     "Baked Goods":       ["muffin", "scone", "biscuit", "quick bread",
                                           "coffee cake", "danish"],
@@ -439,12 +449,15 @@ DOMAINS: dict[str, dict] = {
                 },
             },
             "Lunch": {
-                "keywords": ["lunch", "sandwich", "wrap", "salad", "soup", "light meal"],
+                # meal:Lunch tag covers explicitly-tagged recipes.
+                # Coverage is limited — most lunch-style recipes have no distinct meal-type tag.
+                "keywords": ["meal:Lunch", "lunch", "sandwich", "wrap", "salad",
+                             "soup", "light meal"],
                 "subcategories": {
                     "Sandwiches": ["sandwich", "sub", "hoagie", "panini", "club",
                                    "grilled cheese", "blt"],
                     "Salads":     ["salad", "grain bowl", "chopped", "caesar",
-                                   "niçoise", "cobb"],
+                                   "cobb"],
                     "Soups":      ["soup", "bisque", "chowder", "gazpacho",
                                    "minestrone", "lentil soup"],
                     "Wraps":      ["wrap", "burrito bowl", "pita", "lettuce wrap",
@@ -452,23 +465,27 @@ DOMAINS: dict[str, dict] = {
                 },
             },
             "Dinner": {
-                "keywords": ["dinner", "main dish", "entree", "main course", "supper"],
+                # Primary: main:X inferred tags (800k+ recipes).
+                # "meal:Dinner" does not exist in the inferred-tag vocabulary — main-protein
+                # tags are the best available proxy for main-course dinner recipes.
+                "keywords": ["main:Chicken", "main:Beef", "main:Pork", "main:Fish",
+                             "main:Pasta", "dinner", "main dish", "entree",
+                             "main course", "supper"],
                 "subcategories": {
-                    "Casseroles": ["casserole", "bake", "gratin", "lasagna",
-                                   "sheperd's pie", "pot pie"],
+                    "Chicken":    ["main:Chicken"],
+                    "Beef":       ["main:Beef"],
+                    "Pork":       ["main:Pork"],
+                    "Fish & Seafood": ["main:Fish"],
+                    "Pasta":      ["main:Pasta"],
+                    "Casseroles": ["casserole", "bake", "gratin", "pot pie"],
                     "Stews":      ["stew", "braise", "slow cooker", "pot roast",
-                                   "daube", "ragù"],
-                    "Grilled":    ["grilled", "grill", "barbecue", "charred",
-                                   "kebab", "skewer"],
-                    "Stir-Fries": ["stir fry", "stir-fry", "wok", "sauté",
-                                   "sauteed"],
-                    "Roasts":     ["roast", "roasted", "oven", "baked chicken",
-                                   "pot roast"],
+                                   "daube"],
+                    "Grilled":    ["grilled", "grill", "barbecue", "kebab", "skewer"],
                 },
             },
             "Snack": {
-                "keywords": ["snack", "appetizer", "finger food", "dip", "bite",
-                             "starter"],
+                "keywords": ["meal:Snack", "snack", "appetizer", "finger food",
+                             "dip", "bite", "starter"],
                 "subcategories": {
                     "Dips & Spreads": ["dip", "spread", "hummus", "guacamole",
                                        "salsa", "pate"],
@@ -479,8 +496,9 @@ DOMAINS: dict[str, dict] = {
                 },
             },
             "Dessert": {
-                "keywords": ["dessert", "cake", "cookie", "pie", "sweet", "pudding",
-                             "ice cream", "brownie"],
+                # "sweet" removed — it matches flavor:Sweet inferred tags, causing false positives.
+                "keywords": ["meal:Dessert", "dessert", "cake", "cookie", "pie",
+                             "pudding", "ice cream", "brownie"],
                 "subcategories": {
                     "Cakes":         ["cake", "cupcake", "layer cake", "bundt",
                                       "cheesecake", "torte"],
@@ -496,20 +514,41 @@ DOMAINS: dict[str, dict] = {
                                       "caramel", "toffee"],
                 },
             },
-            "Beverage": ["drink", "smoothie", "cocktail", "beverage", "juice", "shake"],
-            "Side Dish": ["side dish", "side", "accompaniment", "garnish"],
+            "Beverage": ["meal:Beverage", "drink", "smoothie", "cocktail", "beverage",
+                         "juice", "shake", "lemonade"],
+            "Side Dish": {
+                # meal:Side Dish not in inferred-tag vocabulary.
+                # main:Vegetables and main:Grains are the best proxies — will overlap
+                # with some vegetarian mains, which is acceptable.
+                "keywords": ["main:Vegetables", "main:Grains", "side dish", "side",
+                             "pilaf", "accompaniment"],
+                "subcategories": {
+                    "Vegetables": ["main:Vegetables"],
+                    "Grains & Rice": ["main:Grains", "rice", "pilaf", "quinoa"],
+                    "Bread":      ["meal:Bread", "bread", "roll", "biscuit"],
+                },
+            },
         },
     },
     "dietary": {
         "label": "Dietary",
+        # Primary: dietary:X inferred tags (indexed in recipe_browser_fts.inferred_tags).
+        # Secondary: text tokens kept as fallback for keyword-tagged recipes.
+        # IMPORTANT: Use ONLY structured dietary:X phrases here.
+        # Bare text keywords like "vegan", "low-carb" also match can_be:Vegan,
+        # can_be:Low-Carb etc. — those are "achievable with substitutions", not
+        # "recipe already is". The structured phrase "dietary:Vegan" (consecutive
+        # FTS tokens "dietary"+"vegan") does NOT match can_be:Vegan.
         "categories": {
-            "Vegetarian":   ["vegetarian"],
-            "Vegan":        ["vegan", "plant-based", "plant based"],
-            "Gluten-Free":  ["gluten-free", "gluten free", "celiac"],
-            "Low-Carb":     ["low-carb", "low carb", "keto", "ketogenic"],
-            "High-Protein": ["high protein", "high-protein"],
-            "Low-Fat":      ["low-fat", "low fat", "light"],
-            "Dairy-Free":   ["dairy-free", "dairy free", "lactose"],
+            "Vegetarian":   ["dietary:Vegetarian"],
+            "Vegan":        ["dietary:Vegan"],
+            "Gluten-Free":  ["dietary:Gluten-Free"],
+            "Low-Carb":     ["dietary:Low-Carb"],
+            "High-Protein": ["dietary:High-Protein"],
+            "Low-Fat":      ["dietary:Low-Fat"],
+            "Dairy-Free":   ["dietary:Dairy-Free"],
+            "Low-Sodium":   ["dietary:Low-Sodium"],
+            "Paleo":        ["dietary:Paleo"],
         },
     },
     "main_ingredient": {
