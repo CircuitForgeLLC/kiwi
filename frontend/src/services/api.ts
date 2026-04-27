@@ -1061,6 +1061,7 @@ export const browserAPI = {
     subcategory?: string
     q?: string
     sort?: string
+    required_ingredient?: string
   }): Promise<BrowserResult> {
     const response = await api.get(`/recipes/browse/${domain}/${encodeURIComponent(category)}`, { params })
     return response.data

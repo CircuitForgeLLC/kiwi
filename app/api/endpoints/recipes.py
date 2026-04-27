@@ -327,6 +327,7 @@ async def browse_recipes(
     subcategory: Annotated[str | None, Query()] = None,
     q: Annotated[str | None, Query(max_length=200)] = None,
     sort: Annotated[str, Query(pattern="^(default|alpha|alpha_desc|match)$")] = "default",
+    required_ingredient: Annotated[str | None, Query(max_length=100)] = None,
     session: CloudUser = Depends(get_session),
 ) -> dict:
     """Return a paginated list of recipes for a domain/category.
@@ -335,6 +336,7 @@ async def browse_recipes(
     Pass subcategory to narrow within a category that has subcategories.
     Pass q to filter by title substring. Pass sort for ordering (default/alpha/alpha_desc/match).
     sort=match orders by pantry coverage DESC; falls back to default when no pantry_items.
+    Pass required_ingredient to restrict results to recipes that must include that ingredient.
     """
     if domain not in DOMAINS:
         raise HTTPException(status_code=404, detail=f"Unknown domain '{domain}'.")
@@ -377,6 +379,7 @@ async def browse_recipes(
                 q=q or None,
                 sort=sort,
                 sensory_exclude=sensory_exclude,
+                required_ingredient=required_ingredient or None,
             )
 
             # ── Attach time/effort signals to each browse result ────────────────
@@ -389,7 +392,11 @@ async def browse_recipes(
                     except Exception:
                         directions_raw = []
                 if directions_raw:
-                    _profile = parse_time_effort(directions_raw)
+                    _profile = parse_time_effort(
+                        directions_raw,
+                        ingredients=recipe_row.get("ingredients") or [],
+                        ingredient_names=recipe_row.get("ingredient_names") or [],
+                    )
                     recipe_row["active_min"] = _profile.active_min
                     recipe_row["passive_min"] = _profile.passive_min
                 else:
@@ -424,7 +431,11 @@ async def browse_recipes(
                                     except Exception:
                                         directions_raw = []
                                 if directions_raw:
-                                    _profile = parse_time_effort(directions_raw)
+                                    _profile = parse_time_effort(
+                                        directions_raw,
+                                        ingredients=recipe_row.get("ingredients") or [],
+                                        ingredient_names=recipe_row.get("ingredient_names") or [],
+                                    )
                                     recipe_row["active_min"] = _profile.active_min
                                     recipe_row["passive_min"] = _profile.passive_min
                                 else:
@@ -574,8 +585,28 @@ async def get_recipe(recipe_id: int, session: CloudUser = Depends(get_session)) 
         except Exception:
             _directions_for_te = []
 
+    _ingredients_for_te = recipe.get("ingredients") or []
+    if isinstance(_ingredients_for_te, str):
+        import json as _json3
+        try:
+            _ingredients_for_te = _json3.loads(_ingredients_for_te)
+        except Exception:
+            _ingredients_for_te = []
+
+    _ingredient_names_for_te = recipe.get("ingredient_names") or []
+    if isinstance(_ingredient_names_for_te, str):
+        import json as _json4
+        try:
+            _ingredient_names_for_te = _json4.loads(_ingredient_names_for_te)
+        except Exception:
+            _ingredient_names_for_te = []
+
     if _directions_for_te:
-        _te = parse_time_effort(_directions_for_te)
+        _te = parse_time_effort(
+            _directions_for_te,
+            ingredients=_ingredients_for_te,
+            ingredient_names=_ingredient_names_for_te,
+        )
         _time_effort_out: dict | None = {
             "active_min": _te.active_min,
             "passive_min": _te.passive_min,
@@ -583,7 +614,11 @@ async def get_recipe(recipe_id: int, session: CloudUser = Depends(get_session)) 
             "effort_label": _te.effort_label,
             "equipment": _te.equipment,
             "step_analyses": [
-                {"is_passive": sa.is_passive, "detected_minutes": sa.detected_minutes}
+                {
+                    "is_passive": sa.is_passive,
+                    "detected_minutes": sa.detected_minutes,
+                    "prep_min": sa.prep_min,
+                }
                 for sa in _te.step_analyses
             ],
         }

@@ -1129,6 +1129,19 @@ class Store:
         phrases = ['"' + kw.replace('"', '""') + '"' for kw in keywords]
         return " OR ".join(phrases)
 
+    @staticmethod
+    def _ingredient_fts_term(ingredient: str) -> str:
+        """Build an FTS5 ingredient_names column prefix-filter.
+
+        Returns e.g. 'ingredient_names : "potato"*' which matches any recipe whose
+        ingredient_names column contains a token starting with that word. Prefix
+        matching (*) means "potato" also matches "potatoes", "sweet potato", etc.
+        Apostrophes are stripped because the FTS5 tokenizer drops them.
+        """
+        cleaned = ingredient.replace("'", "").strip()
+        escaped = cleaned.replace('"', '""')
+        return f'ingredient_names : "{escaped}"*'
+
     def _count_recipes_for_keywords(self, keywords: list[str]) -> int:
         if not keywords:
             return 0
@@ -1157,6 +1170,7 @@ class Store:
         q: str | None = None,
         sort: str = "default",
         sensory_exclude: SensoryExclude | None = None,
+        required_ingredient: str | None = None,
     ) -> dict:
         """Return a page of recipes matching the keyword set.
 
@@ -1165,9 +1179,11 @@ class Store:
         is provided. match_pct is the fraction of ingredient_names covered by
         the pantry set — computed deterministically, no LLM needed.
 
-        q:    optional title substring filter (case-insensitive LIKE).
-        sort: "default" (corpus order) | "alpha" (A→Z) | "alpha_desc" (Z→A)
-              | "match" (pantry coverage DESC — falls back to default when no pantry).
+        q:                    optional title substring filter (case-insensitive LIKE).
+        sort:                 "default" (corpus order) | "alpha" (A→Z) | "alpha_desc" (Z→A)
+                              | "match" (pantry coverage DESC — falls back to default when no pantry).
+        required_ingredient:  when set, only return recipes whose ingredient_names contain
+                              this substring (case-insensitive). "must include" filter.
         """
         if keywords is not None and not keywords:
             return {"recipes": [], "total": 0, "page": page}
@@ -1186,20 +1202,48 @@ class Store:
 
         q_param = f"%{q.strip()}%" if q and q.strip() else None
 
+        # ── required-ingredient FTS filter (must-include) ─────────────────────
+        # FTS5 column prefix-filter avoids the full table scan that LIKE '%X%' would do.
+        req_fts_term = (
+            self._ingredient_fts_term(required_ingredient) if required_ingredient else ""
+        )
+
         # ── match sort: push match_pct computation into SQL so ORDER BY works ──
         if effective_sort == "match" and pantry_set:
             return self._browse_by_match(
                 keywords, page, page_size, offset, pantry_set, q_param, c,
                 sensory_exclude=sensory_exclude,
+                required_ingredient=required_ingredient,
             )
 
         cols = (
             f"SELECT id, title, category, keywords, ingredient_names,"
             f"       calories, fat_g, protein_g, sodium_mg, directions, sensory_tags FROM {c}recipes"
         )
+        fts_sub = f"id IN (SELECT rowid FROM {c}recipe_browser_fts WHERE recipe_browser_fts MATCH ?)"
 
         if keywords is None:
-            if q_param:
+            if req_fts_term:
+                # Ingredient filter: use FTS index — much faster than LIKE on full table
+                if q_param:
+                    total = self.conn.execute(
+                        f"SELECT COUNT(*) FROM {c}recipes WHERE {fts_sub} AND LOWER(title) LIKE LOWER(?)",
+                        (req_fts_term, q_param),
+                    ).fetchone()[0]
+                    rows = self._fetch_all(
+                        f"{cols} WHERE {fts_sub} AND LOWER(title) LIKE LOWER(?) {order_clause} LIMIT ? OFFSET ?",
+                        (req_fts_term, q_param, page_size, offset),
+                    )
+                else:
+                    total = self.conn.execute(
+                        f"SELECT COUNT(*) FROM {c}recipes WHERE {fts_sub}",
+                        (req_fts_term,),
+                    ).fetchone()[0]
+                    rows = self._fetch_all(
+                        f"{cols} WHERE {fts_sub} {order_clause} LIMIT ? OFFSET ?",
+                        (req_fts_term, page_size, offset),
+                    )
+            elif q_param:
                 total = self.conn.execute(
                     f"SELECT COUNT(*) FROM {c}recipes WHERE LOWER(title) LIKE LOWER(?)",
                     (q_param,),
@@ -1215,23 +1259,32 @@ class Store:
                     (page_size, offset),
                 )
         else:
-            match_expr = self._browser_fts_query(keywords)
-            fts_sub = f"id IN (SELECT rowid FROM {c}recipe_browser_fts WHERE recipe_browser_fts MATCH ?)"
+            keywords_expr = self._browser_fts_query(keywords)
+            # Combine keywords + ingredient into one FTS MATCH to use a single index pass
+            combined_match = (
+                f"({keywords_expr}) AND {req_fts_term}" if req_fts_term else keywords_expr
+            )
             if q_param:
                 total = self.conn.execute(
                     f"SELECT COUNT(*) FROM {c}recipes WHERE {fts_sub} AND LOWER(title) LIKE LOWER(?)",
-                    (match_expr, q_param),
+                    (combined_match, q_param),
                 ).fetchone()[0]
                 rows = self._fetch_all(
                     f"{cols} WHERE {fts_sub} AND LOWER(title) LIKE LOWER(?) {order_clause} LIMIT ? OFFSET ?",
-                    (match_expr, q_param, page_size, offset),
+                    (combined_match, q_param, page_size, offset),
                 )
             else:
-                # Reuse cached count — avoids a second index scan on every page turn.
-                total = self._count_recipes_for_keywords(keywords)
+                if required_ingredient:
+                    total = self.conn.execute(
+                        f"SELECT COUNT(*) FROM {c}recipes WHERE {fts_sub}",
+                        (combined_match,),
+                    ).fetchone()[0]
+                else:
+                    # Reuse cached count — avoids a second index scan on every page turn.
+                    total = self._count_recipes_for_keywords(keywords)
                 rows = self._fetch_all(
                     f"{cols} WHERE {fts_sub} {order_clause} LIMIT ? OFFSET ?",
-                    (match_expr, page_size, offset),
+                    (combined_match, page_size, offset),
                 )
                 # Community tag fallback: if FTS found nothing, check whether
                 # community-tagged recipe IDs exist for this keyword context.
@@ -1313,6 +1366,7 @@ class Store:
         q_param: str | None,
         c: str,
         sensory_exclude: SensoryExclude | None = None,
+        required_ingredient: str | None = None,
     ) -> dict:
         """Browse recipes sorted by pantry match percentage.
 
@@ -1327,16 +1381,48 @@ class Store:
 
         pantry_lower = {p.lower() for p in pantry_set}
 
+        # ── required-ingredient FTS filter (must-include) ─────────────────────
+        req_fts_term = (
+            self._ingredient_fts_term(required_ingredient) if required_ingredient else ""
+        )
+
         # ── Fetch candidate pool from FTS ────────────────────────────────────
         base_cols = (
             f"SELECT r.id, r.title, r.category, r.ingredient_names, r.directions, r.sensory_tags"
             f" FROM {c}recipes r"
         )
+        fts_sub = (
+            f"r.id IN (SELECT rowid FROM {c}recipe_browser_fts"
+            f" WHERE recipe_browser_fts MATCH ?)"
+        )
 
         self.conn.row_factory = sqlite3.Row
 
         if keywords is None:
-            if q_param:
+            if req_fts_term:
+                if q_param:
+                    total = self.conn.execute(
+                        f"SELECT COUNT(*) FROM {c}recipes WHERE id IN"
+                        f" (SELECT rowid FROM {c}recipe_browser_fts WHERE recipe_browser_fts MATCH ?)"
+                        f" AND LOWER(title) LIKE LOWER(?)",
+                        (req_fts_term, q_param),
+                    ).fetchone()[0]
+                    rows = self.conn.execute(
+                        f"{base_cols} WHERE {fts_sub} AND LOWER(r.title) LIKE LOWER(?)"
+                        f" ORDER BY r.id ASC LIMIT ?",
+                        (req_fts_term, q_param, self._MATCH_POOL_SIZE),
+                    ).fetchall()
+                else:
+                    total = self.conn.execute(
+                        f"SELECT COUNT(*) FROM {c}recipes WHERE id IN"
+                        f" (SELECT rowid FROM {c}recipe_browser_fts WHERE recipe_browser_fts MATCH ?)",
+                        (req_fts_term,),
+                    ).fetchone()[0]
+                    rows = self.conn.execute(
+                        f"{base_cols} WHERE {fts_sub} ORDER BY r.id ASC LIMIT ?",
+                        (req_fts_term, self._MATCH_POOL_SIZE),
+                    ).fetchall()
+            elif q_param:
                 total = self.conn.execute(
                     f"SELECT COUNT(*) FROM {c}recipes WHERE LOWER(title) LIKE LOWER(?)",
                     (q_param,),
@@ -1355,27 +1441,32 @@ class Store:
                     (self._MATCH_POOL_SIZE,),
                 ).fetchall()
         else:
-            match_expr = self._browser_fts_query(keywords)
-            fts_sub = (
-                f"r.id IN (SELECT rowid FROM {c}recipe_browser_fts"
-                f" WHERE recipe_browser_fts MATCH ?)"
+            keywords_expr = self._browser_fts_query(keywords)
+            combined_match = (
+                f"({keywords_expr}) AND {req_fts_term}" if req_fts_term else keywords_expr
             )
             if q_param:
                 total = self.conn.execute(
                     f"SELECT COUNT(*) FROM {c}recipes r"
                     f" WHERE {fts_sub} AND LOWER(r.title) LIKE LOWER(?)",
-                    (match_expr, q_param),
+                    (combined_match, q_param),
                 ).fetchone()[0]
                 rows = self.conn.execute(
                     f"{base_cols} WHERE {fts_sub} AND LOWER(r.title) LIKE LOWER(?)"
                     f" ORDER BY r.id ASC LIMIT ?",
-                    (match_expr, q_param, self._MATCH_POOL_SIZE),
+                    (combined_match, q_param, self._MATCH_POOL_SIZE),
                 ).fetchall()
             else:
-                total = self._count_recipes_for_keywords(keywords)
+                if required_ingredient:
+                    total = self.conn.execute(
+                        f"SELECT COUNT(*) FROM {c}recipes r WHERE {fts_sub}",
+                        (combined_match,),
+                    ).fetchone()[0]
+                else:
+                    total = self._count_recipes_for_keywords(keywords)
                 rows = self.conn.execute(
                     f"{base_cols} WHERE {fts_sub} ORDER BY r.id ASC LIMIT ?",
-                    (match_expr, self._MATCH_POOL_SIZE),
+                    (combined_match, self._MATCH_POOL_SIZE),
                 ).fetchall()
 
         # ── Score in Python, sort, paginate ──────────────────────────────────

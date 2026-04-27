@@ -93,6 +93,15 @@
               placeholder="Filter by title…"
               class="browser-search"
             />
+            <input
+              v-model="requiredIngredient"
+              @keyup.enter="onRequiredIngredientCommit"
+              @search="onRequiredIngredientCommit"
+              type="search"
+              placeholder="Must include ingredient… (Enter)"
+              class="browser-search"
+              title="Type an ingredient and press Enter to filter"
+            />
             <div class="sort-btns flex gap-xs">
               <button
                 :class="['btn', 'btn-secondary', 'sort-btn', { active: sortOrder === 'default' }]"
@@ -122,6 +131,7 @@
             <span class="text-sm text-secondary">
               {{ total }} recipes
               <span v-if="pantryCount > 0"> — pantry match shown</span>
+              <span v-if="requiredIngredient.trim()"> — must include "{{ requiredIngredient.trim() }}"</span>
             </span>
             <div class="pagination flex gap-xs">
               <button
@@ -310,6 +320,7 @@ const loadingDomains = ref(false)
 const loadingRecipes = ref(false)
 const savingRecipe = ref<BrowserRecipe | null>(null)
 const searchQuery = ref('')
+const requiredIngredient = ref('')
 const sortOrder = ref<'default' | 'alpha' | 'alpha_desc' | 'match'>('default')
 let searchDebounce: ReturnType<typeof setTimeout> | null = null
 let tagSearchDebounce: ReturnType<typeof setTimeout> | null = null
@@ -386,6 +397,19 @@ function onSearchInput() {
   }, 350)
 }
 
+function onRequiredIngredientCommit() {
+  page.value = 1
+  loadRecipes()
+}
+
+// Auto-clear results when the field is emptied via backspace/select-delete
+watch(requiredIngredient, (val, prev) => {
+  if (val === '' && prev !== '') {
+    page.value = 1
+    loadRecipes()
+  }
+})
+
 function setSort(s: 'default' | 'alpha' | 'alpha_desc' | 'match') {
   if (sortOrder.value === s) return
   sortOrder.value = s
@@ -410,6 +434,7 @@ async function selectDomain(domainId: string) {
   total.value = 0
   page.value = 1
   searchQuery.value = ''
+  requiredIngredient.value = ''
   sortOrder.value = 'default'
   categories.value = await browserAPI.listCategories(domainId)
   // Auto-select the most-populated category so content appears immediately.
@@ -476,6 +501,7 @@ async function loadRecipes() {
         subcategory: activeSubcategory.value ?? undefined,
         q: searchQuery.value.trim() || undefined,
         sort: sortOrder.value !== 'default' ? sortOrder.value : undefined,
+        required_ingredient: requiredIngredient.value.trim() || undefined,
       }
     )
     recipes.value = result.recipes

@@ -883,7 +883,11 @@ class RecipeEngine:
             # Compute complexity + parse time effort once — reused for filters and response.
             row_complexity = _classify_method_complexity(directions, available_equipment)
             row_time_min = _estimate_time_min(directions, row_complexity)
-            row_time_effort = parse_time_effort(directions)
+            row_time_effort = parse_time_effort(
+                directions,
+                ingredients=row.get("ingredients") or [],
+                ingredient_names=row.get("ingredient_names") or [],
+            )
 
             # Filter and tier-rank by hard_day_mode
             if req.hard_day_mode:
@@ -961,6 +965,7 @@ class RecipeEngine:
                     StepAnalysis(
                         is_passive=sa.is_passive,
                         detected_minutes=sa.detected_minutes,
+                        prep_min=sa.prep_min,
                     )
                     for sa in row_time_effort.step_analyses
                 ],

@@ -38,7 +38,8 @@ class TestBrowseTimeEffortFields:
             row["active_min"] = None
             row["passive_min"] = None
 
-        assert row["active_min"] == 0   # no active time found
+        # "Chop onion." triggers the chop prep action (base 2.0 min) → active_min >= 1
+        assert row["active_min"] > 0
         assert row["passive_min"] == 20
 
     def test_null_when_directions_empty(self):
@@ -115,10 +116,12 @@ class TestDetailTimeEffortField:
             ],
         }
 
-        assert time_effort_dict["active_min"] == 5
+        # "Gather all ingredients." → active default (2 min); "Sear for 5 min" → 5 min
+        assert time_effort_dict["active_min"] == 7
         assert time_effort_dict["passive_min"] == 20
-        assert time_effort_dict["total_min"] == 25
-        assert time_effort_dict["effort_label"] == "quick"  # 3 steps
+        assert time_effort_dict["total_min"] == 27
+        # 27 min total → moderate (21-45 min range)
+        assert time_effort_dict["effort_label"] == "moderate"
         assert isinstance(time_effort_dict["equipment"], list)
         assert len(time_effort_dict["step_analyses"]) == 3
         assert time_effort_dict["step_analyses"][2]["is_passive"] is True

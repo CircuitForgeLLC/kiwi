@@ -16,6 +16,7 @@ class StepAnalysis(BaseModel):
     """Active/passive classification for one direction step."""
     is_passive: bool
     detected_minutes: int | None = None
+    prep_min: int | None = None   # estimated physical prep time (action detection)
 
 
 class TimeEffortProfile(BaseModel):

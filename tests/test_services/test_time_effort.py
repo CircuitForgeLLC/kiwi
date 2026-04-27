@@ -95,14 +95,15 @@ class TestTimeExtraction:
 class TestTimeTotals:
     def test_active_passive_split(self):
         steps = [
-            "Chop onions finely.",                   # active, no time
-            "Sear chicken for 5 minutes per side.",  # active, 5 min
-            "Simmer for 20 minutes.",                # passive, 20 min
+            "Chop onions finely.",                   # active; chop action → 2 min prep
+            "Sear chicken for 5 minutes per side.",  # active, 5 min explicit
+            "Simmer for 20 minutes.",                # passive, 20 min explicit
         ]
         result = parse_time_effort(steps)
-        assert result.active_min == 5
+        # "Chop onions" now contributes prep_min (chop base=2.0) + 5 explicit = 7 active
+        assert result.active_min == 7
         assert result.passive_min == 20
-        assert result.total_min == 25
+        assert result.total_min == 27
 
     def test_all_active_passive_zero(self):
         steps = ["Dice vegetables.", "Season with salt.", "Plate and serve."]
@@ -130,16 +131,28 @@ class TestEffortLabel:
         result = parse_time_effort(["a", "b", "c"])
         assert result.effort_label == "quick"
 
-    def test_four_steps_is_moderate(self):
-        result = parse_time_effort(["a", "b", "c", "d"])
+    def test_bake_recipe_is_moderate(self):
+        # Passive default for "bake" = 30 min → moderate (21-45 min range)
+        result = parse_time_effort([
+            "Mix dry ingredients.",
+            "Combine wet ingredients.",
+            "Fold together until just combined.",
+            "Bake until a toothpick comes out clean.",
+        ])
         assert result.effort_label == "moderate"
 
-    def test_seven_steps_is_moderate(self):
-        result = parse_time_effort(["a"] * 7)
-        assert result.effort_label == "moderate"
+    def test_slow_cook_recipe_is_involved(self):
+        # Passive default for "slow cook" = 300 min → involved (>45 min)
+        result = parse_time_effort([
+            "Brown the meat in batches.",
+            "Add vegetables and broth.",
+            "Slow cook until tender.",
+        ])
+        assert result.effort_label == "involved"
 
-    def test_eight_steps_is_involved(self):
-        result = parse_time_effort(["a"] * 8)
+    def test_explicit_time_drives_effort_label(self):
+        # Explicit passive time of 90 min → involved
+        result = parse_time_effort(["Braise for 90 minutes."])
         assert result.effort_label == "involved"
 
 
