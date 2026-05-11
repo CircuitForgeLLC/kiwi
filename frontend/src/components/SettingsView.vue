@@ -2,6 +2,7 @@
   <div class="settings-view">
     <div class="card">
       <h2 class="section-title text-xl mb-md">Settings</h2>
+      <p class="text-xs text-muted mb-md">Changes save automatically.</p>
 
       <!-- Cooking Equipment -->
       <section>
@@ -50,18 +51,6 @@
           </div>
         </div>
 
-        <!-- Save button -->
-        <div class="flex-start gap-sm">
-          <button
-            class="btn btn-primary"
-            :disabled="settingsStore.loading"
-            @click="settingsStore.save()"
-          >
-            <span v-if="settingsStore.loading">Saving…</span>
-            <span v-else-if="settingsStore.saved">✓ Saved!</span>
-            <span v-else>Save Settings</span>
-          </button>
-        </div>
       </section>
 
       <!-- Sensory Preferences -->
@@ -134,17 +123,6 @@
           </p>
         </div>
 
-        <div class="flex-start gap-sm mt-sm">
-          <button
-            class="btn btn-primary btn-sm"
-            :disabled="settingsStore.loading"
-            @click="settingsStore.saveSensory()"
-          >
-            <span v-if="settingsStore.loading">Saving…</span>
-            <span v-else-if="settingsStore.saved">Saved!</span>
-            <span v-else>Save sensory preferences</span>
-          </button>
-        </div>
       </section>
 
       <!-- Units -->
@@ -167,17 +145,6 @@
             @click="settingsStore.unitSystem = 'imperial'"
           >
             Imperial (oz, cups, °F)
-          </button>
-        </div>
-        <div class="flex-start gap-sm">
-          <button
-            class="btn btn-primary btn-sm"
-            :disabled="settingsStore.loading"
-            @click="settingsStore.save()"
-          >
-            <span v-if="settingsStore.loading">Saving…</span>
-            <span v-else-if="settingsStore.saved">✓ Saved!</span>
-            <span v-else>Save</span>
           </button>
         </div>
       </section>
@@ -220,17 +187,6 @@
             <option value="br">Brazil (BRL R$)</option>
           </optgroup>
         </select>
-        <div class="flex-start gap-sm mt-sm">
-          <button
-            class="btn btn-primary btn-sm"
-            :disabled="settingsStore.loading"
-            @click="settingsStore.save()"
-          >
-            <span v-if="settingsStore.loading">Saving…</span>
-            <span v-else-if="settingsStore.saved">✓ Saved!</span>
-            <span v-else>Save</span>
-          </button>
-        </div>
       </section>
 
       <!-- Time-First Layout -->
@@ -257,17 +213,6 @@
               <span class="text-xs text-muted ml-xs">{{ opt.description }}</span>
             </span>
           </label>
-        </div>
-        <div class="flex-start gap-sm mt-sm">
-          <button
-            class="btn btn-primary btn-sm"
-            :disabled="settingsStore.loading"
-            @click="settingsStore.save()"
-          >
-            <span v-if="settingsStore.loading">Saving…</span>
-            <span v-else-if="settingsStore.saved">✓ Saved!</span>
-            <span v-else>Save</span>
-          </button>
         </div>
       </section>
 
@@ -393,6 +338,12 @@
       </template>
     </div>
   </div>
+
+  <Transition name="autosave-fade">
+    <div v-if="settingsStore.saved" class="autosave-toast" role="status" aria-live="polite">
+      ✓ Saved
+    </div>
+  </Transition>
 </template>
 
 <script setup lang="ts">
@@ -870,5 +821,33 @@ function getNoiseClass(_value: NoiseLevel, idx: number): string {
   background: transparent;
   border-color: var(--color-border, #e0e0e0);
   color: var(--color-text-secondary, #888);
+}
+
+/* ── Autosave toast ──────────────────────────────────────────────────────── */
+
+.autosave-toast {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  background: var(--color-surface, #fff);
+  border: 1px solid var(--color-border, #e0e0e0);
+  border-radius: var(--radius-md, 0.5rem);
+  padding: 0.4rem 0.9rem;
+  font-size: var(--font-size-sm);
+  color: var(--color-success, #4a8c40);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+  z-index: 500;
+  pointer-events: none;
+}
+
+.autosave-fade-enter-active,
+.autosave-fade-leave-active {
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.autosave-fade-enter-from,
+.autosave-fade-leave-to {
+  opacity: 0;
+  transform: translateY(0.5rem);
 }
 </style>
