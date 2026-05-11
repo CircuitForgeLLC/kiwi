@@ -206,3 +206,24 @@ class StreamTokenResponse(BaseModel):
     stream_url: str
     token: str
     expires_in_s: int
+
+
+class AskRequest(BaseModel):
+    """Request body for POST /recipes/ask."""
+    question: str = Field(min_length=1, max_length=500)
+    pantry_items: list[str] = Field(default_factory=list)
+
+
+class AskRecipeHit(BaseModel):
+    """A single recipe result from the Ask endpoint."""
+    id: int
+    title: str
+    match_pct: float | None = None
+    category: str | None = None
+
+
+class AskResponse(BaseModel):
+    """Response from POST /recipes/ask."""
+    answer: str | None = None  # LLM-synthesized response (Paid tier only)
+    recipes: list[AskRecipeHit]
+    tier: str

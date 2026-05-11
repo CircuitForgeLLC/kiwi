@@ -16,6 +16,9 @@ log = logging.getLogger(__name__)
 from app.db.session import get_store
 from app.db.store import Store
 from app.models.schemas.recipe import (
+    AskRequest,
+    AskResponse,
+    AskRecipeHit,
     AssemblyTemplateOut,
     BuildRequest,
     LeftoversResponse,
@@ -594,6 +597,137 @@ async def build_recipe(
             status_code=404,
             detail="Template not found or required ingredient missing.",
         )
+    return result
+
+
+_ASK_STOPWORDS: frozenset[str] = frozenset({
+    "what", "can", "make", "with", "have", "some", "the", "and", "for",
+    "that", "this", "these", "those", "how", "about", "are", "there",
+    "give", "show", "find", "want", "need", "like", "any", "good",
+    "quick", "easy", "simple", "fast", "using", "use", "from", "into",
+    "more", "much", "just", "only", "my", "please", "could", "would",
+    "should", "something", "anything", "everything", "ideas", "idea",
+    "suggest", "meal", "food", "dish", "dishes", "today", "tonight",
+    "tomorrow", "now", "here", "there", "recipes", "recipe", "dinner",
+    "lunch", "breakfast", "snack", "under", "minutes", "hours", "time",
+    "left", "over", "also", "some", "make", "cook", "made", "cooked",
+})
+
+
+import re as _re
+
+
+def _extract_ask_keywords(question: str) -> list[str]:
+    """Extract food-relevant keywords from a natural language question."""
+    tokens = _re.findall(r"[a-zA-Z]+", question.lower())
+    return [t for t in tokens if len(t) > 3 and t not in _ASK_STOPWORDS]
+
+
+def _ask_in_thread(db_path: Path, question: str, pantry_items: list[str]) -> AskResponse:
+    """Run Ask logic in a worker thread.
+
+    Free tier: keyword extraction + FTS ingredient search.
+    Paid tier path: same search, then LLM synthesis over results.
+    The caller handles tier gating and LLM synthesis outside this thread
+    to avoid importing LLMRouter in a sync context.
+    """
+    import json as _json
+    store = Store(db_path)
+    try:
+        keywords = _extract_ask_keywords(question)
+        ingredient_hits: list[dict] = []
+        if keywords:
+            ingredient_hits = store.search_recipes_by_ingredients(keywords, limit=15)
+
+        # Also search by title using the full question text as a substring hint.
+        # browse_recipes q= does title LIKE %q%. Extract the longest keyword
+        # from the question as the title probe (most likely to appear in a title).
+        title_hits: list[dict] = []
+        title_probe = max(keywords, key=len) if keywords else None
+        if title_probe:
+            browse_result = store.browse_recipes(
+                keywords=None,
+                page=1,
+                page_size=12,
+                pantry_items=pantry_items or None,
+                q=title_probe,
+                sort="match" if pantry_items else "default",
+            )
+            title_hits = browse_result.get("recipes", [])
+
+        # Merge by ID; ingredient hits come first (more semantically relevant).
+        seen: set[int] = set()
+        merged: list[dict] = []
+        for row in ingredient_hits + title_hits:
+            rid = row.get("id")
+            if rid is not None and rid not in seen:
+                seen.add(rid)
+                merged.append(row)
+
+        # Compute pantry match_pct if caller sent pantry items.
+        pantry_set = {p.lower() for p in pantry_items} if pantry_items else set()
+
+        hits: list[AskRecipeHit] = []
+        for row in merged[:12]:
+            match_pct: float | None = None
+            if pantry_set:
+                raw_names = row.get("ingredient_names") or []
+                if isinstance(raw_names, str):
+                    try:
+                        raw_names = _json.loads(raw_names)
+                    except Exception:
+                        raw_names = []
+                if raw_names:
+                    covered = sum(
+                        1 for n in raw_names
+                        if any(p in n.lower() for p in pantry_set)
+                    )
+                    match_pct = round(covered / len(raw_names), 2)
+            hits.append(AskRecipeHit(
+                id=row["id"],
+                title=row.get("title", ""),
+                category=row.get("category"),
+                match_pct=match_pct,
+            ))
+
+        return AskResponse(answer=None, recipes=hits, tier="free")
+    finally:
+        store.close()
+
+
+@router.post("/ask", response_model=AskResponse)
+async def ask_recipes(
+    req: AskRequest,
+    session: CloudUser = Depends(get_session),
+) -> AskResponse:
+    """Natural-language recipe search with optional LLM synthesis.
+
+    Free tier: keyword extraction from question → FTS ingredient + title search.
+    Paid tier / BYOK: same search, then LLM synthesizes a short conversational answer.
+    """
+    result = await asyncio.to_thread(_ask_in_thread, session.db, req.question, req.pantry_items)
+
+    # LLM synthesis: only for paid/premium/ultra tiers, not "local" dev tier.
+    # Wrapped in wait_for so an unresponsive model degrades gracefully to recipe list only.
+    paid_tier = session.tier in ("paid", "premium", "ultra")
+    if (paid_tier or session.has_byok) and result.recipes:
+        recipe_titles = ", ".join(r.title for r in result.recipes[:6])
+        prompt = (
+            f'You are a helpful kitchen assistant. The user asked: "{req.question}"\n\n'
+            f"Matching recipes: {recipe_titles}\n\n"
+            f"Write a brief, friendly 1–2 sentence response suggesting which of these "
+            f"recipes might best fit the question. Be specific and natural."
+        )
+        try:
+            from circuitforge_core.llm.router import LLMRouter
+            answer = await asyncio.wait_for(
+                asyncio.to_thread(LLMRouter().complete, prompt),
+                timeout=8.0,
+            )
+            result = result.model_copy(update={"answer": answer.strip() or None, "tier": "paid"})
+        except (Exception, asyncio.TimeoutError) as exc:
+            log.warning("Ask LLM synthesis skipped: %s", exc)
+
     return result
 
 
