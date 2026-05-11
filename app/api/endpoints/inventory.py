@@ -478,7 +478,8 @@ async def scan_barcode_image(
         from app.services.openfoodfacts import OpenFoodFactsService
         from app.services.expiration_predictor import ExpirationPredictor
 
-        barcodes = await asyncio.to_thread(BarcodeScanner().scan_image, temp_file)
+        image_bytes = temp_file.read_bytes()
+        barcodes = await asyncio.to_thread(BarcodeScanner().scan_from_bytes, image_bytes)
         if not barcodes:
             return BarcodeScanResponse(
                 success=False, barcodes_found=0, results=[],
@@ -500,9 +501,10 @@ async def scan_barcode_image(
                 product_info = await off.lookup_product(code)
                 product_source = "openfoodfacts"
 
+            db_product = None
             inventory_item = None
-            if product_info and auto_add_to_inventory:
-                product, _ = await asyncio.to_thread(
+            if product_info:
+                db_product, _ = await asyncio.to_thread(
                     store.get_or_create_product,
                     product_info.get("name", code),
                     code,
@@ -512,29 +514,30 @@ async def scan_barcode_image(
                     source=product_source,
                     source_data=product_info,
                 )
-                exp = predictor.predict_expiration(
-                    product_info.get("category", ""),
-                    location,
-                    product_name=product_info.get("name", code),
-                    tier=session.tier,
-                    has_byok=session.has_byok,
-                )
-                resolved_qty = product_info.get("pack_quantity") or quantity
-                resolved_unit = product_info.get("pack_unit") or "count"
-                inventory_item = await asyncio.to_thread(
-                    store.add_inventory_item,
-                    product["id"], location,
-                    quantity=resolved_qty,
-                    unit=resolved_unit,
-                    expiration_date=str(exp) if exp else None,
-                    source="barcode_scan",
-                )
-            product_found = product_info is not None
+                if auto_add_to_inventory:
+                    exp = predictor.predict_expiration(
+                        product_info.get("category", ""),
+                        location,
+                        product_name=product_info.get("name", code),
+                        tier=session.tier,
+                        has_byok=session.has_byok,
+                    )
+                    resolved_qty = product_info.get("pack_quantity") or quantity
+                    resolved_unit = product_info.get("pack_unit") or "count"
+                    inventory_item = await asyncio.to_thread(
+                        store.add_inventory_item,
+                        db_product["id"], location,
+                        quantity=resolved_qty,
+                        unit=resolved_unit,
+                        expiration_date=str(exp) if exp else None,
+                        source="barcode_scan",
+                    )
+            product_found = db_product is not None
             needs_capture = not product_found and has_visual_capture
             results.append({
                 "barcode": code,
                 "barcode_type": bc.get("type", "unknown"),
-                "product": ProductResponse.model_validate(product_info) if product_info else None,
+                "product": ProductResponse.model_validate(db_product) if db_product else None,
                 "inventory_item": InventoryItemResponse.model_validate(inventory_item) if inventory_item else None,
                 "added_to_inventory": inventory_item is not None,
                 "needs_manual_entry": not product_found and not needs_capture,
