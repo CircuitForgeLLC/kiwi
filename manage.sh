@@ -14,8 +14,8 @@ OVERRIDE_FLAG=""
 [[ -f "compose.override.yml" ]] && OVERRIDE_FLAG="-f compose.override.yml"
 
 usage() {
-    echo "Usage: $0 {start|stop|restart|status|logs|open|build|test"
-    echo "           |cloud-start|cloud-stop|cloud-restart|cloud-status|cloud-logs|cloud-build}"
+    echo "Usage: $0 {start|stop|restart|status|logs|open|build|test|update"
+    echo "           |cloud-start|cloud-stop|cloud-restart|cloud-status|cloud-logs|cloud-build|cloud-update}"
     echo ""
     echo "Dev:"
     echo "  start         Build (if needed) and start all services"
@@ -26,6 +26,7 @@ usage() {
     echo "  open          Open web UI in browser"
     echo "  build         Rebuild Docker images without cache"
     echo "  test          Run pytest test suite"
+    echo "  update        git pull + rebuild + restart dev stack"
     echo ""
     echo "Cloud (menagerie.circuitforge.tech/kiwi):"
     echo "  cloud-start   Build cloud images and start kiwi-cloud project"
@@ -34,6 +35,7 @@ usage() {
     echo "  cloud-status  Show cloud containers"
     echo "  cloud-logs    Follow cloud logs [api|web — defaults to all]"
     echo "  cloud-build   Rebuild cloud images without cache"
+    echo "  cloud-update  git pull + rebuild + restart cloud stack"
     exit 1
 }
 
@@ -68,6 +70,11 @@ case "$cmd" in
   build)
     docker compose -f "$COMPOSE_FILE" $OVERRIDE_FLAG build --no-cache
     ;;
+  update)
+    git pull
+    docker compose -f "$COMPOSE_FILE" $OVERRIDE_FLAG up -d --build
+    echo "Kiwi updated and restarted → http://localhost:${WEB_PORT}"
+    ;;
   test)
     docker compose -f "$COMPOSE_FILE" $OVERRIDE_FLAG run --rm api \
       conda run -n job-seeker pytest tests/ -v
@@ -94,6 +101,11 @@ case "$cmd" in
     ;;
   cloud-build)
     docker compose -f "$CLOUD_COMPOSE_FILE" -p "$CLOUD_PROJECT" build --no-cache
+    ;;
+  cloud-update)
+    git pull
+    docker compose -f "$CLOUD_COMPOSE_FILE" -p "$CLOUD_PROJECT" up -d --build
+    echo "Kiwi cloud updated and restarted → https://menagerie.circuitforge.tech/kiwi"
     ;;
 
   *)
