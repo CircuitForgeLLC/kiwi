@@ -6,6 +6,7 @@
         v-for="domain in domains"
         :key="domain.id"
         :class="['btn', activeDomain === domain.id ? 'btn-primary' : 'btn-secondary']"
+        :aria-pressed="activeDomain === domain.id"
         @click="selectDomain(domain.id)"
       >
         {{ domain.label }}
@@ -24,6 +25,7 @@
       <div v-else class="category-list mb-sm flex flex-wrap gap-xs">
         <button
           :class="['btn', 'btn-secondary', 'cat-btn', { active: activeCategory === '_all' }]"
+          :aria-pressed="activeCategory === '_all'"
           @click="selectCategory('_all')"
         >
           All
@@ -32,6 +34,7 @@
           v-for="cat in categories"
           :key="cat.category"
           :class="['btn', 'btn-secondary', 'cat-btn', { active: activeCategory === cat.category }]"
+          :aria-pressed="activeCategory === cat.category"
           @click="selectCategory(cat.category)"
         >
           {{ cat.category }}
@@ -57,6 +60,7 @@
         <template v-else>
           <button
             :class="['btn', 'btn-secondary', 'subcat-btn', { active: activeSubcategory === null }]"
+            :aria-pressed="activeSubcategory === null"
             @click="selectSubcategory(null)"
           >
             All {{ activeCategory }}
@@ -65,6 +69,7 @@
             v-for="sub in subcategories"
             :key="sub.subcategory"
             :class="['btn', 'btn-secondary', 'subcat-btn', { active: activeSubcategory === sub.subcategory }]"
+            :aria-pressed="activeSubcategory === sub.subcategory"
             @click="selectSubcategory(sub.subcategory)"
           >
             {{ sub.subcategory }}
@@ -105,21 +110,25 @@
             <div class="sort-btns flex gap-xs">
               <button
                 :class="['btn', 'btn-secondary', 'sort-btn', { active: sortOrder === 'default' }]"
+                :aria-pressed="sortOrder === 'default'"
                 @click="setSort('default')"
                 title="Corpus order"
               >Default</button>
               <button
                 :class="['btn', 'btn-secondary', 'sort-btn', { active: sortOrder === 'alpha' }]"
+                :aria-pressed="sortOrder === 'alpha'"
                 @click="setSort('alpha')"
                 title="Alphabetical A→Z"
               >A→Z</button>
               <button
                 :class="['btn', 'btn-secondary', 'sort-btn', { active: sortOrder === 'alpha_desc' }]"
+                :aria-pressed="sortOrder === 'alpha_desc'"
                 @click="setSort('alpha_desc')"
                 title="Alphabetical Z→A"
               >Z→A</button>
               <button
                 :class="['btn', 'btn-secondary', 'sort-btn', { active: sortOrder === 'match' }]"
+                :aria-pressed="sortOrder === 'match'"
                 :disabled="pantryCount === 0"
                 @click="setSort('match')"
                 :title="pantryCount > 0 ? 'Sort by pantry match %' : 'Add items to pantry to sort by match'"
@@ -128,7 +137,11 @@
           </div>
 
           <div class="results-header flex-between mb-sm">
-            <span class="text-sm text-secondary">
+            <span
+              class="text-sm text-secondary"
+              aria-live="polite"
+              aria-atomic="true"
+            >
               {{ total }} recipes
               <span v-if="pantryCount > 0"> — pantry match shown</span>
               <span v-if="requiredIngredient.trim()"> — must include "{{ requiredIngredient.trim() }}"</span>
@@ -137,12 +150,14 @@
               <button
                 class="btn btn-secondary btn-xs"
                 :disabled="page <= 1"
+                aria-label="Previous page"
                 @click="changePage(page - 1)"
               >‹ Prev</button>
-              <span class="text-sm text-secondary page-indicator">{{ page }} / {{ totalPages }}</span>
+              <span class="text-sm text-secondary page-indicator" aria-live="polite">{{ page }} / {{ totalPages }}</span>
               <button
                 class="btn btn-secondary btn-xs"
                 :disabled="page >= totalPages"
+                aria-label="Next page"
                 @click="changePage(page + 1)"
               >Next ›</button>
             </div>

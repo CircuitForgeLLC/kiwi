@@ -19,7 +19,7 @@
             class="tag-chip status-badge status-info"
           >
             {{ item }}
-            <button class="chip-remove" @click="removeEquipment(item)" aria-label="Remove">×</button>
+            <button class="chip-remove" @click="removeEquipment(item)" :aria-label="'Remove equipment: ' + item">×</button>
           </span>
         </div>
 
