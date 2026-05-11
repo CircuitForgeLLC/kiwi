@@ -6,7 +6,9 @@ import logging
 from pathlib import Path
 from typing import Annotated
 
+import json as _json_mod
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 
 from app.cloud_session import CloudUser, _auth_label, get_session
 
@@ -103,6 +105,39 @@ def _build_stream_prompt(db_path: Path, level: int) -> str:
         store.close()
 
 
+async def _stream_recipe_sse(db_path: Path, req: RecipeRequest):
+    """Async generator that yields SSE events for a streaming recipe request.
+
+    Phase 1 (thread): classify pantry items using a temporary Store.
+    Phase 2 (async):  stream tokens from LLM via LLMRecipeGenerator.stream_generate().
+    """
+    def _prep(db_path: Path) -> tuple[list, list[str]]:
+        from app.services.recipe.element_classifier import IngredientClassifier
+        store = Store(db_path)
+        try:
+            classifier = IngredientClassifier(store)
+            profiles = classifier.classify_batch(req.pantry_items)
+            gaps = classifier.identify_gaps(profiles)
+            return profiles, gaps
+        finally:
+            store.close()
+
+    try:
+        profiles, gaps = await asyncio.to_thread(_prep, db_path)
+    except Exception as exc:
+        yield f"data: {_json_mod.dumps({'error': str(exc)})}\n\n"
+        return
+
+    from app.services.recipe.llm_recipe import LLMRecipeGenerator
+    gen = LLMRecipeGenerator(None)
+    try:
+        async for token in gen.stream_generate(req, profiles, gaps):
+            yield f"data: {_json_mod.dumps({'chunk': token})}\n\n"
+        yield f"data: {_json_mod.dumps({'done': True})}\n\n"
+    except Exception as exc:
+        yield f"data: {_json_mod.dumps({'error': str(exc)})}\n\n"
+
+
 async def _enqueue_recipe_job(session: CloudUser, req: RecipeRequest):
     """Queue an async recipe_llm job and return 202 with job_id.
 
@@ -144,6 +179,7 @@ async def _enqueue_recipe_job(session: CloudUser, req: RecipeRequest):
 async def suggest_recipes(
     req: RecipeRequest,
     async_mode: bool = Query(default=False, alias="async"),
+    stream: bool = Query(default=False),
     session: CloudUser = Depends(get_session),
     store: Store = Depends(get_store),
 ):
@@ -178,6 +214,13 @@ async def suggest_recipes(
         if not budget.get("allowed", True):
             req = req.model_copy(update={"level": 2})
             orch_fallback = True
+
+    if stream and req.level in (3, 4):
+        return StreamingResponse(
+            _stream_recipe_sse(session.db, req),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
 
     if req.level in (3, 4) and async_mode:
         return await _enqueue_recipe_job(session, req)

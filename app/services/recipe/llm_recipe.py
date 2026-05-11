@@ -1,13 +1,14 @@
 """LLM-driven recipe generator for Levels 3 and 4."""
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import re
 from contextlib import nullcontext
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, AsyncGenerator
 
-from openai import OpenAI
+from openai import AsyncOpenAI, OpenAI
 
 if TYPE_CHECKING:
     from app.db.store import Store
@@ -149,8 +150,8 @@ class LLMRecipeGenerator:
 
         return "\n".join(lines)
 
-    _SERVICE_TYPE = "vllm"
-    _MODEL_CANDIDATES = ["Qwen2.5-3B-Instruct", "Phi-4-mini-instruct"]
+    _SERVICE_TYPE = "cf-text"
+    _MODEL_CANDIDATES = ["granite-4.1-8b", "deepseek-r1-1.5b"]
     _TTL_S = 300.0
     _CALLER = "kiwi-recipe"
 
@@ -182,7 +183,12 @@ class LLMRecipeGenerator:
 
         With CF_ORCH_URL set: acquires a vLLM allocation via CFOrchClient and
         calls the OpenAI-compatible API directly against the allocated service URL.
-        Allocation failure falls through to LLMRouter rather than silently returning "".
+        Falls back to LLMRouter when:
+        - Allocation succeeded but the service is cold (warm=False) — avoids
+          making the user wait for model load; LLMRouter uses Ollama which is
+          already running.
+        - Allocation succeeded but the connection to the service URL fails — the
+          agent may have registered the service but failed to start it.
         Without CF_ORCH_URL: uses LLMRouter directly.
         """
         ctx = self._get_llm_context()
@@ -208,6 +214,15 @@ class LLMRecipeGenerator:
 
         try:
             if alloc is not None:
+                # Skip cold services — model not yet loaded means the user would
+                # wait 60–120 s for model load before any response. Use LLMRouter
+                # (Ollama) instead, which is already warm on the host.
+                if not alloc.warm:
+                    logger.info(
+                        "cf-orch vllm allocated but cold (warm=False) — releasing and falling back to LLMRouter"
+                    )
+                    raise RuntimeError("vllm cold")
+
                 base_url = alloc.url.rstrip("/") + "/v1"
                 client = OpenAI(base_url=base_url, api_key="any")
                 model = alloc.model or "__auto__"
@@ -223,6 +238,20 @@ class LLMRecipeGenerator:
                 return LLMRouter().complete(prompt)
         except Exception as exc:
             logger.error("LLM call failed: %s", exc)
+            # When cf-orch gave us an allocation but the service is unreachable
+            # (cold skip, connection refused, or other error), fall back to
+            # LLMRouter rather than silently returning empty.
+            # Skip "vllm" in the fallback order — that backend also routes through
+            # cf-orch, which would trigger a second (wasted) cold allocation.
+            if alloc is not None:
+                logger.info("Falling back to LLMRouter after vllm failure")
+                try:
+                    from circuitforge_core.llm.router import LLMRouter
+                    router = LLMRouter()
+                    _order = [b for b in (router.config.get("fallback_order") or []) if b != "vllm"]
+                    return router.complete(prompt, fallback_order=_order or None)
+                except Exception as fallback_exc:
+                    logger.error("LLMRouter fallback also failed: %s", fallback_exc)
             return ""
         finally:
             if ctx is not None:
@@ -359,3 +388,91 @@ class LLMRecipeGenerator:
             suggestions=[suggestion],
             element_gaps=gaps,
         )
+
+    async def stream_generate(
+        self,
+        req: RecipeRequest,
+        profiles: list,
+        gaps: list[str],
+    ) -> AsyncGenerator[str, None]:
+        """Stream LLM tokens for L3/L4. Yields raw text chunks as they arrive.
+
+        Tries cf-orch warm vllm first; falls back to Ollama via AsyncOpenAI.
+        When neither is reachable, falls back to blocking _call_llm and yields
+        the complete response as a single chunk so the caller always gets output.
+        """
+        if req.level == 4:
+            prompt = self.build_level4_prompt(req)
+        else:
+            prompt = self.build_level3_prompt(req, profiles, gaps)
+
+        # Phase 1: try cf-orch warm vllm (sync allocation, wrapped in thread)
+        alloc_info = await asyncio.to_thread(self._try_alloc_for_stream)
+        if alloc_info is not None:
+            alloc, ctx = alloc_info
+            try:
+                async for token in self._stream_openai_compat(
+                    alloc.url.rstrip("/") + "/v1", "any", alloc.model or "__auto__", prompt
+                ):
+                    yield token
+                return
+            except Exception as exc:
+                logger.debug("cf-orch stream failed, falling back to Ollama: %s", exc)
+            finally:
+                await asyncio.to_thread(lambda: _safe_exit(ctx))
+
+        # Phase 2: Ollama streaming via OpenAI-compat API
+        from circuitforge_core.llm.router import LLMRouter
+        router = LLMRouter()
+        ollama = router.config.get("backends", {}).get("ollama")
+        if ollama and ollama.get("enabled", True):
+            base_url = ollama["base_url"]
+            model = ollama.get("model", "llama3")
+            try:
+                async for token in self._stream_openai_compat(base_url, "any", model, prompt):
+                    yield token
+                return
+            except Exception as exc:
+                logger.warning("Ollama streaming failed, falling back to blocking: %s", exc)
+
+        # Phase 3: blocking fallback — yields full response at once
+        result = await asyncio.to_thread(self._call_llm, prompt)
+        if result:
+            yield result
+
+    def _try_alloc_for_stream(self):
+        """Attempt cf-orch allocation synchronously; return (alloc, ctx) or None."""
+        ctx = self._get_llm_context()
+        try:
+            alloc = ctx.__enter__()
+            if alloc is not None and alloc.warm:
+                return alloc, ctx
+            # Not warm — release and signal fallback
+            _safe_exit(ctx)
+        except Exception as exc:
+            logger.debug("cf-orch alloc for stream failed: %s", exc)
+        return None
+
+    @staticmethod
+    async def _stream_openai_compat(
+        base_url: str, api_key: str, model: str, prompt: str
+    ) -> AsyncGenerator[str, None]:
+        client = AsyncOpenAI(base_url=base_url, api_key=api_key)
+        if model == "__auto__":
+            models = await client.models.list()
+            model = models.data[0].id
+        stream = await client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            stream=True,
+        )
+        async for chunk in stream:
+            if chunk.choices and chunk.choices[0].delta.content:
+                yield chunk.choices[0].delta.content
+
+
+def _safe_exit(ctx) -> None:
+    try:
+        ctx.__exit__(None, None, None)
+    except Exception:
+        pass

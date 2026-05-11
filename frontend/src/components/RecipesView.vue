@@ -246,9 +246,9 @@
             <span id="allergy-hint" class="form-hint">No recipes containing these ingredients will appear.</span>
           </div>
 
-          <!-- Not Today — temporary per-session ingredient exclusions -->
+          <!-- Not Today — ingredient exclusions, persisted to localStorage -->
           <div class="form-group">
-            <label class="form-label">Not today <span class="text-muted text-xs">(skip these ingredients this session)</span></label>
+            <label class="form-label">Not today <span class="text-muted text-xs">(saved between visits)</span></label>
             <div v-if="recipesStore.excludeIngredients.length > 0" class="tags-wrap flex flex-wrap gap-xs mb-xs">
               <span
                 v-for="tag in recipesStore.excludeIngredients"
@@ -1122,41 +1122,35 @@ async function streamRecipe(level: 3 | 4, wildcardConfirmed = false) {
   streamChunks.value = ''
   streamError.value = null
 
-  let tokenData: StreamTokenResponse
+  // Try cf-orch warm vllm path first (returns a direct stream URL)
+  let tokenData: StreamTokenResponse | null = null
   try {
     tokenData = await recipesAPI.getRecipeStreamToken({ level, wildcard_confirmed: wildcardConfirmed })
-  } catch (err: unknown) {
-    isStreaming.value = false
-    streamError.value = err instanceof Error ? err.message : 'Failed to start stream'
+  } catch { /* cf-orch unavailable — fall through to native SSE */ }
+
+  if (tokenData) {
+    const url = `${tokenData.stream_url}?token=${encodeURIComponent(tokenData.token)}`
+    const es = new EventSource(url)
+    es.onmessage = (e: MessageEvent) => {
+      try {
+        const data = JSON.parse(e.data)
+        if (data.done) { es.close(); isStreaming.value = false }
+        else if (data.error) { es.close(); isStreaming.value = false; streamError.value = data.error }
+        else if (data.chunk) { streamChunks.value += data.chunk }
+      } catch { /* ignore malformed events */ }
+    }
+    es.onerror = () => { es.close(); isStreaming.value = false; streamError.value = 'Stream connection lost' }
     return
   }
 
-  const url = `${tokenData.stream_url}?token=${encodeURIComponent(tokenData.token)}`
-  const es = new EventSource(url)
-
-  es.onmessage = (e: MessageEvent) => {
-    try {
-      const data = JSON.parse(e.data)
-      if (data.done) {
-        es.close()
-        isStreaming.value = false
-      } else if (data.error) {
-        es.close()
-        isStreaming.value = false
-        streamError.value = data.error
-      } else if (data.chunk) {
-        streamChunks.value += data.chunk
-      }
-    } catch {
-      // ignore malformed events
-    }
-  }
-
-  es.onerror = () => {
-    es.close()
-    isStreaming.value = false
-    streamError.value = 'Stream connection lost'
-  }
+  // Native SSE fallback: Kiwi backend streams directly from Ollama
+  await recipesStore.streamSuggest(
+    pantryItems.value,
+    secondaryPantryItems.value,
+    (chunk) => { streamChunks.value += chunk },
+    () => { isStreaming.value = false },
+    (err) => { isStreaming.value = false; streamError.value = err },
+  )
 }
 
 // Suggest handler

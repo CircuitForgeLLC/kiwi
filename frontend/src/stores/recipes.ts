@@ -379,6 +379,17 @@ export const useRecipesStore = defineStore('recipes', () => {
     wildcardConfirmed.value = false
   }
 
+  async function streamSuggest(
+    pantryItems: string[],
+    secondaryPantryItems: Record<string, string>,
+    onChunk: (chunk: string) => void,
+    onDone: () => void,
+    onError: (err: string) => void,
+  ): Promise<void> {
+    const req = _buildRequest(pantryItems, secondaryPantryItems)
+    await recipesAPI.suggestRecipeStream(req, onChunk, onDone, onError)
+  }
+
   return {
     result,
     loading,
@@ -416,6 +427,7 @@ export const useRecipesStore = defineStore('recipes', () => {
     missingIngredientMode,
     builderFilterMode,
     suggest,
+    streamSuggest,
     loadMore,
     dismiss,
     undismiss,

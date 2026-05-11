@@ -737,6 +737,54 @@ export const recipesAPI = {
     })
     return response.data
   },
+
+  /** Stream a recipe via native SSE (Ollama fallback). Calls callbacks as tokens arrive. */
+  async suggestRecipeStream(
+    req: RecipeRequest,
+    onChunk: (chunk: string) => void,
+    onDone: () => void,
+    onError: (err: string) => void,
+  ): Promise<void> {
+    const baseUrl = (api.defaults.baseURL ?? '') as string
+    let response: Response
+    try {
+      response = await fetch(`${baseUrl}/recipes/suggest?stream=true`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req),
+      })
+    } catch (err: unknown) {
+      onError(err instanceof Error ? err.message : 'Network error')
+      return
+    }
+
+    if (!response.ok) {
+      onError(`HTTP ${response.status}`)
+      return
+    }
+
+    const reader = response.body?.getReader()
+    if (!reader) { onError('No response body'); return }
+
+    const decoder = new TextDecoder()
+    let buffer = ''
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) { onDone(); break }
+      buffer += decoder.decode(value, { stream: true })
+      const parts = buffer.split('\n\n')
+      buffer = parts.pop() ?? ''
+      for (const part of parts) {
+        if (!part.startsWith('data: ')) continue
+        try {
+          const data = JSON.parse(part.slice(6))
+          if (data.done) { onDone(); return }
+          else if (data.error) { onError(data.error); return }
+          else if (data.chunk) { onChunk(data.chunk) }
+        } catch { /* ignore malformed events */ }
+      }
+    }
+  },
 }
 
 // ========== Settings API ==========
