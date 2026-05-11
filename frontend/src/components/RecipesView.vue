@@ -89,6 +89,118 @@
       tabindex="0"
     />
 
+    <!-- Ask tab — natural-language recipe search with optional LLM synthesis -->
+    <div
+      v-else-if="activeTab === 'ask'"
+      ref="askPanelRef"
+      role="tabpanel"
+      aria-labelledby="tab-ask"
+      tabindex="0"
+      class="ask-panel"
+    >
+      <div class="card mb-md">
+        <h2 class="section-title text-xl mb-xs">Ask about recipes</h2>
+        <p class="text-sm text-secondary mb-md">Search by ingredient, dish type, or any cooking question.</p>
+
+        <!-- Question input -->
+        <div class="ask-input-row">
+          <input
+            type="text"
+            v-model="askQuestion"
+            class="form-input ask-input"
+            placeholder="e.g. What can I make with chicken and pasta?"
+            aria-label="Recipe question"
+            @keydown="onAskKeydown"
+            :disabled="askLoading"
+          />
+          <button
+            class="btn btn-primary ask-submit"
+            :disabled="askLoading || !askQuestion.trim()"
+            @click="handleAsk()"
+            aria-label="Search recipes"
+          >
+            <span v-if="askLoading" class="spinner spinner-sm inline-spinner"></span>
+            <span v-else>Search</span>
+          </button>
+        </div>
+
+        <!-- Example questions — shown before first search -->
+        <div v-if="!askResult && !askLoading" class="ask-examples">
+          <p class="text-xs text-secondary mb-xs">Try asking:</p>
+          <div class="flex flex-wrap gap-xs">
+            <button
+              v-for="ex in ASK_EXAMPLES"
+              :key="ex"
+              class="btn btn-xs btn-secondary ask-example-btn"
+              @click="handleAsk(ex)"
+            >{{ ex }}</button>
+          </div>
+        </div>
+
+        <!-- Error state -->
+        <div v-if="askError" role="alert" class="status-badge status-error mt-sm">
+          {{ askError }}
+        </div>
+      </div>
+
+      <!-- Result: LLM answer + recipe list -->
+      <div v-if="askResult">
+        <!-- LLM-synthesized answer (Paid tier) -->
+        <div v-if="askResult.answer" class="ask-answer card mb-md" role="status" aria-live="polite">
+          <p class="text-sm">{{ askResult.answer }}</p>
+        </div>
+
+        <!-- Recipe results -->
+        <div v-if="askResult.recipes.length > 0" class="mb-md">
+          <p class="text-sm text-secondary mb-sm">
+            {{ askResult.recipes.length }} recipe{{ askResult.recipes.length !== 1 ? 's' : '' }} found
+          </p>
+          <div class="grid-auto">
+            <div
+              v-for="hit in askResult.recipes"
+              :key="hit.id"
+              class="card recipe-card-compact ask-hit-card slide-up"
+              role="article"
+              tabindex="0"
+              @click="openRecipeById(hit.id)"
+              @keydown.enter="openRecipeById(hit.id)"
+              :aria-label="'View recipe: ' + hit.title"
+            >
+              <h3 class="text-base font-bold mb-xs recipe-title">{{ hit.title }}</h3>
+              <div class="flex flex-wrap gap-xs">
+                <span v-if="hit.category" class="status-badge status-neutral text-xs">{{ hit.category }}</span>
+                <span
+                  v-if="hit.match_pct !== null"
+                  :class="['status-badge', 'text-xs', hit.match_pct >= 0.7 ? 'status-success' : hit.match_pct >= 0.4 ? 'status-info' : 'status-neutral']"
+                >{{ Math.round(hit.match_pct * 100) }}% pantry match</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- No results -->
+        <div v-else class="card text-center text-muted">
+          <p>No recipes found for this question. Try different keywords.</p>
+        </div>
+      </div>
+
+      <!-- Session history (last 3 questions) -->
+      <div v-if="askHistory.length > 1" class="ask-history mt-md">
+        <div class="flex-between mb-xs">
+          <p class="text-xs text-secondary">Recent questions</p>
+          <button class="btn btn-xs btn-ghost" @click="askHistory = []" aria-label="Clear question history">Clear</button>
+        </div>
+        <div class="flex flex-wrap gap-xs">
+          <button
+            v-for="entry in askHistory.slice(1)"
+            :key="entry.question"
+            class="btn btn-xs btn-secondary ask-history-btn"
+            @click="handleAsk(entry.question)"
+          >{{ entry.question }}</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Find tab (existing search UI) -->
     <div v-else ref="findPanelRef" role="tabpanel" aria-labelledby="tab-find" tabindex="0">
     <!-- Controls Panel -->
@@ -779,7 +891,7 @@ import BuildYourOwnTab from './BuildYourOwnTab.vue'
 import OrchUsagePill from './OrchUsagePill.vue'
 import RecipeScanModal from './RecipeScanModal.vue'
 import type { ForkResult } from '../stores/community'
-import type { RecipeSuggestion, GroceryLink, StreamTokenResponse } from '../services/api'
+import type { RecipeSuggestion, GroceryLink, StreamTokenResponse, AskResponse } from '../services/api'
 import { recipesAPI } from '../services/api'
 
 // ── Scan modal ────────────────────────────────────────────────────────────────
@@ -810,11 +922,11 @@ const parsedStream = computed((): ParsedStreamRecipe => {
   if (!text) return { title: null, ingredients: [], steps: [], notes: null }
 
   const titleMatch = text.match(/^Title:\s*(.+)$/m)
-  const title = titleMatch ? titleMatch[1].trim() : null
+  const title = titleMatch?.[1]?.trim() ?? null
 
   const ingMatch = text.match(/^Ingredients:\s*(.+)$/m)
-  const ingredients = ingMatch
-    ? ingMatch[1].split(',').map((s) => s.trim()).filter(Boolean)
+  const ingredients = ingMatch?.[1]
+    ? ingMatch[1]!.split(',').map((s) => s.trim()).filter(Boolean)
     : []
 
   const steps: string[] = []
@@ -823,12 +935,12 @@ const parsedStream = computed((): ParsedStreamRecipe => {
   if (dirIdx !== -1) {
     const dirSection = text.slice(dirIdx + 'Directions:'.length, notesIdx !== -1 ? notesIdx : undefined)
     for (const m of dirSection.matchAll(/^\d+\.\s*(.+)$/mg)) {
-      steps.push(m[1].trim())
+      steps.push(m[1]?.trim() ?? '')
     }
   }
 
   const notesMatch = text.match(/^Notes:\s*([\s\S]+)$/m)
-  const notes = notesMatch ? notesMatch[1].trim() : null
+  const notes = notesMatch?.[1]?.trim() ?? null
 
   return { title, ingredients, steps, notes }
 })
@@ -837,21 +949,23 @@ const recipesStore = useRecipesStore()
 const inventoryStore = useInventoryStore()
 
 // Tab state
-type TabId = 'find' | 'browse' | 'saved' | 'community' | 'build'
+type TabId = 'find' | 'browse' | 'saved' | 'community' | 'build' | 'ask'
 const tabs: Array<{ id: TabId; label: string; mobileLabel?: string }> = [
   { id: 'saved',     label: 'Saved' },
   { id: 'build',     label: 'Build Your Own', mobileLabel: 'Build' },
   { id: 'community', label: 'Community' },
   { id: 'find',      label: 'Find' },
   { id: 'browse',    label: 'Browse' },
+  { id: 'ask',       label: 'Ask' },
 ]
 const activeTab = ref<TabId>('saved')
 const savedStore = useSavedRecipesStore()
-// Template ref for the Find-tab panel div (used for focus management on tab switch)
+// Template refs for panels that need explicit focus management on tab switch
 const findPanelRef = ref<HTMLElement | null>(null)
+const askPanelRef = ref<HTMLElement | null>(null)
 
 function onTabKeydown(e: KeyboardEvent) {
-  const tabIds: TabId[] = ['saved', 'build', 'community', 'find', 'browse']
+  const tabIds: TabId[] = ['saved', 'build', 'community', 'find', 'browse', 'ask']
   const current = tabIds.indexOf(activeTab.value)
   if (e.key === 'ArrowRight') {
     e.preventDefault()
@@ -871,6 +985,8 @@ async function activateTab(tab: TabId) {
   // components so we locate their panel via querySelector.
   if (tab === 'find' && findPanelRef.value) {
     findPanelRef.value.focus()
+  } else if (tab === 'ask' && askPanelRef.value) {
+    askPanelRef.value.focus()
   } else {
     const panel = document.querySelector('[role="tabpanel"]') as HTMLElement | null
     panel?.focus()
@@ -1117,6 +1233,32 @@ function clearAllFindFilters() {
   categoryInput.value = ''
 }
 
+// Pantry items sorted expiry-first (available items only)
+const pantryItems = computed(() => {
+  const sorted = [...inventoryStore.items]
+    .filter((item) => item.status === 'available')
+    .sort((a, b) => {
+      if (!a.expiration_date && !b.expiration_date) return 0
+      if (!a.expiration_date) return 1
+      if (!b.expiration_date) return -1
+      return new Date(a.expiration_date).getTime() - new Date(b.expiration_date).getTime()
+    })
+  return sorted.map((item) => item.product_name).filter(Boolean) as string[]
+})
+
+// Secondary-state items: expired but still usable in specific recipes.
+// Maps product_name → secondary_state label (e.g. "Bread" → "stale").
+// Sent alongside pantry_items so the recipe engine can boost relevant recipes.
+const secondaryPantryItems = computed<Record<string, string>>(() => {
+  const result: Record<string, string> = {}
+  for (const item of inventoryStore.items) {
+    if (item.secondary_state && item.product_name) {
+      result[item.product_name] = item.secondary_state
+    }
+  }
+  return result
+})
+
 // ── Inverted flow: auto-suggest + live re-suggest (closes #132) ─────────────
 
 function _debounce(fn: () => void, ms: number): () => void {
@@ -1209,33 +1351,6 @@ const cuisineStyles = [
   { id: 'latin',             label: 'Latin' },
   { id: 'eastern_european',  label: 'Eastern European' },
 ]
-
-// Pantry items sorted expiry-first (available items only)
-const pantryItems = computed(() => {
-  const sorted = [...inventoryStore.items]
-    .filter((item) => item.status === 'available')
-    .sort((a, b) => {
-      if (!a.expiration_date && !b.expiration_date) return 0
-      if (!a.expiration_date) return 1
-      if (!b.expiration_date) return -1
-      return new Date(a.expiration_date).getTime() - new Date(b.expiration_date).getTime()
-    })
-  return sorted.map((item) => item.product_name).filter(Boolean) as string[]
-})
-
-// Secondary-state items: expired but still usable in specific recipes.
-// Maps product_name → secondary_state label (e.g. "Bread" → "stale").
-// Sent alongside pantry_items so the recipe engine can boost relevant recipes.
-const secondaryPantryItems = computed<Record<string, string>>(() => {
-  const result: Record<string, string> = {}
-  for (const item of inventoryStore.items) {
-    if (item.secondary_state && item.product_name) {
-      result[item.product_name] = item.secondary_state
-    }
-  }
-  return result
-})
-
 
 // Tag input helpers — constraints
 function addConstraint(value: string) {
@@ -1372,6 +1487,51 @@ async function handleLoadMore() {
   isLoadingMore.value = true
   await recipesStore.loadMore(pantryItems.value, secondaryPantryItems.value)
   isLoadingMore.value = false
+}
+
+// ── Ask tab state ────────────────────────────────────────────────────────────
+
+interface AskHistoryEntry {
+  question: string
+  result: AskResponse
+}
+
+const askQuestion = ref('')
+const askLoading = ref(false)
+const askError = ref<string | null>(null)
+const askResult = ref<AskResponse | null>(null)
+const askHistory = ref<AskHistoryEntry[]>([])
+
+const ASK_EXAMPLES = [
+  'What can I make with chicken and pasta?',
+  'Easy vegetarian dinners under 30 minutes',
+  'Recipes using overripe bananas',
+  'Quick breakfasts with eggs',
+]
+
+async function handleAsk(question?: string) {
+  const q = (question ?? askQuestion.value).trim()
+  if (!q) return
+  askQuestion.value = q
+  askLoading.value = true
+  askError.value = null
+  askResult.value = null
+  try {
+    const result = await recipesAPI.ask(q, pantryItems.value)
+    askResult.value = result
+    askHistory.value = [{ question: q, result }, ...askHistory.value].slice(0, 3)
+  } catch {
+    askError.value = 'Could not search recipes. Please try again.'
+  } finally {
+    askLoading.value = false
+  }
+}
+
+function onAskKeydown(e: KeyboardEvent) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault()
+    handleAsk()
+  }
 }
 
 onMounted(async () => {
@@ -2179,5 +2339,60 @@ details[open] .collapsible-summary::before {
     animation: none;
     background: var(--color-bg-secondary, #f5f5f5);
   }
+}
+
+/* ── Ask tab ──────────────────────────────────────────────────────────── */
+.ask-panel {
+  padding-top: var(--spacing-sm);
+}
+
+.ask-input-row {
+  display: flex;
+  gap: var(--spacing-xs);
+  align-items: flex-start;
+}
+
+.ask-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.ask-submit {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.ask-examples {
+  margin-top: var(--spacing-md);
+}
+
+.ask-example-btn {
+  white-space: normal;
+  text-align: left;
+  max-width: 100%;
+}
+
+.ask-answer {
+  border-left: 3px solid var(--color-primary);
+  background: var(--color-bg-secondary, #f8f8f8);
+  padding: var(--spacing-sm) var(--spacing-md);
+}
+
+.ask-hit-card {
+  cursor: pointer;
+  transition: box-shadow 0.15s ease;
+}
+
+.ask-hit-card:hover,
+.ask-hit-card:focus-visible {
+  box-shadow: 0 0 0 2px var(--color-primary);
+  outline: none;
+}
+
+.ask-history-btn {
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 </style>

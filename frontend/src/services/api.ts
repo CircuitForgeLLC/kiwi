@@ -671,6 +671,21 @@ export interface BuildRequest {
   role_overrides: Record<string, string>
 }
 
+// ── Ask/RAG types ──────────────────────────────────────────────────────────
+
+export interface AskRecipeHit {
+  id: number
+  title: string
+  match_pct: number | null
+  category: string | null
+}
+
+export interface AskResponse {
+  answer: string | null
+  recipes: AskRecipeHit[]
+  tier: string
+}
+
 // ========== Recipes API ==========
 
 export const recipesAPI = {
@@ -735,6 +750,12 @@ export const recipesAPI = {
       level: params.level,
       wildcard_confirmed: params.wildcard_confirmed ?? false,
     })
+    return response.data
+  },
+
+  /** Natural-language recipe search with optional LLM synthesis (Paid tier). */
+  async ask(question: string, pantryItems: string[] = []): Promise<AskResponse> {
+    const response = await api.post('/recipes/ask', { question, pantry_items: pantryItems }, { timeout: 30000 })
     return response.data
   },
 
