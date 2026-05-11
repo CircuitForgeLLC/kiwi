@@ -460,12 +460,50 @@
 
     <!-- Streaming recipe generation panel -->
     <div v-if="isStreaming || streamChunks || streamError" class="stream-panel">
-      <div v-if="isStreaming" class="stream-status">
+      <div v-if="isStreaming" class="stream-status" role="status">
         <span class="stream-dot" aria-hidden="true"></span>
         Generating recipe…
       </div>
-      <div v-if="streamError" class="stream-error text-sm">{{ streamError }}</div>
-      <pre v-if="streamChunks" class="stream-output">{{ streamChunks }}</pre>
+      <div v-if="streamError" class="stream-error text-sm" role="alert">{{ streamError }}</div>
+
+      <!-- Progressive reveal card: skeleton while streaming, full card on complete -->
+      <div v-if="isStreaming || (streamChunks && !streamError)" class="stream-recipe-card card">
+        <!-- Title -->
+        <div class="stream-title mb-sm">
+          <h3 v-if="parsedStream.title" class="text-lg font-semibold">{{ parsedStream.title }}</h3>
+          <div v-else class="skeleton-line skeleton-title"></div>
+        </div>
+
+        <!-- Ingredients -->
+        <div class="stream-section mb-sm">
+          <strong class="stream-section-label text-sm">Ingredients</strong>
+          <ul v-if="parsedStream.ingredients.length > 0" class="stream-ingredients mt-xs">
+            <li v-for="(ing, i) in parsedStream.ingredients" :key="i" class="text-sm">{{ ing }}</li>
+          </ul>
+          <template v-else-if="isStreaming">
+            <div class="skeleton-line skeleton-medium mt-xs"></div>
+            <div class="skeleton-line skeleton-short"></div>
+            <div class="skeleton-line skeleton-long"></div>
+          </template>
+        </div>
+
+        <!-- Steps — only show once ingredients have arrived -->
+        <div v-if="parsedStream.steps.length > 0 || (isStreaming && parsedStream.ingredients.length > 0)" class="stream-section mb-sm">
+          <strong class="stream-section-label text-sm">Directions</strong>
+          <ol v-if="parsedStream.steps.length > 0" class="stream-steps mt-xs">
+            <li v-for="(step, i) in parsedStream.steps" :key="i" class="text-sm">{{ step }}</li>
+          </ol>
+          <template v-else-if="isStreaming">
+            <div class="skeleton-line skeleton-long mt-xs"></div>
+            <div class="skeleton-line skeleton-medium"></div>
+          </template>
+        </div>
+
+        <!-- Notes — only after stream complete -->
+        <p v-if="parsedStream.notes && !isStreaming" class="stream-notes text-sm text-muted">
+          <strong>Notes:</strong> {{ parsedStream.notes }}
+        </p>
+      </div>
     </div>
 
     <!-- Screen reader announcement for loading + results -->
@@ -759,6 +797,41 @@ function onScanSaved(recipe: { id: number; title: string }) {
 const isStreaming = ref(false)
 const streamChunks = ref('')
 const streamError = ref<string | null>(null)
+
+interface ParsedStreamRecipe {
+  title: string | null
+  ingredients: string[]
+  steps: string[]
+  notes: string | null
+}
+
+const parsedStream = computed((): ParsedStreamRecipe => {
+  const text = streamChunks.value
+  if (!text) return { title: null, ingredients: [], steps: [], notes: null }
+
+  const titleMatch = text.match(/^Title:\s*(.+)$/m)
+  const title = titleMatch ? titleMatch[1].trim() : null
+
+  const ingMatch = text.match(/^Ingredients:\s*(.+)$/m)
+  const ingredients = ingMatch
+    ? ingMatch[1].split(',').map((s) => s.trim()).filter(Boolean)
+    : []
+
+  const steps: string[] = []
+  const dirIdx = text.indexOf('Directions:')
+  const notesIdx = text.indexOf('\nNotes:')
+  if (dirIdx !== -1) {
+    const dirSection = text.slice(dirIdx + 'Directions:'.length, notesIdx !== -1 ? notesIdx : undefined)
+    for (const m of dirSection.matchAll(/^\d+\.\s*(.+)$/mg)) {
+      steps.push(m[1].trim())
+    }
+  }
+
+  const notesMatch = text.match(/^Notes:\s*([\s\S]+)$/m)
+  const notes = notesMatch ? notesMatch[1].trim() : null
+
+  return { title, ingredients, steps, notes }
+})
 
 const recipesStore = useRecipesStore()
 const inventoryStore = useInventoryStore()
@@ -2041,13 +2114,70 @@ details[open] .collapsible-summary::before {
   margin-bottom: 0.5rem;
 }
 
-.stream-output {
-  font-family: inherit;
-  white-space: pre-wrap;
-  font-size: var(--font-size-sm);
-  color: var(--color-text);
-  margin: 0;
-  max-height: 400px;
-  overflow-y: auto;
+/* ── Stream recipe card — skeleton + progressive reveal ─────────────────── */
+.stream-recipe-card {
+  margin-top: var(--spacing-sm);
+}
+
+.stream-section-label {
+  display: block;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: var(--font-size-xs, 0.72rem);
+  margin-bottom: var(--spacing-xs);
+}
+
+.stream-ingredients {
+  padding-left: 1.2rem;
+  list-style: disc;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.stream-steps {
+  padding-left: 1.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.stream-notes {
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--spacing-xs);
+  margin-top: var(--spacing-xs);
+}
+
+/* ── Skeleton shimmer ───────────────────────────────────────────────────── */
+@keyframes skeleton-shimmer {
+  0% { background-position: -200px 0; }
+  100% { background-position: calc(200px + 100%) 0; }
+}
+
+.skeleton-line {
+  height: 0.8rem;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(
+    90deg,
+    var(--color-bg-secondary, #f5f5f5) 0%,
+    var(--color-border, #e0e0e0) 50%,
+    var(--color-bg-secondary, #f5f5f5) 100%
+  );
+  background-size: 200px 100%;
+  animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  margin-bottom: var(--spacing-xs);
+}
+
+.skeleton-title { height: 1.2rem; width: 55%; }
+.skeleton-short { width: 38%; }
+.skeleton-medium { width: 65%; }
+.skeleton-long { width: 88%; }
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-line {
+    animation: none;
+    background: var(--color-bg-secondary, #f5f5f5);
+  }
 }
 </style>
