@@ -147,6 +147,19 @@
         Tap "Find recipes" again to apply.
       </p>
 
+      <!-- Refine panel toggle — wraps time budget + dietary + nutrition filters -->
+      <button
+        class="refine-toggle btn btn-secondary btn-sm"
+        @click="toggleFilters"
+        :aria-expanded="filtersOpen"
+        aria-controls="refine-panel"
+      >
+        {{ filtersOpen ? '▲' : '▼' }} Refine
+        <span v-if="activeFilterCount > 0" class="refine-count">{{ activeFilterCount }}</span>
+      </button>
+
+      <div id="refine-panel" v-show="filtersOpen" class="refine-body">
+
       <!-- Time Budget selector — always visible; closes #131 -->
       <div class="form-group time-bucket-group">
         <!-- Hands-on / active time row -->
@@ -399,6 +412,8 @@
           </div>
         </div>
       </details>
+
+      </div><!-- end #refine-panel -->
 
       <!-- Suggest Button -->
       <div class="suggest-row">
@@ -985,6 +1000,14 @@ const advancedActive = computed(() =>
   !!recipesStore.styleId
 )
 
+const FILTERS_OPEN_KEY = 'kiwi:find_filters_open'
+const filtersOpen = ref(localStorage.getItem(FILTERS_OPEN_KEY) !== 'false')
+
+function toggleFilters() {
+  filtersOpen.value = !filtersOpen.value
+  localStorage.setItem(FILTERS_OPEN_KEY, String(filtersOpen.value))
+}
+
 const activeFilterCount = computed(() => {
   let n = 0
   if (recipesStore.constraints.length > 0) n++
@@ -1020,6 +1043,66 @@ function clearAllFindFilters() {
   excludeIngredientInput.value = ''
   categoryInput.value = ''
 }
+
+// ── Inverted flow: auto-suggest + live re-suggest (closes #132) ─────────────
+
+function _debounce(fn: () => void, ms: number): () => void {
+  let t: ReturnType<typeof setTimeout>
+  return () => { clearTimeout(t); t = setTimeout(fn, ms) }
+}
+
+// Stable key over all filter state — one watcher instead of a dozen.
+const filterKey = computed(() => JSON.stringify({
+  constraints: recipesStore.constraints,
+  allergies: recipesStore.allergies,
+  excludeIngredients: recipesStore.excludeIngredients,
+  shoppingMode: recipesStore.shoppingMode,
+  pantryMatchOnly: recipesStore.pantryMatchOnly,
+  hardDayMode: recipesStore.hardDayMode,
+  maxActiveMin: recipesStore.maxActiveMin,
+  maxTotalMin: recipesStore.maxTotalMin,
+  maxMissing: recipesStore.maxMissing,
+  styleId: recipesStore.styleId,
+  category: recipesStore.category,
+  nutritionFilters: recipesStore.nutritionFilters,
+  level: recipesStore.level,
+}))
+
+// Flag prevents double-firing on initial pantry load + tab switch within same render cycle.
+let _autoSuggestFired = false
+
+// Auto-suggest on Find tab activation (L1/L2 only — L3/L4 require explicit user intent).
+watch(
+  [activeTab, pantryItems] as const,
+  ([tab, items]) => {
+    if (tab !== 'find') return
+    if (recipesStore.level > 2) return
+    if (items.length === 0) return
+    if (recipesStore.result || recipesStore.loading) return
+    if (_autoSuggestFired) return
+    _autoSuggestFired = true
+    handleSuggest().then(() => {
+      filtersOpen.value = false
+      localStorage.setItem(FILTERS_OPEN_KEY, 'false')
+    })
+  },
+)
+
+// Live re-suggest when any filter changes while on Find tab with existing results (L1/L2).
+const _debouncedResuggest = _debounce(async () => {
+  if (activeTab.value !== 'find') return
+  if (recipesStore.level > 2) return
+  if (pantryItems.value.length === 0) return
+  if (!recipesStore.result) return
+  await handleSuggest()
+}, 1200)
+
+watch(filterKey, () => {
+  if (activeTab.value !== 'find') return
+  if (recipesStore.level > 2) return
+  if (!recipesStore.result) return
+  _debouncedResuggest()
+})
 
 // #46 — count of active nutrition filters so the summary is informative when collapsed
 const activeNutritionFilterCount = computed(() =>
@@ -1450,6 +1533,35 @@ watch(
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   color: var(--color-text-secondary);
+}
+
+/* ── Refine collapsible ──────────────────────────────────────────────────── */
+.refine-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-xs);
+  margin-bottom: var(--spacing-xs);
+  font-size: var(--font-size-sm);
+}
+
+.refine-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.3rem;
+  border-radius: 9999px;
+  background: var(--color-primary);
+  color: white;
+  font-size: var(--font-size-xs, 0.72rem);
+  font-weight: 600;
+}
+
+.refine-body {
+  margin-bottom: var(--spacing-xs);
 }
 
 .filter-bar {
