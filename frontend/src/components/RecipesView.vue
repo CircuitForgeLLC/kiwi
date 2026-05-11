@@ -95,6 +95,14 @@
     <div class="card mb-controls">
       <h2 class="section-title text-xl mb-md">Find Recipes</h2>
 
+      <!-- Active-filter summary bar -->
+      <div v-if="activeFilterCount > 0" class="active-filter-bar" role="status">
+        <span class="text-sm">{{ activeFilterCount }} filter{{ activeFilterCount !== 1 ? 's' : '' }} active</span>
+        <button class="btn btn-xs btn-secondary" @click="clearAllFindFilters" aria-label="Clear all active filters">
+          Clear all
+        </button>
+      </div>
+
       <!-- Level Selector -->
       <div class="form-group">
         <label class="form-label">How far should we stretch?</label>
@@ -968,6 +976,42 @@ const advancedActive = computed(() =>
   !!recipesStore.styleId
 )
 
+const activeFilterCount = computed(() => {
+  let n = 0
+  if (recipesStore.constraints.length > 0) n++
+  if (recipesStore.allergies.length > 0) n++
+  if (recipesStore.excludeIngredients.length > 0) n++
+  if (recipesStore.shoppingMode) n++
+  if (recipesStore.pantryMatchOnly) n++
+  if (recipesStore.hardDayMode) n++
+  if (recipesStore.maxActiveMin !== null) n++
+  if (recipesStore.maxTotalMin !== null) n++
+  if (recipesStore.maxMissing !== null) n++
+  if (recipesStore.styleId !== null) n++
+  if (recipesStore.category !== null) n++
+  n += Object.values(recipesStore.nutritionFilters).filter((v) => v !== null).length
+  return n
+})
+
+function clearAllFindFilters() {
+  recipesStore.clearConstraints()
+  recipesStore.clearAllergies()
+  recipesStore.clearExcludeIngredients()
+  recipesStore.shoppingMode = false
+  recipesStore.pantryMatchOnly = false
+  recipesStore.hardDayMode = false
+  recipesStore.maxActiveMin = null
+  recipesStore.maxTotalMin = null
+  recipesStore.maxMissing = null
+  recipesStore.styleId = null
+  recipesStore.category = null
+  recipesStore.nutritionFilters = { max_calories: null, max_sugar_g: null, max_carbs_g: null, max_sodium_mg: null }
+  constraintInput.value = ''
+  allergyInput.value = ''
+  excludeIngredientInput.value = ''
+  categoryInput.value = ''
+}
+
 // #46 — count of active nutrition filters so the summary is informative when collapsed
 const activeNutritionFilterCount = computed(() =>
   Object.values(recipesStore.nutritionFilters ?? {}).filter((v) => v !== null).length
@@ -1387,6 +1431,18 @@ watch(
 }
 
 /* Filter bar */
+.active-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-secondary);
+}
+
 .filter-bar {
   display: flex;
   flex-direction: column;
