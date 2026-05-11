@@ -147,9 +147,8 @@
         Tap "Find recipes" again to apply.
       </p>
 
-      <!-- Time Budget selector (kiwi#52) -->
-      <!-- Shows when time_first_layout != 'normal' (auto or time_first) -->
-      <div v-if="settingsStore.timeFirstLayout !== 'normal'" class="form-group time-bucket-group">
+      <!-- Time Budget selector — always visible; closes #131 -->
+      <div class="form-group time-bucket-group">
         <!-- Hands-on / active time row -->
         <div class="time-row">
           <span class="time-row-label">Hands-on time</span>
@@ -163,6 +162,12 @@
               :aria-pressed="recipesStore.maxActiveMin === bucket.value"
               :title="'Max ' + bucket.label + ' of active cooking'"
             >{{ bucket.label }}</button>
+            <button
+              v-if="recipesStore.maxActiveMin !== null"
+              class="btn btn-sm btn-secondary time-bucket-clear"
+              @click="recipesStore.maxActiveMin = null"
+              aria-label="Clear hands-on time limit"
+            >No limit</button>
           </div>
         </div>
 
@@ -179,6 +184,12 @@
               :aria-pressed="recipesStore.maxTotalMin === bucket.value"
               :title="'Max ' + bucket.label + ' start to finish'"
             >{{ bucket.label }}</button>
+            <button
+              v-if="recipesStore.maxTotalMin !== null"
+              class="btn btn-sm btn-secondary time-bucket-clear"
+              @click="recipesStore.maxTotalMin = null"
+              aria-label="Clear total time limit"
+            >No limit</button>
           </div>
         </div>
 
@@ -1636,6 +1647,15 @@ details[open] .collapsible-summary::before {
   background: var(--color-primary, #1a6b4a);
   color: white;
   border-color: var(--color-primary, #1a6b4a);
+}
+
+.time-bucket-clear {
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.time-bucket-clear:hover {
+  opacity: 1;
 }
 
 @media (max-width: 480px) {
