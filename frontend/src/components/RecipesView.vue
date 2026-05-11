@@ -716,7 +716,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { useRecipesStore } from '../stores/recipes'
-import { useSettingsStore } from '../stores/settings'
 import { useInventoryStore } from '../stores/inventory'
 import { useSavedRecipesStore } from '../stores/savedRecipes'
 import RecipeDetailPanel from './RecipeDetailPanel.vue'
@@ -748,7 +747,6 @@ const streamError = ref<string | null>(null)
 
 const recipesStore = useRecipesStore()
 const inventoryStore = useInventoryStore()
-const settingsStore = useSettingsStore()
 
 // Tab state
 type TabId = 'find' | 'browse' | 'saved' | 'community' | 'build'
