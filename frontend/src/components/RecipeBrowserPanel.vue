@@ -84,6 +84,25 @@
         </template>
       </div>
 
+      <!-- Browse breadcrumb — shows current position in domain > category > subcategory hierarchy -->
+      <nav v-if="activeDomain && activeCategory" class="browse-breadcrumb" aria-label="Browse location">
+        <button
+          class="crumb-btn"
+          @click="selectDomain(activeDomain)"
+          :aria-current="!activeCategory ? 'page' : undefined"
+        >{{ domains.find(d => d.id === activeDomain)?.label ?? activeDomain }}</button>
+        <span class="crumb-sep" aria-hidden="true">›</span>
+        <button
+          class="crumb-btn"
+          @click="selectCategory(activeCategory)"
+          :aria-current="!activeSubcategory ? 'page' : undefined"
+        >{{ activeCategory === '_all' ? 'All' : activeCategory }}</button>
+        <template v-if="activeSubcategory">
+          <span class="crumb-sep" aria-hidden="true">›</span>
+          <span class="crumb-current" aria-current="page">{{ activeSubcategory }}</span>
+        </template>
+      </nav>
+
       <!-- Recipe grid -->
       <template v-if="activeCategory">
         <div v-if="loadingRecipes" class="text-secondary text-sm">Loading recipes…</div>
@@ -868,5 +887,41 @@ async function submitTag() {
   color: var(--color-accent, #7c6fcd);
   font-size: 0.875rem;
   margin-left: 0.5rem;
+}
+
+/* ── Browse breadcrumb ───────────────────────────────────────────────────── */
+.browse-breadcrumb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-bottom: var(--spacing-sm);
+  font-size: var(--font-size-xs, 0.78rem);
+  color: var(--color-text-secondary);
+}
+
+.crumb-btn {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  color: var(--color-primary);
+  font-size: inherit;
+  border-radius: var(--radius-sm);
+}
+
+.crumb-btn:hover {
+  text-decoration: underline;
+}
+
+.crumb-sep {
+  opacity: 0.5;
+  padding: 0 2px;
+}
+
+.crumb-current {
+  padding: 2px 4px;
+  color: var(--color-text);
+  font-weight: 500;
 }
 </style>
