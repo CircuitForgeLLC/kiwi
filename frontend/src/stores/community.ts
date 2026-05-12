@@ -64,6 +64,20 @@ export interface PublishPayload {
   recipe_id?: number
   outcome_notes?: string
   slots?: CommunityPostSlot[]
+  similar_to_ref?: string
+}
+
+export type SimilarityTier = 'exact_recipe' | 'very_similar' | 'somewhat_similar'
+
+export interface SimilarPost {
+  slug: string
+  title: string
+  recipe_name: string | null
+  pseudonym: string
+  published: string
+  similarity_tier: SimilarityTier
+  jaccard_score: number | null
+  tier_description: string
 }
 
 export interface PublishResult {
@@ -107,6 +121,25 @@ export const useCommunityStore = defineStore('community', () => {
     return response.data
   }
 
+  async function checkSimilar(
+    title: string,
+    recipeId?: number | null,
+    postType?: string,
+  ): Promise<SimilarPost[]> {
+    try {
+      const body: Record<string, unknown> = { title }
+      if (recipeId != null) body.recipe_id = recipeId
+      if (postType) body.post_type = postType
+      const response = await api.post<{ similar_posts: SimilarPost[] }>(
+        '/community/check-similar',
+        body,
+      )
+      return response.data.similar_posts
+    } catch {
+      return []
+    }
+  }
+
   return {
     posts,
     loading,
@@ -115,5 +148,6 @@ export const useCommunityStore = defineStore('community', () => {
     fetchPosts,
     forkPost,
     publishPost,
+    checkSimilar,
   }
 })

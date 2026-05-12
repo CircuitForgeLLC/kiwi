@@ -167,6 +167,54 @@ def _validate_publish_body(body: dict) -> None:
         raise HTTPException(status_code=422, detail="photo_url must be an https:// URL.")
 
 
+@router.post("/check-similar")
+async def check_similar(body: dict, session: CloudUser = Depends(get_session)):
+    """Pre-submission dedup check: return similar existing posts for the given title/recipe_id.
+
+    Safe to call with no community store configured — returns empty list rather than 503.
+    """
+    store = _get_community_store()
+    if store is None:
+        return {"similar_posts": []}
+
+    title = (body.get("title") or "").strip()
+    recipe_id = body.get("recipe_id")
+    post_type = body.get("post_type")
+
+    if not title:
+        return {"similar_posts": []}
+
+    candidates = await asyncio.to_thread(
+        store.search_similar_posts,
+        title,
+        recipe_id,
+        post_type,
+        8,
+    )
+
+    if not candidates:
+        return {"similar_posts": []}
+
+    from app.services.community.dedup import build_similar_post_result, fetch_recipe_ingredients
+    incoming_ingredients = await asyncio.to_thread(
+        fetch_recipe_ingredients, session.db, recipe_id
+    )
+
+    results = []
+    for post in candidates:
+        result = await asyncio.to_thread(
+            build_similar_post_result,
+            post,
+            recipe_id,
+            incoming_ingredients,
+            session.db,
+        )
+        if result["similarity_tier"] != "different":
+            results.append(result)
+
+    return {"similar_posts": results[:5]}
+
+
 @router.post("/posts", status_code=201)
 async def publish_post(body: dict, session: CloudUser = Depends(get_session)):
     from app.tiers import can_use
@@ -214,6 +262,8 @@ async def publish_post(body: dict, session: CloudUser = Depends(get_session)):
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     slug = f"kiwi-{_post_type_prefix(post_type)}-{pseudonym.lower().replace(' ', '')}-{today}-{slug_title}"[:120]
 
+    similar_to_ref = body.get("similar_to_ref") or None
+
     from circuitforge_core.community.models import CommunityPost
     post = CommunityPost(
         slug=slug,
@@ -241,6 +291,7 @@ async def publish_post(body: dict, session: CloudUser = Depends(get_session)):
         fat_pct=snapshot.fat_pct,
         protein_pct=snapshot.protein_pct,
         moisture_pct=snapshot.moisture_pct,
+        similar_to_ref=similar_to_ref,
     )
 
     try:
@@ -351,6 +402,7 @@ def _post_to_dict(post) -> dict:
         "fat_pct": post.fat_pct,
         "protein_pct": post.protein_pct,
         "moisture_pct": post.moisture_pct,
+        "similar_to_ref": getattr(post, "similar_to_ref", None),
     }
 
 

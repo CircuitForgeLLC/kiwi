@@ -78,6 +78,39 @@
           <span class="form-hint">How you appear on posts -- not your real name or email.</span>
         </div>
 
+        <!-- Similarity check results (shown before final confirm) -->
+        <div
+          v-if="similarPosts.length > 0"
+          class="similar-panel"
+          role="region"
+          aria-label="Similar posts found"
+        >
+          <p class="similar-heading text-sm">
+            <strong>Similar plans already exist.</strong>
+            You can publish as-is, mark yours as a variation, or cancel.
+          </p>
+          <ul class="similar-list" aria-label="Existing similar posts">
+            <li
+              v-for="hit in similarPosts"
+              :key="hit.slug"
+              class="similar-item"
+            >
+              <span class="similar-tier-badge" :class="`tier-${hit.similarity_tier}`">
+                {{ tierLabel(hit.similarity_tier) }}
+              </span>
+              <span class="similar-title">{{ hit.title }}</span>
+              <span class="similar-by text-muted text-xs">by {{ hit.pseudonym }}</span>
+              <button
+                class="btn-link text-xs"
+                :class="{ 'selected-ref': selectedRef === hit.slug }"
+                @click="toggleRef(hit.slug)"
+              >
+                {{ selectedRef === hit.slug ? 'Unmark variation' : 'Mark as variation' }}
+              </button>
+            </li>
+          </ul>
+        </div>
+
         <!-- Submission feedback (aria-live region, always rendered) -->
         <div
           class="feedback-region"
@@ -91,13 +124,24 @@
         <!-- Footer actions -->
         <div class="modal-footer flex gap-sm">
           <button
+            v-if="!similarPosts.length || similarChecked"
             class="btn btn-primary"
             :disabled="submitting || !title.trim()"
             :aria-busy="submitting"
             @click="onSubmit"
           >
             <span v-if="submitting" class="spinner spinner-sm" aria-hidden="true"></span>
-            {{ submitting ? 'Publishing...' : 'Publish' }}
+            {{ submitting ? 'Publishing...' : (selectedRef ? 'Publish as variation' : 'Publish') }}
+          </button>
+          <button
+            v-else
+            class="btn btn-primary"
+            :disabled="checking || !title.trim()"
+            :aria-busy="checking"
+            @click="onCheckThenSubmit"
+          >
+            <span v-if="checking" class="spinner spinner-sm" aria-hidden="true"></span>
+            {{ checking ? 'Checking...' : 'Publish' }}
           </button>
           <button class="btn btn-secondary" @click="$emit('close')">
             Cancel
@@ -111,7 +155,7 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useCommunityStore } from '../stores/community'
-import type { PublishPayload } from '../stores/community'
+import type { PublishPayload, SimilarPost, SimilarityTier } from '../stores/community'
 
 const props = defineProps<{
   plan?: {
@@ -135,6 +179,21 @@ const pseudonymName = ref('')
 const submitting = ref(false)
 const submitError = ref<string | null>(null)
 const submitSuccess = ref<string | null>(null)
+
+const checking = ref(false)
+const similarChecked = ref(false)
+const similarPosts = ref<SimilarPost[]>([])
+const selectedRef = ref<string | null>(null)
+
+function tierLabel(tier: SimilarityTier): string {
+  if (tier === 'exact_recipe') return 'Same recipe'
+  if (tier === 'very_similar') return 'Very similar'
+  return 'Similar'
+}
+
+function toggleRef(slug: string) {
+  selectedRef.value = selectedRef.value === slug ? null : slug
+}
 
 const dialogRef = ref<HTMLElement | null>(null)
 const firstFocusRef = ref<HTMLInputElement | null>(null)
@@ -189,6 +248,19 @@ onUnmounted(() => {
   previousFocus?.focus()
 })
 
+async function onCheckThenSubmit() {
+  if (!title.value.trim()) return
+  checking.value = true
+  const planRecipeIds = props.plan?.slots?.map((s) => s.recipe_id) ?? []
+  const firstRecipeId = planRecipeIds[0] ?? null
+  similarPosts.value = await store.checkSimilar(title.value.trim(), firstRecipeId, 'plan')
+  similarChecked.value = true
+  checking.value = false
+  if (!similarPosts.value.length) {
+    await onSubmit()
+  }
+}
+
 async function onSubmit() {
   submitError.value = null
   submitSuccess.value = null
@@ -205,6 +277,7 @@ async function onSubmit() {
   if (props.plan?.slots?.length) {
     payload.slots = props.plan.slots.map(({ day, meal_type, recipe_id }) => ({ day, meal_type, recipe_id }))
   }
+  if (selectedRef.value) payload.similar_to_ref = selectedRef.value
 
   submitting.value = true
   try {
@@ -293,6 +366,82 @@ async function onSubmit() {
   border-top: 1px solid var(--color-border);
   margin-top: var(--spacing-md);
   flex-wrap: wrap;
+}
+
+.similar-panel {
+  background: var(--color-surface-alt, var(--color-surface));
+  border: 1px solid var(--color-warning, #f59e0b);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.similar-heading {
+  margin: 0 0 var(--spacing-sm);
+}
+
+.similar-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.similar-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--spacing-xs);
+  flex-wrap: wrap;
+}
+
+.similar-tier-badge {
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.tier-exact_recipe {
+  background: var(--color-error-bg, #fee2e2);
+  color: var(--color-error, #dc2626);
+}
+
+.tier-very_similar {
+  background: var(--color-warning-bg, #fef3c7);
+  color: var(--color-warning-text, #92400e);
+}
+
+.tier-somewhat_similar {
+  background: var(--color-surface-alt, #f3f4f6);
+  color: var(--color-text-secondary);
+}
+
+.similar-title {
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+}
+
+.similar-by {
+  flex-shrink: 0;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  font-size: var(--font-size-xs);
+  margin-left: auto;
+}
+
+.btn-link.selected-ref {
+  color: var(--color-success);
+  font-weight: 700;
 }
 
 @media (max-width: 480px) {
