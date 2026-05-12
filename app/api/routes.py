@@ -2,6 +2,7 @@ from fastapi import APIRouter
 from app.api.endpoints import health, receipts, export, inventory, ocr, recipes, settings, staples, feedback, feedback_attach, household, saved_recipes, imitate, meal_plans, orch_usage, session, shopping
 from app.api.endpoints.community import router as community_router
 from app.api.endpoints.corrections import router as corrections_router
+from app.api.endpoints.mastodon_oauth import router as mastodon_router
 from app.api.endpoints.recipe_scan import router as recipe_scan_router
 from app.api.endpoints.recipe_tags import router as recipe_tags_router
 
@@ -30,3 +31,4 @@ api_router.include_router(shopping.router,       prefix="/shopping",       tags=
 api_router.include_router(community_router)
 api_router.include_router(recipe_tags_router)
 api_router.include_router(corrections_router,    prefix="/corrections",    tags=["corrections"])
+api_router.include_router(mastodon_router)

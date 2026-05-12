@@ -301,7 +301,41 @@ async def publish_post(body: dict, session: CloudUser = Depends(get_session)):
             status_code=409,
             detail="A post with this title already exists today. Try a different title.",
         ) from exc
-    return _post_to_dict(inserted)
+
+    post_dict = _post_to_dict(inserted)
+
+    # AP delivery + Mastodon post (Paid tier, AP_ENABLED, opted-in)
+    from app.core.config import settings as _settings
+    if _settings.AP_ENABLED and session.tier in ("paid", "premium", "ultra"):
+        from circuitforge_core.activitypub import make_create, make_note, PUBLIC
+        from app.services.ap.keys import get_actor
+        from app.services.ap.delivery import deliver_to_followers
+        _ap_actor = get_actor()
+        if _ap_actor is not None:
+            base = f"https://{_settings.AP_HOST}"
+            from app.api.endpoints.activitypub import _post_to_ap_note
+            _note = _post_to_ap_note(inserted, _ap_actor, base)
+            _activity = make_create(_ap_actor, _note)
+            asyncio.create_task(
+                asyncio.to_thread(
+                    deliver_to_followers, inserted.slug, _activity, session.db
+                )
+            )
+
+        # Mastodon post if user has connected account and opted in
+        if body.get("post_to_mastodon"):
+            from app.services.ap.mastodon import build_post_content, get_token, post_status
+            _masto = await asyncio.to_thread(
+                get_token, session.db, session.user_id, _settings.AP_TOKEN_ENCRYPTION_KEY
+            )
+            if _masto:
+                _masto_url, _masto_token = _masto
+                _content = build_post_content(post_dict)
+                asyncio.create_task(
+                    asyncio.to_thread(post_status, _masto_url, _masto_token, _content)
+                )
+
+    return post_dict
 
 
 @router.delete("/posts/{slug}", status_code=204)

@@ -76,6 +76,17 @@ class Settings:
     # runs don't pollute session counts.  Set to the Directus UUID of the test user.
     E2E_TEST_USER_ID: str | None = os.environ.get("E2E_TEST_USER_ID") or None
 
+    # ActivityPub federation (optional; disabled by default)
+    AP_ENABLED: bool = os.environ.get("AP_ENABLED", "false").lower() in ("1", "true", "yes")
+    AP_HOST: str = os.environ.get("AP_HOST", "")          # e.g. kiwi.circuitforge.tech
+    CLOUD_DATA_ROOT: Path = Path(os.environ.get("CLOUD_DATA_ROOT", "/devl/kiwi-cloud-data"))
+    AP_KEY_PATH: Path = Path(
+        os.environ.get("AP_KEY_PATH", str(CLOUD_DATA_ROOT / "ap_keys" / "instance.pem"))
+    )
+    # Fernet key for Mastodon access token encryption (base64-urlsafe, 32 bytes)
+    # Leave unset to skip encryption (dev only)
+    AP_TOKEN_ENCRYPTION_KEY: str | None = os.environ.get("AP_TOKEN_ENCRYPTION_KEY") or None
+
     # Feature flags
     ENABLE_OCR: bool = os.environ.get("ENABLE_OCR", "false").lower() in ("1", "true", "yes")
     # Use OrchestratedScheduler (coordinator-aware, multi-GPU fan-out) instead of

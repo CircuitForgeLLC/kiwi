@@ -43,6 +43,11 @@ async def _browse_counts_refresh_loop(corpus_path: str) -> None:
 async def lifespan(app: FastAPI):
     logger.info("Starting Kiwi API...")
     settings.ensure_dirs()
+
+    # Run DB migrations at startup (ensures all tables exist before any request)
+    from app.db.store import Store
+    _s = Store(settings.DB_PATH)
+    _s.close()
     register_kiwi_programs()
 
     # Start LLM background task scheduler
@@ -53,6 +58,14 @@ async def lifespan(app: FastAPI):
     # Initialize community store (no-op if COMMUNITY_DB_URL is not set)
     from app.api.endpoints.community import init_community_store
     init_community_store(settings.COMMUNITY_DB_URL)
+
+    # Initialize ActivityPub instance actor (no-op when AP_ENABLED=false)
+    if settings.AP_ENABLED and settings.AP_HOST:
+        try:
+            from app.services.ap.keys import init_actor
+            init_actor(host=settings.AP_HOST, key_path=settings.AP_KEY_PATH)
+        except Exception as _ap_exc:
+            logger.warning("AP init failed (AP features disabled): %s", _ap_exc)
 
     # Browse counts cache — warm in-memory cache from disk, refresh if stale.
     # Uses the corpus path the store will attach to at request time.
@@ -100,6 +113,11 @@ app.add_middleware(
 )
 
 app.include_router(api_router, prefix=settings.API_PREFIX)
+
+# AP endpoints: WebFinger at root (not under /api/v1), AP objects under /ap
+from app.api.endpoints.activitypub import ap_router, webfinger_router
+app.include_router(webfinger_router)
+app.include_router(ap_router)
 
 
 @app.get("/")
