@@ -32,6 +32,29 @@ def _try_docuvision(image_path: str | Path) -> str | None:
     cf_orch_url = os.environ.get("CF_ORCH_URL")
     if not cf_orch_url:
         return None
+
+    # Tier 1: task-based routing — coordinator owns model selection.
+    try:
+        from app.services.task_inference import task_allocate, TaskNotRegistered
+        from app.services.ocr.docuvision_client import DocuvisionClient
+        try:
+            with task_allocate(
+                "kiwi", "ocr",
+                service_hint="cf-docuvision",
+                ttl_s=60.0,
+            ) as alloc:
+                doc_client = DocuvisionClient(alloc.url)
+                result = doc_client.extract_text(image_path)
+                return result.text if result.text else None
+        except TaskNotRegistered:
+            logger.debug(
+                "kiwi.ocr not in coordinator assignments — "
+                "falling back to direct cf-docuvision allocation"
+            )
+    except Exception as exc:
+        logger.debug("task allocation path failed, trying direct allocate: %s", exc)
+
+    # Tier 2: direct allocation — hardcoded service type.
     try:
         from circuitforge_orch.client import CFOrchClient
         from app.services.ocr.docuvision_client import DocuvisionClient
@@ -49,7 +72,7 @@ def _try_docuvision(image_path: str | Path) -> str | None:
             result = doc_client.extract_text(image_path)
             return result.text if result.text else None
     except Exception as exc:
-        logger.debug("cf-docuvision fast-path failed, falling back: %s", exc)
+        logger.debug("cf-docuvision fast-path failed, falling back to local VLM: %s", exc)
         return None
 
 
