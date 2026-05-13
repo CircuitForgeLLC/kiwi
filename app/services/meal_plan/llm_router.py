@@ -125,6 +125,7 @@ def get_meal_plan_router():
                 alloc = ctx.__enter__()
                 if alloc is not None:
                     return _OrchTextRouter(alloc.url), ctx
+                ctx.__exit__(None, None, None)  # release allocation before falling through
             except Exception as exc:
                 logger.debug("cf-orch cf-text allocation failed, falling back to LLMRouter: %s", exc)
 

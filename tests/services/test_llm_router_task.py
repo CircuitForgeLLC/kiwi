@@ -80,3 +80,48 @@ def test_no_cf_orch_url_returns_llm_router(monkeypatch):
         router, ctx = get_meal_plan_router()
 
     assert router is mock_lr
+
+
+def test_tier1_general_exception_falls_back_to_direct_allocate(monkeypatch):
+    """get_meal_plan_router() falls back to direct allocation when task_allocate raises RuntimeError."""
+    monkeypatch.setenv("CF_ORCH_URL", "http://coord:7700")
+    direct_ctx = _make_direct_alloc_ctx(url="http://node:9003")
+
+    import unittest.mock as um
+    failing_ctx = MagicMock()
+    failing_ctx.__enter__ = MagicMock(side_effect=RuntimeError("coordinator down"))
+    failing_ctx.__exit__ = MagicMock(return_value=False)
+
+    with um.patch("app.services.meal_plan.llm_router.task_allocate",
+                  return_value=failing_ctx), \
+         um.patch("app.services.meal_plan.llm_router.CFOrchClient") as MockClient:
+        MockClient.return_value.allocate.return_value = direct_ctx
+        from app.services.meal_plan.llm_router import get_meal_plan_router, _OrchTextRouter
+        router, ctx = get_meal_plan_router()
+
+    assert isinstance(router, _OrchTextRouter)
+    assert router._base_url == "http://node:9003"
+
+
+def test_tier2_none_alloc_releases_ctx_and_falls_through(monkeypatch):
+    """get_meal_plan_router() releases Tier 2 ctx and falls through when alloc is None."""
+    monkeypatch.setenv("CF_ORCH_URL", "http://coord:7700")
+
+    import unittest.mock as um
+
+    none_alloc_ctx = MagicMock()
+    none_alloc_ctx.__enter__ = MagicMock(return_value=None)
+    none_alloc_ctx.__exit__ = MagicMock(return_value=False)
+
+    mock_lr = MagicMock()
+
+    with um.patch("app.services.meal_plan.llm_router.task_allocate",
+                  return_value=_make_task_ctx_not_registered()), \
+         um.patch("app.services.meal_plan.llm_router.CFOrchClient") as MockClient, \
+         um.patch("app.services.meal_plan.llm_router.LLMRouter", return_value=mock_lr):
+        MockClient.return_value.allocate.return_value = none_alloc_ctx
+        from app.services.meal_plan.llm_router import get_meal_plan_router
+        router, ctx = get_meal_plan_router()
+
+    assert router is mock_lr
+    none_alloc_ctx.__exit__.assert_called_once_with(None, None, None)
