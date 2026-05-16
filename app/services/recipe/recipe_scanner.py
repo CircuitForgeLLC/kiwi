@@ -196,34 +196,63 @@ def _call_via_local_vlm(image_paths: list[Path], prompt: str) -> str:
     return output
 
 
+def _build_ocr_extraction_prompt(ocr_text: str) -> str:
+    """Build a text-LLM prompt for structuring OCR output into recipe JSON.
+
+    Swaps the image-centric preamble of _EXTRACTION_PROMPT for an OCR-centric
+    one, then appends the combined OCR text as input. The JSON schema section
+    is shared verbatim to keep the two paths in sync.
+    """
+    schema_idx = _EXTRACTION_PROMPT.find("Return a single JSON object")
+    schema_part = _EXTRACTION_PROMPT[schema_idx:] if schema_idx != -1 else _EXTRACTION_PROMPT
+    return (
+        "You are extracting a recipe from OCR text taken from a recipe card, "
+        "cookbook page, or handwritten note.\n\n"
+        "The text below was obtained via optical character recognition and may "
+        "contain minor scanning artifacts or formatting irregularities.\n\n"
+        f"{schema_part}\n\nOCR Text:\n{ocr_text}"
+    )
+
+
 def _call_vision_backend(image_paths: list[Path], prompt: str) -> str:
     """Dispatch to the best available vision backend.
 
-    Priority: cf-orch vision -> local Qwen2.5-VL -> Anthropic API.
+    Priority: cf-orch docuvision (OCR + text LLM) -> local Qwen2.5-VL -> Anthropic API.
     Raises RuntimeError with a clear message when no backend is available.
     """
     errors: list[str] = []
 
-    # 1. Try cf-orch vision allocation
+    # 1. Try cf-orch task allocation → cf-docuvision OCR, then text LLM structuring.
+    #    Two-step: docuvision extracts text from the image(s), then LLMRouter
+    #    converts the OCR text to structured recipe JSON using the extraction prompt.
     cf_orch_url = os.environ.get("CF_ORCH_URL")
     if cf_orch_url:
         try:
-            from circuitforge_orch.client import CFOrchClient
+            from app.services.task_inference import TaskNotRegistered, task_allocate
             from app.services.ocr.docuvision_client import DocuvisionClient
+            from circuitforge_core.llm.router import LLMRouter
 
-            client = CFOrchClient(cf_orch_url)
-            with client.allocate(
-                service="cf-vision",
-                model_candidates=["qwen2.5-vl-7b", "cf-docuvision"],
-                ttl_s=90.0,
-                caller="kiwi-recipe-scan",
-            ) as alloc:
-                if alloc is not None:
+            try:
+                with task_allocate("kiwi", "recipe_scan", service_hint="cf-docuvision", ttl_s=120.0) as alloc:
+                    # Step 1: OCR each image via cf-docuvision
                     doc_client = DocuvisionClient(alloc.url)
-                    # docuvision takes a single image -- use first image only for now
-                    result = doc_client.extract_text(image_paths[0])
-                    if result.text:
-                        return result.text
+                    ocr_parts: list[str] = []
+                    for i, path in enumerate(image_paths):
+                        result = doc_client.extract_text(path, hint="text")
+                        prefix = f"(Page {i + 1} of the same recipe)\n" if len(image_paths) > 1 else ""
+                        ocr_parts.append(f"{prefix}{result.text}")
+                    combined_ocr = "\n\n".join(ocr_parts)
+
+                    if not combined_ocr.strip():
+                        raise ValueError("Docuvision returned no text — image may not be a recipe")
+
+                    # Step 2: Text LLM structures OCR output into recipe JSON
+                    text = LLMRouter().complete(_build_ocr_extraction_prompt(combined_ocr))
+                    if text:
+                        return text
+
+            except TaskNotRegistered:
+                logger.debug("kiwi.recipe_scan not yet registered in cf-orch assignments")
         except Exception as exc:
             logger.debug("cf-orch vision failed for recipe scan: %s", exc)
             errors.append(f"cf-orch: {exc}")

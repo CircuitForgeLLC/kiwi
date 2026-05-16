@@ -17,12 +17,17 @@ from app.services.ocr.docuvision_client import DocuvisionClient, DocuvisionResul
 
 
 def test_extract_text_sends_base64_image(tmp_path: Path) -> None:
-    """extract_text() POSTs a base64-encoded image and returns parsed text."""
+    """extract_text() POSTs image_b64 and returns parsed raw_text."""
     image_file = tmp_path / "test.jpg"
     image_file.write_bytes(b"fake-image-bytes")
 
     mock_response = MagicMock()
-    mock_response.json.return_value = {"text": "Cheerios", "confidence": 0.95}
+    mock_response.json.return_value = {
+        "raw_text": "Cheerios",
+        "elements": [],
+        "tables": [],
+        "metadata": {"hint": "text", "confidence": 0.95},
+    }
     mock_response.raise_for_status.return_value = None
 
     with patch("httpx.Client") as mock_client_cls:
@@ -41,7 +46,8 @@ def test_extract_text_sends_base64_image(tmp_path: Path) -> None:
     assert call_kwargs[0][0] == "http://docuvision:8080/extract"
     posted_json = call_kwargs[1]["json"]
     expected_b64 = base64.b64encode(b"fake-image-bytes").decode()
-    assert posted_json["image"] == expected_b64
+    assert posted_json["image_b64"] == expected_b64
+    assert posted_json["hint"] == "text"
 
 
 def test_extract_text_raises_on_http_error(tmp_path: Path) -> None:
