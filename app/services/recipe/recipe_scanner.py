@@ -21,6 +21,7 @@ import json
 import logging
 import os
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -214,12 +215,26 @@ def _build_ocr_extraction_prompt(ocr_text: str) -> str:
     )
 
 
-def _call_vision_backend(image_paths: list[Path], prompt: str) -> str:
+def _call_vision_backend(
+    image_paths: list[Path],
+    prompt: str,
+    progress_cb: "Callable[[str, str], None] | None" = None,
+) -> str:
     """Dispatch to the best available vision backend.
 
     Priority: cf-orch docuvision (OCR + text LLM) -> local Qwen2.5-VL -> Anthropic API.
     Raises RuntimeError with a clear message when no backend is available.
+
+    Args:
+        image_paths: Images to process.
+        prompt: Extraction prompt (used by local VLM / Anthropic paths).
+        progress_cb: Optional callback(status, message) for SSE progress events.
+                     Called synchronously from the thread — caller bridges to async.
     """
+    def _progress(status: str, message: str) -> None:
+        if progress_cb:
+            progress_cb(status, message)
+
     errors: list[str] = []
 
     # 1. Try cf-orch task allocation → cf-docuvision OCR, then text LLM structuring.
@@ -233,8 +248,10 @@ def _call_vision_backend(image_paths: list[Path], prompt: str) -> str:
             from circuitforge_core.llm.router import LLMRouter
 
             try:
+                _progress("allocating", "Starting vision service...")
                 with task_allocate("kiwi", "recipe_scan", service_hint="cf-docuvision", ttl_s=120.0) as alloc:
                     # Step 1: OCR each image via cf-docuvision
+                    _progress("scanning", "Extracting recipe text from photo...")
                     doc_client = DocuvisionClient(alloc.url)
                     ocr_parts: list[str] = []
                     for i, path in enumerate(image_paths):
@@ -247,6 +264,7 @@ def _call_vision_backend(image_paths: list[Path], prompt: str) -> str:
                         raise ValueError("Docuvision returned no text — image may not be a recipe")
 
                     # Step 2: Text LLM structures OCR output into recipe JSON
+                    _progress("structuring", "Parsing recipe structure...")
                     text = LLMRouter().complete(_build_ocr_extraction_prompt(combined_ocr))
                     if text:
                         return text
@@ -379,6 +397,7 @@ class RecipeScanner:
         self,
         image_paths: list[Path],
         pantry_names: list[str] | None = None,
+        progress_cb: Callable[[str, str], None] | None = None,
     ) -> ScannedRecipeResult:
         """Extract a structured recipe from one or more photos.
 
@@ -400,7 +419,7 @@ class RecipeScanner:
             raise ValueError(f"Maximum {MAX_IMAGES} images per scan (got {len(image_paths)})")
 
         # Call vision backend
-        raw_text = _call_vision_backend(image_paths, _EXTRACTION_PROMPT)
+        raw_text = _call_vision_backend(image_paths, _EXTRACTION_PROMPT, progress_cb=progress_cb)
 
         # Parse JSON from VLM output
         data = _parse_scanner_json(raw_text)

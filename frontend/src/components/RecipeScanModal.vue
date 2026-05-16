@@ -112,8 +112,8 @@
             <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
             <circle cx="12" cy="13" r="4"/>
           </svg>
-          <p class="processing-label">Extracting recipe from {{ selectedFiles.length > 1 ? selectedFiles.length + ' photos' : 'photo' }}...</p>
-          <p class="processing-sub">This can take 10-30 seconds.</p>
+          <p class="processing-label">{{ scanStatusMessage }}</p>
+          <p class="processing-sub">This can take up to a minute on first use.</p>
         </div>
       </div>
 
@@ -329,13 +329,18 @@ function removeFile(index: number) {
 
 // ── Scan ──────────────────────────────────────────────────────────────────────
 const extracted = ref<ScannedRecipe | null>(null)
+const scanStatusMessage = ref('Uploading photos...')
 
 async function startScan() {
   if (selectedFiles.value.length === 0) return
   uploadError.value = ''
+  scanStatusMessage.value = 'Uploading photos...'
   phase.value = 'processing'
   try {
-    const result = await recipeScanAPI.scan(selectedFiles.value)
+    const result = await recipeScanAPI.scanStream(
+      selectedFiles.value,
+      (_status: string, message: string) => { scanStatusMessage.value = message },
+    )
     extracted.value = result
     initEditState(result)
     phase.value = 'review'

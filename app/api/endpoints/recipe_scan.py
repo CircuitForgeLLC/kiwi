@@ -11,6 +11,7 @@ BSL 1.1 -- recipe_scan requires Paid tier or BYOK.
 from __future__ import annotations
 
 import asyncio
+import json as _json
 import logging
 import uuid
 from pathlib import Path
@@ -18,7 +19,7 @@ from typing import Annotated
 
 import aiofiles
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.cloud_session import CloudUser, get_session
 from app.core.config import settings
@@ -168,9 +169,15 @@ async def scan_recipe(
                 )
             raise HTTPException(status_code=422, detail=msg)
         except RuntimeError as exc:
+            msg = str(exc)
+            logger.warning("Recipe scanner unavailable: %s", msg)
             raise HTTPException(
                 status_code=503,
-                detail=str(exc),
+                detail=(
+                    "The recipe scanner is temporarily unavailable — "
+                    "no vision backend could be reached. "
+                    "Try again in a few minutes, or contact support if this persists."
+                ),
             )
 
         return _result_to_response(result)
@@ -182,6 +189,114 @@ async def scan_recipe(
                 p.unlink(missing_ok=True)
             except Exception:
                 pass
+
+
+# ── SSE scan endpoint ─────────────────────────────────────────────────────────
+
+async def _scan_recipe_sse(saved_paths: list[Path], pantry_names: list[str]):
+    """Async generator yielding SSE events for a recipe scan.
+
+    Emits progress events while the vision service allocates and runs, then a
+    final "done" event containing the full recipe payload (same shape as the
+    ScannedRecipeResponse from POST /scan).
+
+    Events:
+      {"status": "allocating", "message": "..."}
+      {"status": "scanning",   "message": "..."}
+      {"status": "structuring","message": "..."}
+      {"status": "done",       "recipe": {...}}
+      {"status": "error",      "message": "..."}
+    """
+    queue: asyncio.Queue = asyncio.Queue()
+    loop = asyncio.get_running_loop()
+
+    def _run() -> None:
+        def cb(status: str, message: str) -> None:
+            loop.call_soon_threadsafe(queue.put_nowait, {"status": status, "message": message})
+        try:
+            from app.services.recipe.recipe_scanner import RecipeScanner
+            result = RecipeScanner().scan(saved_paths, pantry_names=pantry_names, progress_cb=cb)
+            recipe_dict = _result_to_response(result).model_dump()
+            loop.call_soon_threadsafe(queue.put_nowait, {"status": "done", "recipe": recipe_dict})
+        except ValueError as exc:
+            loop.call_soon_threadsafe(queue.put_nowait, {"status": "error", "message": str(exc)})
+        except RuntimeError as exc:
+            loop.call_soon_threadsafe(queue.put_nowait, {"status": "error", "message": str(exc)})
+        except Exception as exc:
+            logger.exception("Unexpected error in recipe scan thread")
+            loop.call_soon_threadsafe(queue.put_nowait, {"status": "error", "message": "Scan failed unexpectedly."})
+
+    scan_task = asyncio.ensure_future(asyncio.to_thread(_run))
+    try:
+        while True:
+            try:
+                event = await asyncio.wait_for(queue.get(), timeout=180.0)
+            except asyncio.TimeoutError:
+                yield f"data: {_json.dumps({'status': 'error', 'message': 'Scan timed out after 3 minutes.'})}\n\n"
+                break
+            yield f"data: {_json.dumps(event)}\n\n"
+            if event["status"] in ("done", "error"):
+                break
+    finally:
+        if not scan_task.done():
+            scan_task.cancel()
+
+
+@router.post("/scan/stream")
+async def scan_recipe_stream(
+    files: Annotated[list[UploadFile], File(...)],
+    store: Store = Depends(get_store),
+    session: CloudUser = Depends(get_session),
+):
+    """Scan recipe photos and stream SSE progress events during model load.
+
+    Use this endpoint instead of POST /scan when you need live feedback during
+    cold-start model loading (first request after a GPU-idle period can take
+    30-60 seconds for cf-docuvision to warm up).
+
+    Tier: Paid (or BYOK) — same gate as POST /scan.
+    """
+    if not can_use("recipe_scan", session.tier, session.has_byok):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Recipe scanning requires Paid tier or a configured vision backend (BYOK). "
+                "Set ANTHROPIC_API_KEY or connect to a cf-orch vision service."
+            ),
+        )
+
+    if not files:
+        raise HTTPException(status_code=422, detail="At least one image file is required.")
+    if len(files) > 4:
+        raise HTTPException(status_code=422, detail="Maximum 4 images per scan request.")
+
+    for f in files:
+        ct = (f.content_type or "").lower()
+        if ct and ct not in _ALLOWED_MIME_TYPES:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Unsupported file type: {ct}. Supported: JPEG, PNG, WebP, HEIC.",
+            )
+
+    saved_paths: list[Path] = []
+    for f in files:
+        saved_paths.append(await _save_upload_temp(f))
+
+    inventory = await asyncio.to_thread(store.list_inventory)
+    pantry_names = [item["product_name"] for item in inventory if item.get("product_name")]
+
+    async def generate():
+        try:
+            async for chunk in _scan_recipe_sse(saved_paths, pantry_names):
+                yield chunk
+        finally:
+            for p in saved_paths:
+                try:
+                    p.unlink(missing_ok=True)
+                except Exception:
+                    pass
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 
 # ── Save endpoint ──────────────────────────────────────────────────────────────

@@ -1326,6 +1326,56 @@ export const recipeScanAPI = {
     }).then((r) => r.data)
   },
 
+  /** Scan recipe photos with live SSE progress events.
+   *
+   * Calls onProgress(status, message) for each intermediate event
+   * ("allocating", "scanning", "structuring"), then resolves with the final
+   * ScannedRecipe on success. Rejects on error or timeout.
+   */
+  async scanStream(
+    files: File[],
+    onProgress: (status: string, message: string) => void,
+  ): Promise<ScannedRecipe> {
+    const form = new FormData()
+    files.forEach((f) => form.append('files', f))
+
+    const response = await fetch(`${API_BASE_URL}/recipes/scan/stream`, {
+      method: 'POST',
+      body: form,
+    })
+
+    if (!response.ok || !response.body) {
+      let detail = ''
+      try { detail = await response.text() } catch (_) { /* ignore */ }
+      throw new Error(detail || `Scan failed (${response.status})`)
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() ?? ''
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue
+        let data: Record<string, unknown>
+        try { data = JSON.parse(line.slice(6)) } catch { continue }
+
+        if (data.status === 'done') return data.recipe as ScannedRecipe
+        if (data.status === 'error') throw new Error((data.message as string) || 'Scan failed')
+        onProgress(data.status as string, data.message as string)
+      }
+    }
+
+    throw new Error('Stream ended without a result')
+  },
+
   /** Save a reviewed/edited scanned recipe to user_recipes. */
   saveScanned(recipe: Omit<ScannedRecipe, 'pantry_match_pct' | 'confidence' | 'warnings'> & { source?: string }): Promise<UserRecipe> {
     return api.post('/recipes/scan/save', recipe).then((r) => r.data)
