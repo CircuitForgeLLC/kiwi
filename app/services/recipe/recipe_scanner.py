@@ -266,18 +266,32 @@ def _call_vision_backend(
 
     errors: list[str] = []
 
-    # 1. Try cf-orch task allocation → Qwen2-VL GGUF on cf-text (direct multimodal extraction).
-    #    One-step: the VLM receives the image(s) directly and returns structured recipe JSON.
+    # 1. Try cf-orch task allocation → cf-docuvision (Qwen2-VL GGUF via llama.cpp).
+    #    Two-step: docuvision OCRs the image(s), then LLMRouter structures the text into JSON.
     cf_orch_url = os.environ.get("CF_ORCH_URL")
     if cf_orch_url:
         try:
             from app.services.task_inference import TaskNotRegistered, task_allocate
+            from app.services.ocr.docuvision_client import DocuvisionClient
+            from circuitforge_core.llm.router import LLMRouter
 
             try:
                 _progress("allocating", "Starting vision service...")
-                with task_allocate("kiwi", "recipe_scan", service_hint="cf-text", ttl_s=120.0) as alloc:
-                    _progress("scanning", "Extracting recipe from photo...")
-                    text = _call_via_cf_text_vlm(alloc.url, image_paths, prompt)
+                with task_allocate("kiwi", "recipe_scan", service_hint="cf-docuvision", ttl_s=120.0) as alloc:
+                    _progress("scanning", "Extracting recipe text from photo...")
+                    doc_client = DocuvisionClient(alloc.url)
+                    ocr_parts: list[str] = []
+                    for i, path in enumerate(image_paths):
+                        result = doc_client.extract_text(path, hint="text")
+                        prefix = f"(Page {i + 1} of the same recipe)\n" if len(image_paths) > 1 else ""
+                        ocr_parts.append(f"{prefix}{result.text}")
+                    combined_ocr = "\n\n".join(ocr_parts)
+
+                    if not combined_ocr.strip():
+                        raise ValueError("Docuvision returned no text — image may not be a recipe")
+
+                    _progress("structuring", "Parsing recipe structure...")
+                    text = LLMRouter().complete(_build_ocr_extraction_prompt(combined_ocr))
                     if text:
                         return text
 
