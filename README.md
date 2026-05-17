@@ -8,7 +8,7 @@
 
   [![License: MIT/BSL](https://img.shields.io/badge/license-MIT%20%2F%20BSL%201.1-blue)](#license)
   [![CI](https://git.opensourcesolarpunk.com/Circuit-Forge/kiwi/badges/workflows/ci.yml/badge.svg)](https://git.opensourcesolarpunk.com/Circuit-Forge/kiwi/actions)
-  [![Version](https://img.shields.io/badge/version-0.5.0--beta-green)](https://git.opensourcesolarpunk.com/Circuit-Forge/kiwi/releases)
+  [![Version](https://img.shields.io/badge/version-0.6.0-green)](https://git.opensourcesolarpunk.com/Circuit-Forge/kiwi/releases)
 
   [Documentation](https://docs.circuitforge.tech/kiwi) · [Live demo](https://menagerie.circuitforge.tech/kiwi) · [circuitforge.tech](https://circuitforge.tech)
 
