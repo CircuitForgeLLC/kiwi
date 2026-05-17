@@ -65,8 +65,23 @@ class Settings:
     # Quality
     MIN_QUALITY_SCORE: float = float(os.environ.get("MIN_QUALITY_SCORE", "50.0"))
 
-    # CF-core resource coordinator (VRAM lease management)
+    # CF-core resource coordinator (VRAM lease management — lease broker, not inference)
     COORDINATOR_URL: str = os.environ.get("COORDINATOR_URL", "http://localhost:7700")
+
+    # GPU inference server URL
+    # Priority: GPU_SERVER_URL env var → CF_ORCH_URL env var (backward compat)
+    #           → https://orch.circuitforge.tech when CF_LICENSE_KEY is present (Paid+)
+    # Resolved value is written back to os.environ["CF_ORCH_URL"] at startup so
+    # all service-layer callers that read CF_ORCH_URL directly see the right URL.
+    GPU_SERVER_URL: str | None = (
+        os.environ.get("GPU_SERVER_URL")
+        or os.environ.get("CF_ORCH_URL")
+        or (
+            "https://orch.circuitforge.tech"
+            if os.environ.get("CF_LICENSE_KEY")
+            else None
+        )
+    )
 
     # Hosted cf-orch coordinator — bearer token for managed cloud GPU inference (Paid+)
     # CFOrchClient reads CF_LICENSE_KEY automatically; exposed here for startup validation.
@@ -108,3 +123,9 @@ class Settings:
 
 
 settings = Settings()
+
+# Normalise GPU_SERVER_URL into CF_ORCH_URL so every service-layer caller that
+# reads os.environ.get("CF_ORCH_URL") sees the resolved value, including the
+# Paid+ cloud default injected above.
+if settings.GPU_SERVER_URL:
+    os.environ["CF_ORCH_URL"] = settings.GPU_SERVER_URL
