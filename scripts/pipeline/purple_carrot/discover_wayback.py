@@ -31,7 +31,7 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-CDX_BASE = "http://web.archive.org/cdx/search/cdx"
+CDX_BASE = "https://web.archive.org/cdx/search/cdx"
 WB_BASE = "https://web.archive.org/web"
 PC_HOST = "www.purplecarrot.com"
 
@@ -290,6 +290,9 @@ def main() -> None:
         level=logging.DEBUG if args.debug else logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
+
+    from scripts.pipeline.log_utils import attach_pipeline_log
+    attach_pipeline_log("discover_wayback")
 
     discover(args.out)
 

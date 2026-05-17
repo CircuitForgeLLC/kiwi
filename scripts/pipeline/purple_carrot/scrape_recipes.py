@@ -37,12 +37,12 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-CDX_BASE = "http://web.archive.org/cdx/search/cdx"
+CDX_BASE = "https://web.archive.org/cdx/search/cdx"
 WB_BASE = "https://web.archive.org/web"
 PC_HOST = "www.purplecarrot.com"
 
-REPLAY_DELAY = 1.2
-CDX_DELAY = 0.5
+REPLAY_DELAY = 2.0
+CDX_DELAY = 3.0    # archive.org CDX rate-limits aggressively; be polite
 
 DEFAULT_SLUGS = Path("/Library/Assets/kiwi/pipeline/pc_slugs.jsonl")
 DEFAULT_OUT = Path("/Library/Assets/kiwi/pipeline/recipes_purplecarrot.parquet")
@@ -54,29 +54,41 @@ _REDUX_STATE_RE = re.compile(r'window\.__INITIAL_STATE__\s*=\s*(\{.*?\});\s*\n',
 
 # ── Wayback helpers ───────────────────────────────────────────────────────────
 
+def _cdx_get(params: dict) -> list:
+    """CDX request with retry on 429/503 (archive.org rate-limits aggressively)."""
+    for attempt in range(4):
+        try:
+            resp = requests.get(CDX_BASE, params=params, timeout=25)
+            if resp.status_code in (429, 503):
+                wait = 15 * (2 ** attempt)
+                logger.debug("CDX %s — backing off %ds", resp.status_code, wait)
+                time.sleep(wait)
+                continue
+            resp.raise_for_status()
+            rows = resp.json()
+            return rows if rows else []
+        except Exception as exc:
+            logger.debug("CDX attempt %d failed: %s", attempt + 1, exc)
+            time.sleep(5 * (attempt + 1))
+    return []
+
+
 def _cdx_timestamps(slug: str) -> list[str]:
-    """Return all captured timestamps for a product slug, oldest first."""
-    url = f"{PC_HOST}/api/v1/products/{slug}"
-    try:
-        resp = requests.get(
-            CDX_BASE,
-            params={
-                "url": url,
-                "output": "json",
-                "fl": "timestamp,statuscode",
-                "filter": "statuscode:200",
-                "limit": "20",
-            },
-            timeout=20,
-        )
-        resp.raise_for_status()
-        rows = resp.json()
-        if len(rows) < 2:
-            return []
-        return [row[0] for row in rows[1:]]  # timestamps only, oldest first
-    except Exception as exc:
-        logger.debug("CDX timestamps failed for %s: %s", slug, exc)
+    """Return captured timestamps for a product slug, oldest first (pre-2022 window)."""
+    rows = _cdx_get({
+        "url": f"{PC_HOST}/api/v1/products/{slug}",
+        "output": "json",
+        "fl": "timestamp,statuscode",
+        "filter": "statuscode:200",
+        "limit": "20",
+        # Pre-HelloFresh-acquisition captures (2019-2021) are most likely
+        # to have full instructions — API stripped them post-acquisition.
+        "from": "20190101",
+        "to": "20211231",
+    })
+    if len(rows) < 2:
         return []
+    return [row[0] for row in rows[1:]]  # timestamps only, oldest first
 
 
 def _wayback_json(url: str, timestamp: str) -> Any | None:
@@ -172,6 +184,9 @@ def _extract_from_api(data: dict) -> dict | None:
     description = sku.get("description") or ""
 
     images = sku.get("hero_images") or sku.get("image_versions") or []
+    # hero_images can be a list OR a dict keyed by size string — normalise to list
+    if isinstance(images, dict):
+        images = list(images.values())
     image_url = ""
     if images and isinstance(images[0], dict):
         image_url = images[0].get("image_url") or images[0].get("url") or ""
@@ -319,23 +334,14 @@ def fetch_recipe(slug: str, manifest_meta: dict) -> dict | None:
 
     # HTML fallback when API has no steps/ingredients
     if not recipe or not recipe.get("has_full_recipe"):
-        html_cdx_url = f"{PC_HOST}/recipe/{slug}"
-        try:
-            html_resp = requests.get(
-                CDX_BASE,
-                params={
-                    "url": html_cdx_url,
-                    "output": "json",
-                    "fl": "timestamp,statuscode",
-                    "filter": "statuscode:200",
-                    "limit": "5",
-                },
-                timeout=20,
-            )
-            html_ts_rows = html_resp.json() if html_resp.ok else []
-            html_timestamps = [row[0] for row in html_ts_rows[1:]] if len(html_ts_rows) > 1 else []
-        except Exception:
-            html_timestamps = []
+        html_ts_rows = _cdx_get({
+            "url": f"{PC_HOST}/recipe/{slug}",
+            "output": "json",
+            "fl": "timestamp,statuscode",
+            "filter": "statuscode:200",
+            "limit": "10",
+        })
+        html_timestamps = [row[0] for row in html_ts_rows[1:]] if len(html_ts_rows) > 1 else []
         time.sleep(CDX_DELAY)
 
         for ts in html_timestamps:
@@ -521,6 +527,9 @@ def main() -> None:
         level=logging.DEBUG if args.debug else logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
+
+    from scripts.pipeline.log_utils import attach_pipeline_log
+    attach_pipeline_log("scrape_recipes")
 
     scrape(args.slugs, args.out, resume=args.resume)
 
