@@ -291,7 +291,10 @@ def _call_vision_backend(
                         raise ValueError("Docuvision returned no text — image may not be a recipe")
 
                     _progress("structuring", "Parsing recipe structure...")
-                    text = LLMRouter().complete(_build_ocr_extraction_prompt(combined_ocr))
+                    text = LLMRouter().complete(
+                        _build_ocr_extraction_prompt(combined_ocr),
+                        system="You are a recipe data extractor. Return ONLY valid JSON. No markdown, no explanation, no code fences.",
+                    )
                     if text:
                         return text
 
@@ -329,40 +332,76 @@ def _normalize_ingredient_name(name: str) -> str:
     return name.lower().strip()
 
 
+def _extract_json_object(text: str) -> str | None:
+    """Return the first balanced JSON object from text, or None if not found.
+
+    Uses brace-counting rather than a greedy regex so trailing prose and
+    nested objects are handled correctly.
+    """
+    start = text.find("{")
+    if start == -1:
+        return None
+    depth = 0
+    in_string = False
+    escape_next = False
+    for i, ch in enumerate(text[start:], start):
+        if escape_next:
+            escape_next = False
+            continue
+        if ch == "\\" and in_string:
+            escape_next = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : i + 1]
+    return None
+
+
 def _parse_scanner_json(raw_text: str) -> dict:
     """Extract and return the JSON dict from VLM output.
 
     Handles:
     - Pure JSON
-    - JSON wrapped in ```json ... ``` markdown fences
-    - JSON preceded by a line of prose ("Here is the recipe: {...}")
+    - JSON in ```json ... ``` markdown fences
+    - Qwen3-style <think>...</think> or <thinking>...</thinking> preambles
+    - JSON preceded or followed by prose
 
     Raises ValueError on not_a_recipe or unparseable output.
     """
     text = raw_text.strip()
 
-    # Strip markdown fences if present
-    if text.startswith("```"):
-        parts = text.split("```")
-        for part in parts:
-            part = part.strip()
-            if part.startswith("json"):
-                part = part[4:].strip()
-            if part.startswith("{"):
-                text = part
-                break
+    # Strip thinking-token blocks emitted by reasoning models (Qwen3, DeepSeek-R1, etc.)
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL | re.IGNORECASE).strip()
+    text = re.sub(r"<thinking>.*?</thinking>", "", text, flags=re.DOTALL | re.IGNORECASE).strip()
 
-    # Try direct parse first
+    # Strip markdown fences if present
+    if "```" in text:
+        # Find the content between the first ``` pair
+        fence_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
+        if fence_match:
+            text = fence_match.group(1).strip()
+
+    # Try direct parse
     try:
         data = json.loads(text)
     except json.JSONDecodeError:
-        # Extract first JSON object embedded in prose
-        match = re.search(r"\{.*\}", text, re.DOTALL)
-        if not match:
+        # Fall back to brace-balanced extraction from anywhere in the output
+        candidate = _extract_json_object(text)
+        if not candidate:
+            logger.warning("Could not parse JSON from LLM output (first 400 chars): %r", text[:400])
             raise ValueError(f"Could not parse JSON from VLM output: {text[:200]!r}")
         try:
-            data = json.loads(match.group(0))
+            data = json.loads(candidate)
         except json.JSONDecodeError as exc:
+            logger.warning("Brace-extracted JSON still invalid: %r", candidate[:400])
             raise ValueError(f"Could not parse JSON from VLM output: {exc}") from exc
 
     if isinstance(data, dict) and data.get("error") == "not_a_recipe":
