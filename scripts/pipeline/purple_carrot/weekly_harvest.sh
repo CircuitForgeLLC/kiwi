@@ -31,5 +31,11 @@ conda run -n cf python3 scripts/pipeline/purple_carrot/scrape_live.py \
   --resume \
   --delay 3.0 2>&1 | tee -a "$LOG"
 
+# Step 3: ingest new recipes into the shared corpus DB
+echo "[3/3] Ingesting into corpus DB..." | tee -a "$LOG"
+conda run -n cf python3 scripts/pipeline/ingest_purplecarrot.py \
+  --parquet "$LIVE_OUT" \
+  --db /Library/Assets/kiwi/kiwi.db 2>&1 | tee -a "$LOG"
+
 echo "=== Done $(date -u '+%Y-%m-%d %H:%M UTC') ===" >> "$LOG"
 echo "" >> "$LOG"
