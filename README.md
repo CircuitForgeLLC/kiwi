@@ -113,4 +113,6 @@ Kiwi uses a split license:
 - **Discovery and inventory pipeline** (barcode scan, expiry tracking, pantry CRUD, CSV export, recipe browser): [MIT](LICENSE-MIT)
 - **AI features** (receipt OCR, LLM recipe suggestions, style auto-classifier): [BSL 1.1](LICENSE-BSL) — free for personal non-commercial self-hosting; commercial use or SaaS re-hosting requires a paid license. Converts to MIT after 4 years.
 
+Humans own design, architecture, code review, testing, and verification. LLMs are part of our development workflow. [Our positions on LLM use →](https://circuitforge.tech/positions)
+
 Privacy · Safety · Accessibility — co-equal, non-negotiable across all CircuitForge products.
