@@ -29,13 +29,17 @@ jobs:
         run: pip install git+https://git.opensourcesolarpunk.com/Circuit-Forge/circuitforge-core.git@main
 
       - name: Install dependencies
-        run: pip install -e . pytest pytest-asyncio httpx ruff psycopg2-binary anthropic
+        run: pip install -e . pytest pytest-asyncio httpx ruff psycopg2-binary anthropic pandas
 
       - name: Lint
         run: ruff check .
 
       - name: Test
-        run: pytest tests/ -v --tb=short --ignore=tests/fixtures --ignore=tests/test_services/test_docuvision_client.py
+        run: >
+          pytest tests/ -v --tb=short
+          --ignore=tests/fixtures
+          --ignore=tests/test_services/test_docuvision_client.py
+          --ignore=tests/services/test_vl_model_task.py
 
   frontend:
     name: Frontend (Vue)

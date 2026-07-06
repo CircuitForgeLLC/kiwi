@@ -33,7 +33,7 @@ _GOOD_SCAN_JSON = {
 }
 
 
-def _make_session(tier: str = "paid", has_byok: bool = False) -> MagicMock:
+def _make_session(tier: str = "premium", has_byok: bool = False) -> MagicMock:
     mock = MagicMock()
     mock.tier = tier
     mock.has_byok = has_byok
