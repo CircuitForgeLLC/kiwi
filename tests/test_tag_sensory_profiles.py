@@ -3,12 +3,13 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from scripts.tag_sensory_profiles import (
-    _classify_textures,
-    _classify_smell,
     _classify_noise,
+    _classify_smell,
+    _classify_textures,
 )
 
 

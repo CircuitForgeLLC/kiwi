@@ -22,7 +22,6 @@ from dataclasses import dataclass
 
 from app.models.schemas.recipe import RecipeSuggestion
 
-
 # IDs in range -100..-1 are reserved for assembly-generated suggestions
 _ASSEMBLY_ID_START = -1
 

@@ -8,31 +8,31 @@ This service orchestrates:
 - Tag management
 """
 
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_, or_
-from sqlalchemy.orm import selectinload
-from typing import List, Optional, Dict, Any
+import logging
+import uuid
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 from uuid import UUID
-import uuid
-import logging
 
-from app.db.models import Product, InventoryItem, Tag, product_tags
+from sqlalchemy import and_, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.db.models import InventoryItem, Product, Tag
 from app.models.schemas.inventory import (
-    ProductCreate,
-    ProductUpdate,
-    ProductResponse,
     InventoryItemCreate,
-    InventoryItemUpdate,
     InventoryItemResponse,
-    TagCreate,
-    TagResponse,
+    InventoryItemUpdate,
     InventoryStats,
+    ProductCreate,
+    ProductResponse,
+    ProductUpdate,
+    TagCreate,
 )
 from app.services.barcode_scanner import BarcodeScanner
-from app.services.openfoodfacts import OpenFoodFactsService
 from app.services.expiration_predictor import ExpirationPredictor
+from app.services.openfoodfacts import OpenFoodFactsService
 
 logger = logging.getLogger(__name__)
 

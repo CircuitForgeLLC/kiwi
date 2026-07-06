@@ -12,6 +12,7 @@ from app.cloud_session import CloudUser, get_session
 from app.db.session import get_store
 from app.db.store import Store
 from app.models.schemas.meal_plan import (
+    VALID_MEAL_TYPES,
     CreatePlanRequest,
     GapItem,
     PlanSummary,
@@ -22,7 +23,6 @@ from app.models.schemas.meal_plan import (
     UpdatePlanRequest,
     UpdatePrepTaskRequest,
     UpsertSlotRequest,
-    VALID_MEAL_TYPES,
 )
 from app.services.meal_plan.affiliates import get_retailer_links
 from app.services.meal_plan.prep_scheduler import build_prep_tasks

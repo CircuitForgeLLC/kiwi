@@ -1,8 +1,6 @@
-import pytest
-import sqlite3
 import json
-import tempfile
-from pathlib import Path
+
+import pytest
 
 from app.db.store import Store
 

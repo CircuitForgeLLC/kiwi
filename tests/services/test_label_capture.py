@@ -4,7 +4,7 @@ Tests for app.services.label_capture.
 All tests set KIWI_LABEL_CAPTURE_MOCK=1 so no vision model weights are needed.
 """
 import json
-import os
+
 import pytest
 
 
@@ -155,11 +155,11 @@ class TestExtractLabel:
 
 class TestNeedsReview:
     def test_below_threshold_needs_review(self):
-        from app.services.label_capture import needs_review, REVIEW_THRESHOLD
+        from app.services.label_capture import REVIEW_THRESHOLD, needs_review
         assert needs_review({"confidence": REVIEW_THRESHOLD - 0.01})
 
     def test_at_threshold_no_review(self):
-        from app.services.label_capture import needs_review, REVIEW_THRESHOLD
+        from app.services.label_capture import REVIEW_THRESHOLD, needs_review
         assert not needs_review({"confidence": REVIEW_THRESHOLD})
 
     def test_above_threshold_no_review(self):

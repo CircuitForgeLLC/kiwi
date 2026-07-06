@@ -2,8 +2,7 @@
 """Unit tests for prep_scheduler.py — no DB or network."""
 from __future__ import annotations
 
-import pytest
-from app.services.meal_plan.prep_scheduler import PrepTask, build_prep_tasks
+from app.services.meal_plan.prep_scheduler import build_prep_tasks
 
 
 def _recipe(id_: int, name: str, prep_time: int | None, cook_time: int | None, equipment: str) -> dict:

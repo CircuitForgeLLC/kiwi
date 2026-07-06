@@ -5,10 +5,10 @@ This module provides functionality to look up product information
 from the OpenFoodFacts database using barcodes (UPC/EAN).
 """
 
-import httpx
-from typing import Optional, Dict, Any
-from app.core.config import settings
 import logging
+from typing import Any, Dict, Optional
+
+import httpx
 
 logger = logging.getLogger(__name__)
 

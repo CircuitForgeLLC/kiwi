@@ -14,8 +14,8 @@ from app.cloud_session import CloudUser, get_session
 from app.core.config import settings
 from app.db.session import get_store
 from app.db.store import Store
-from app.models.schemas.receipt import ReceiptResponse
 from app.models.schemas.quality import QualityAssessment
+from app.models.schemas.receipt import ReceiptResponse
 from app.tiers import can_use
 
 router = APIRouter()

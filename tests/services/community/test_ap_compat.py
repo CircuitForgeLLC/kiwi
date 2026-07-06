@@ -1,9 +1,7 @@
 # tests/services/community/test_ap_compat.py
-import pytest
-import json
 from datetime import datetime, timezone
-from app.services.community.ap_compat import post_to_ap_json_ld
 
+from app.services.community.ap_compat import post_to_ap_json_ld
 
 POST = {
     "slug": "kiwi-plan-test-pasta-week",

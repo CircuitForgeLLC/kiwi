@@ -1,6 +1,8 @@
 """Tests for captured_products store methods (kiwi#79)."""
-import pytest
 from pathlib import Path
+
+import pytest
+
 from app.db.store import Store
 
 

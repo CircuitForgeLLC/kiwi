@@ -1,0 +1,10 @@
+/* Dark mode image treatment — app screenshots are light-mode only, soften them on slate */
+[data-md-color-scheme="slate"] img:not([src*=".svg"]) {
+  filter: brightness(0.82) contrast(1.05);
+  border-radius: 4px;
+}
+
+/* SVGs (icons, diagrams) inherit theme color naturally — no filter needed */
+[data-md-color-scheme="slate"] img[src*=".svg"] {
+  filter: none;
+}

@@ -6,7 +6,6 @@ from datetime import date as _date
 
 from pydantic import BaseModel, Field, field_validator
 
-
 VALID_MEAL_TYPES = {"breakfast", "lunch", "dinner", "snack"}
 
 

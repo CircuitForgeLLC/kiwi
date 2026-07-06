@@ -11,6 +11,7 @@ from typing import Any
 
 from circuitforge_core.db.base import get_connection
 from circuitforge_core.db.migrations import run_migrations
+
 from app.services.recipe.sensory import SensoryExclude, passes_sensory_filter
 
 MIGRATIONS_DIR = Path(__file__).parent / "migrations"
@@ -304,6 +305,7 @@ class Store:
         Returns (updated_count, skipped_count).
         """
         from datetime import date
+
         from app.services.expiration_predictor import ExpirationPredictor
 
         predictor = ExpirationPredictor()
@@ -573,13 +575,26 @@ class Store:
             if pattern in lower:
                 terms.append(canonical)
 
-        # For multi-word product names, also add individual significant tokens
+        # For multi-word product names, also add individual significant tokens.
+        # Threshold is 2 (skip only 1-char tokens) so short-but-meaningful
+        # ingredients like "egg", "oil", "soy" are included in FTS queries.
+        # Also add singular/plural variants for each token so "Cage Free Eggs"
+        # generates "egg" as a search term alongside "eggs".
         if " " in lower:
             for token in lower.split():
-                if len(token) <= 3 or token in Store._FTS_TOKEN_STOPWORDS:
+                if len(token) <= 2 or token in Store._FTS_TOKEN_STOPWORDS:
                     continue
                 if token not in terms:
                     terms.append(token)
+                # Add singular/plural variant so "eggs" also searches "egg" etc.
+                if token.endswith("es") and len(token) > 4:
+                    variant = token[:-2]  # "tomatoes" → "tomato"
+                elif token.endswith("s") and len(token) > 3:
+                    variant = token[:-1]  # "eggs" → "egg", "florets" → "floret"
+                else:
+                    variant = token + "s"  # "egg" → "eggs"
+                if variant not in terms:
+                    terms.append(variant)
                 # Synonym-expand individual tokens too
                 if token in Store._FTS_SYNONYMS:
                     canonical = Store._FTS_SYNONYMS[token]

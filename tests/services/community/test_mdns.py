@@ -1,6 +1,6 @@
 # tests/services/community/test_mdns.py
-import pytest
 from unittest.mock import MagicMock, patch
+
 from app.services.community.mdns import KiwiMDNS
 
 

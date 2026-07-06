@@ -11,6 +11,7 @@ Downloads:
   - lishuyang/recipepairs            (GPL-3.0 ⚠)  → data/pipeline/recipepairs.parquet  [derive only, don't ship]
 """
 from __future__ import annotations
+
 import argparse
 import os
 import shutil
@@ -18,7 +19,6 @@ from pathlib import Path
 
 from datasets import load_dataset
 from huggingface_hub import hf_hub_download
-
 
 # Standard HuggingFace datasets: (hf_path, split, output_filename)
 HF_DATASETS = [

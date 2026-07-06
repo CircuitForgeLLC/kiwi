@@ -73,7 +73,9 @@ async def lifespan(app: FastAPI):
     try:
         from app.db.store import _COUNT_CACHE
         from app.services.recipe.browse_counts_cache import (
-            is_stale, load_into_memory, refresh,
+            is_stale,
+            load_into_memory,
+            refresh,
         )
         if is_stale(settings.BROWSE_COUNTS_PATH):
             logger.info("browse_counts: cache stale — refreshing in background...")
@@ -116,6 +118,7 @@ app.include_router(api_router, prefix=settings.API_PREFIX)
 
 # AP endpoints: WebFinger at root (not under /api/v1), AP objects under /ap
 from app.api.endpoints.activitypub import ap_router, webfinger_router
+
 app.include_router(webfinger_router)
 app.include_router(ap_router)
 

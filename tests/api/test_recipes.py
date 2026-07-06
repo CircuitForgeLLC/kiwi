@@ -1,10 +1,11 @@
-import pytest
-from fastapi.testclient import TestClient
 from unittest.mock import MagicMock
 
-from app.main import app
+import pytest
+from fastapi.testclient import TestClient
+
 from app.cloud_session import get_session
 from app.db.session import get_store
+from app.main import app
 
 client = TestClient(app)
 

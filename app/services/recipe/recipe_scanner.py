@@ -152,8 +152,8 @@ def _call_via_local_vlm(image_paths: list[Path], prompt: str) -> str:
         raise RuntimeError("No CUDA device -- local VLM unavailable")
 
     # Lazy import so the module loads fast when GPU is absent
-    from transformers import Qwen2VLForConditionalGeneration, AutoProcessor
     from PIL import Image, ImageOps
+    from transformers import AutoProcessor, Qwen2VLForConditionalGeneration
 
     model_name = "Qwen/Qwen2.5-VL-7B-Instruct"
     logger.info("Loading local VLM for recipe scan: %s", model_name)
@@ -271,9 +271,10 @@ def _call_vision_backend(
     cf_orch_url = os.environ.get("CF_ORCH_URL")
     if cf_orch_url:
         try:
-            from app.services.task_inference import TaskNotRegistered, task_allocate
-            from app.services.ocr.docuvision_client import DocuvisionClient
             from circuitforge_core.llm.router import LLMRouter
+
+            from app.services.ocr.docuvision_client import DocuvisionClient
+            from app.services.task_inference import TaskNotRegistered, task_allocate
 
             try:
                 _progress("allocating", "Starting vision service...")

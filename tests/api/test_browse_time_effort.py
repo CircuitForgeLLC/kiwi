@@ -1,6 +1,4 @@
 """Tests for active_min/passive_min fields on browse endpoint responses."""
-import pytest
-from unittest.mock import MagicMock, patch
 from app.services.recipe.time_effort import parse_time_effort
 
 
@@ -92,7 +90,6 @@ class TestDetailTimeEffortField:
 
     def test_time_effort_field_structure(self):
         """Detail endpoint must return the full TimeEffortProfile shape."""
-        import json
         from app.services.recipe.time_effort import parse_time_effort
 
         directions = [

@@ -3,8 +3,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 
 def _make_orch_response(
     allowed: bool, calls_used: int = 0, calls_total: int = 60, topup_calls: int = 0

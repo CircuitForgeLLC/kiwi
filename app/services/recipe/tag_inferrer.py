@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import re
 
-
 # ---------------------------------------------------------------------------
 # Text-signal tables
 # (tag, [case-insensitive substrings to search in combined title+ingredient text])

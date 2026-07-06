@@ -1,5 +1,6 @@
 """Feedback router — provided by circuitforge-core."""
 from circuitforge_core.api import make_feedback_router
+
 from app.core.config import settings
 
 router = make_feedback_router(

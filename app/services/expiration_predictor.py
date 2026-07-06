@@ -10,9 +10,10 @@ Fallback path: LLMRouter — only fires for unknown products when tier allows it
 import logging
 import re
 from datetime import date, timedelta
-from typing import Optional, List
+from typing import List, Optional
 
 from circuitforge_core.llm.router import LLMRouter
+
 from app.tiers import can_use
 
 logger = logging.getLogger(__name__)

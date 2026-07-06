@@ -2,8 +2,7 @@
 """Unit tests for shopping_list.py — no network, no DB."""
 from __future__ import annotations
 
-import pytest
-from app.services.meal_plan.shopping_list import GapItem, compute_shopping_list
+from app.services.meal_plan.shopping_list import compute_shopping_list
 
 
 def _recipe(ingredient_names: list[str], ingredients: list[str]) -> dict:

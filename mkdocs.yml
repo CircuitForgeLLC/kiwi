@@ -9,14 +9,14 @@ theme:
   name: material
   palette:
     - scheme: default
-      primary: light green
-      accent: green
+      primary: green
+      accent: teal
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
     - scheme: slate
-      primary: light green
-      accent: green
+      primary: green
+      accent: lime
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
@@ -63,6 +63,9 @@ nav:
     - Recipe Engine: reference/recipe-engine.md
     - Tier System: reference/tier-system.md
     - Architecture: reference/architecture.md
+
+extra_css:
+  - stylesheets/theme.css
 
 extra_javascript:
   - plausible.js

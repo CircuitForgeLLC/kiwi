@@ -1,12 +1,9 @@
 """Tests for LLMRecipeGenerator — prompt builders and allergy filtering."""
 from __future__ import annotations
 
-import os
 from contextlib import contextmanager
 from dataclasses import dataclass
 from unittest.mock import MagicMock, patch
-
-import pytest
 
 from app.models.schemas.recipe import RecipeRequest
 from app.services.recipe.element_classifier import IngredientProfile
@@ -14,8 +11,9 @@ from app.services.recipe.element_classifier import IngredientProfile
 
 def _make_store():
     """Create a minimal in-memory Store."""
-    from app.db.store import Store
     import sqlite3
+
+    from app.db.store import Store
 
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
@@ -109,8 +107,8 @@ def test_allergy_items_excluded_from_prompt():
 
 def test_generate_returns_result_when_llm_responds(monkeypatch):
     """generate() returns RecipeResult with title when LLM returns a valid response."""
-    from app.services.recipe.llm_recipe import LLMRecipeGenerator
     from app.models.schemas.recipe import RecipeResult
+    from app.services.recipe.llm_recipe import LLMRecipeGenerator
 
     store = _make_store()
     gen = LLMRecipeGenerator(store)

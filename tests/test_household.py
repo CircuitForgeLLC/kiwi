@@ -1,8 +1,7 @@
 """Tests for household session resolution in cloud_session.py."""
 import os
 from pathlib import Path
-from unittest.mock import patch, MagicMock
-import pytest
+
 from fastapi.testclient import TestClient
 
 os.environ.setdefault("CLOUD_MODE", "false")
@@ -10,7 +9,6 @@ os.environ.setdefault("CLOUD_MODE", "false")
 import app.cloud_session as cs
 from app.cloud_session import (
     CloudUser,
-    _user_db_path,
 )
 
 
@@ -45,9 +43,11 @@ def test_user_db_path_household(tmp_path, monkeypatch):
 
 def test_create_household_requires_premium():
     """Non-premium users cannot create a household."""
-    from app.main import app
+    import pathlib
+    import tempfile
+
     from app.cloud_session import get_session
-    import tempfile, pathlib
+    from app.main import app
 
     db = pathlib.Path(tempfile.mktemp(suffix=".db"))
     from app.db.store import Store
@@ -63,9 +63,11 @@ def test_create_household_requires_premium():
 
 def test_invite_generates_token():
     """Invite endpoint returns a token and URL for owner in a household."""
-    from app.main import app
+    import pathlib
+    import tempfile
+
     from app.cloud_session import get_session
-    import tempfile, pathlib
+    from app.main import app
 
     db = pathlib.Path(tempfile.mktemp(suffix=".db"))
     from app.db.store import Store
@@ -93,9 +95,11 @@ def test_accept_invalid_token_returns_404(tmp_path, monkeypatch):
     monkeypatch.setattr(hh_ep, "CLOUD_DATA_ROOT", tmp_path)
     monkeypatch.setattr(cs, "CLOUD_DATA_ROOT", tmp_path)
 
-    from app.main import app
+    import pathlib
+    import tempfile
+
     from app.cloud_session import get_session
-    import tempfile, pathlib
+    from app.main import app
 
     db = pathlib.Path(tempfile.mktemp(suffix=".db"))
     from app.db.store import Store

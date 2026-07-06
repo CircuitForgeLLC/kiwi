@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
-from app.cloud_session import get_session, CloudUser
+from app.cloud_session import CloudUser, get_session
 from app.db.store import Store
 
 router = APIRouter()

@@ -6,13 +6,12 @@ This module provides functionality to convert receipt and quality assessment
 data into spreadsheet formats for easy viewing and analysis.
 """
 
-import pandas as pd
-from datetime import datetime
-from typing import List, Dict, Optional
-from pathlib import Path
+from typing import Dict, List, Optional
 
-from app.models.schemas.receipt import ReceiptResponse
+import pandas as pd
+
 from app.models.schemas.quality import QualityAssessment
+from app.models.schemas.receipt import ReceiptResponse
 
 
 class SpreadsheetExporter:

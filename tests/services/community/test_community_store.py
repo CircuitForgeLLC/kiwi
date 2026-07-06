@@ -1,8 +1,8 @@
 # tests/services/community/test_community_store.py
 # MIT License
 
-import pytest
 from unittest.mock import MagicMock, patch
+
 from app.services.community.community_store import KiwiCommunityStore, get_or_create_pseudonym
 
 

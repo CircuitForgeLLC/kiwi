@@ -15,8 +15,8 @@ import os
 import sys
 from pathlib import Path
 
-from PIL import Image, ImageOps
 import anthropic
+from PIL import Image, ImageOps
 
 PROMPT = """
 You are extracting a recipe from a photograph of a recipe card, cookbook page, or handwritten note.

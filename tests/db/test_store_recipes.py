@@ -1,5 +1,4 @@
-import json, pytest
-from tests.services.recipe.test_element_classifier import store_with_profiles
+import pytest
 
 
 @pytest.fixture

@@ -5,9 +5,7 @@ All tests use CF_RERANKER_MOCK=1 -- no model weights required.
 The mock reranker scores by Jaccard similarity of query tokens vs candidate
 tokens, which is deterministic and fast.
 """
-import os
 import pytest
-
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -187,7 +185,7 @@ class TestBuildRerankerInput:
         assert rinput.suggestion_ids == [10, 20, 30]
 
     def test_query_matches_build_query(self):
-        from app.services.recipe.reranker import build_reranker_input, build_query
+        from app.services.recipe.reranker import build_query, build_reranker_input
         req = _make_request(pantry_items=["egg", "cheese"], constraints=["vegetarian"])
         suggestions = [_make_suggestion(1, "Omelette", ["egg", "cheese"])]
         rinput = build_reranker_input(req, suggestions)
@@ -226,7 +224,7 @@ class TestRerankSuggestions:
         assert all(isinstance(s.rerank_score, float) for s in result)
 
     def test_too_few_candidates_returns_none(self):
-        from app.services.recipe.reranker import rerank_suggestions, _MIN_CANDIDATES
+        from app.services.recipe.reranker import _MIN_CANDIDATES, rerank_suggestions
         req = _make_request(tier="paid")
         suggestions = [_make_suggestion(i, f"Recipe {i}", ["chicken"]) for i in range(_MIN_CANDIDATES - 1)]
         result = rerank_suggestions(req, suggestions)
@@ -266,9 +264,9 @@ class TestRerankSuggestions:
         assert found.match_count == 3
 
     def test_graceful_fallback_on_exception(self, monkeypatch):
-        from app.services.recipe.reranker import rerank_suggestions
         # Simulate reranker raising at runtime
         import app.services.recipe.reranker as reranker_mod
+        from app.services.recipe.reranker import rerank_suggestions
         def _boom(query, candidates, top_n=0):
             raise RuntimeError("model exploded")
         monkeypatch.setattr(reranker_mod, "_do_rerank", _boom)

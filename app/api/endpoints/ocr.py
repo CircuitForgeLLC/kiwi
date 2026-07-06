@@ -15,9 +15,9 @@ from app.core.config import settings
 from app.db.session import get_store
 from app.db.store import Store
 from app.models.schemas.receipt import (
+    ApprovedInventoryItem,
     ApproveOCRRequest,
     ApproveOCRResponse,
-    ApprovedInventoryItem,
 )
 from app.services.expiration_predictor import ExpirationPredictor
 from app.tiers import can_use

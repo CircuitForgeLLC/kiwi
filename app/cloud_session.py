@@ -18,7 +18,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from circuitforge_core.cloud_session import CloudSessionFactory as _CoreFactory, detect_byok
+from circuitforge_core.cloud_session import CloudSessionFactory as _CoreFactory
+from circuitforge_core.cloud_session import detect_byok
 from fastapi import Depends, HTTPException, Request, Response
 
 log = logging.getLogger(__name__)

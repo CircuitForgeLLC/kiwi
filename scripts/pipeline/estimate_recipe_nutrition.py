@@ -13,6 +13,7 @@ Usage:
         --db /path/to/kiwi.db
 """
 from __future__ import annotations
+
 import argparse
 import json
 import sqlite3

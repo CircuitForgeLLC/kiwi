@@ -15,11 +15,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import sqlite3
-from pathlib import Path
-
 import math
 import re
+import sqlite3
+from pathlib import Path
 
 import pandas as pd
 
@@ -98,7 +97,7 @@ def ingest(db_path: Path, parquet_path: Path) -> None:
 
     # Filter to rows with full recipe data
     if "HasFullRecipe" in df.columns:
-        df = df[df["HasFullRecipe"] == True].copy()
+        df = df[df["HasFullRecipe"]].copy()
 
     if df.empty:
         print("No full recipes found in parquet — nothing to ingest.")

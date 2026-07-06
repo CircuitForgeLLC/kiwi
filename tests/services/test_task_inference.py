@@ -59,7 +59,7 @@ def test_task_allocate_404_raises_task_not_registered(monkeypatch):
     """task_allocate() raises TaskNotRegistered on coordinator 404."""
     monkeypatch.setenv("CF_ORCH_URL", "http://coord:7700")
     with patch("app.services.task_inference.httpx.post", return_value=_err_resp(404)):
-        from app.services.task_inference import task_allocate, TaskNotRegistered
+        from app.services.task_inference import TaskNotRegistered, task_allocate
         with pytest.raises(TaskNotRegistered):
             with task_allocate("kiwi", "meal_plan", service_hint="cf-text"):
                 pass

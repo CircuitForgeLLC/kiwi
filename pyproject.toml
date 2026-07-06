@@ -35,3 +35,22 @@ include = ["app*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = [
+  "E501",   # line length — handled by formatter
+  "E402",   # module-import-not-at-top — intentional for conditional/lazy imports in endpoints
+  "W293",   # whitespace before newline on blank lines — cosmetic, fixed by formatter
+]
+
+[tool.ruff.lint.per-file-ignores]
+# tests/: F841 unused variables are the standard mock-patch capture pattern.
+# E741 ambiguous names and E402 conditional imports are common in test fixtures.
+"tests/**" = ["F841", "E741", "E702"]
+# scripts/: E741 ambiguous loop vars are common in data pipeline scripts.
+"scripts/**" = ["E741"]

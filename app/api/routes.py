@@ -1,5 +1,24 @@
 from fastapi import APIRouter
-from app.api.endpoints import health, receipts, export, inventory, ocr, recipes, settings, staples, feedback, feedback_attach, household, saved_recipes, imitate, meal_plans, orch_usage, session, shopping
+
+from app.api.endpoints import (
+    export,
+    feedback,
+    feedback_attach,
+    health,
+    household,
+    imitate,
+    inventory,
+    meal_plans,
+    ocr,
+    orch_usage,
+    receipts,
+    recipes,
+    saved_recipes,
+    session,
+    settings,
+    shopping,
+    staples,
+)
 from app.api.endpoints.community import router as community_router
 from app.api.endpoints.corrections import router as corrections_router
 from app.api.endpoints.mastodon_oauth import router as mastodon_router

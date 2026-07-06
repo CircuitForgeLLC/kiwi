@@ -114,7 +114,6 @@ async def submit_recipe_tag(
     _validate_location(body.domain, body.category, body.subcategory)
 
     try:
-        import psycopg2.errors  # type: ignore[import]
         row = store.submit_recipe_tag(
             recipe_id=body.recipe_id,
             domain=body.domain,

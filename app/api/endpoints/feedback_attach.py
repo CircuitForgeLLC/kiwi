@@ -35,9 +35,12 @@ class AttachResponse(BaseModel):
     comment_url: str
 
 
+def _forgejo_token() -> str:
+    return os.environ.get("FORGEJO_BOT_TOKEN") or os.environ.get("FORGEJO_API_TOKEN", "")
+
+
 def _forgejo_headers() -> dict[str, str]:
-    token = os.environ.get("FORGEJO_API_TOKEN", "")
-    return {"Authorization": f"token {token}"}
+    return {"Authorization": f"token {_forgejo_token()}"}
 
 
 def _decode_image(image_b64: str) -> tuple[bytes, str]:
@@ -58,7 +61,7 @@ def attach_screenshot(payload: AttachRequest) -> AttachResponse:
     The image is uploaded as an issue asset, then referenced in a comment
     so it is visible inline when the issue is viewed.
     """
-    token = os.environ.get("FORGEJO_API_TOKEN", "")
+    token = _forgejo_token()
     if not token:
         raise HTTPException(status_code=503, detail="Feedback not configured.")
 

@@ -8,6 +8,7 @@ Usage:
         --usda-branded data/usda_branded.parquet
 """
 from __future__ import annotations
+
 import argparse
 import json
 import re
@@ -15,7 +16,6 @@ import sqlite3
 from pathlib import Path
 
 import pandas as pd
-
 
 # ── Element derivation rules (threshold-based) ────────────────────────────
 

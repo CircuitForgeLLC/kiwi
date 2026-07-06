@@ -1,7 +1,9 @@
 # tests/services/community/test_element_snapshot.py
-import pytest
 from unittest.mock import MagicMock
-from app.services.community.element_snapshot import compute_snapshot, ElementSnapshot
+
+import pytest
+
+from app.services.community.element_snapshot import ElementSnapshot, compute_snapshot
 
 
 def make_mock_store(recipe_rows: list[dict]) -> MagicMock:

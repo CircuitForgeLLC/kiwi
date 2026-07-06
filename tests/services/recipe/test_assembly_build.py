@@ -1,11 +1,10 @@
 """Tests for Build Your Own recipe assembly schemas."""
-import pytest
 from app.models.schemas.recipe import (
     AssemblyRoleOut,
     AssemblyTemplateOut,
+    BuildRequest,
     RoleCandidateItem,
     RoleCandidatesResponse,
-    BuildRequest,
 )
 
 

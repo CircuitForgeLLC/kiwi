@@ -48,21 +48,25 @@
               <label class="form-label">Title <span class="form-required">*</span></label>
               <input
                 v-model="form.title"
-                class="form-input"
+                :class="['form-input', { 'field-invalid': touched.title && !form.title.trim() }]"
                 type="text"
                 placeholder="Short summary of the issue or idea"
                 maxlength="120"
+                @blur="touched.title = true"
               />
+              <p v-if="touched.title && !form.title.trim()" class="field-error">Required</p>
             </div>
 
             <div class="form-group">
               <label class="form-label">Description <span class="form-required">*</span></label>
               <textarea
                 v-model="form.description"
-                class="form-input feedback-textarea"
+                :class="['form-input', 'feedback-textarea', { 'field-invalid': touched.description && !form.description.trim() }]"
                 placeholder="Describe what happened or what you'd like to see…"
                 rows="4"
+                @blur="touched.description = true"
               />
+              <p v-if="touched.description && !form.description.trim()" class="field-error">Required</p>
             </div>
 
             <div v-if="form.type === 'bug'" class="form-group">
@@ -135,6 +139,8 @@
               v-if="step === 1"
               class="btn btn-primary"
               @click="nextStep"
+              :disabled="!canProceed"
+              :title="!canProceed ? 'Fill in Title and Description to continue' : undefined"
             >Next →</button>
             <button
               v-if="step === 2 && !submitted"
@@ -151,7 +157,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, reactive } from 'vue'
 
 const props = defineProps<{ currentTab?: string }>()
 
@@ -215,6 +221,9 @@ const form = ref({
   submitter: '',
 })
 
+const touched = reactive({ title: false, description: false })
+const canProceed = computed(() => !!form.value.title.trim() && !!form.value.description.trim())
+
 const typeLabel = computed(() => types.find(t => t.value === form.value.type)?.label ?? '')
 
 function close() {
@@ -231,13 +240,16 @@ function reset() {
   submitted.value = false
   issueUrl.value = ''
   form.value = { type: 'bug', title: '', description: '', repro: '', submitter: '' }
+  touched.title = false
+  touched.description = false
   clearScreenshot()
 }
 
 function nextStep() {
+  touched.title = true
+  touched.description = true
   stepError.value = ''
-  if (!form.value.title.trim() || !form.value.description.trim()) {
-    stepError.value = 'Please fill in both Title and Description.'
+  if (!canProceed.value) {
     return
   }
   step.value = 2
@@ -297,7 +309,7 @@ async function submit() {
 .feedback-fab {
   position: fixed;
   right: var(--spacing-md);
-  bottom: calc(68px + var(--spacing-md)); /* above mobile bottom nav */
+  bottom: calc(68px + env(safe-area-inset-bottom, 0px) + var(--spacing-md)); /* above mobile bottom nav + system gesture nav */
   z-index: 190;
   display: flex;
   align-items: center;
@@ -326,7 +338,7 @@ async function submit() {
 /* On desktop, bottom nav is gone — drop to standard corner */
 @media (min-width: 769px) {
   .feedback-fab {
-    bottom: var(--spacing-lg);
+    bottom: calc(var(--spacing-lg) + env(safe-area-inset-bottom, 0px));
   }
 }
 
@@ -413,8 +425,16 @@ async function submit() {
   justify-content: flex-end;
   gap: var(--spacing-sm);
   padding: var(--spacing-sm) var(--spacing-md);
+  padding-bottom: calc(var(--spacing-sm) + env(safe-area-inset-bottom, 0px)); /* clear home indicator on mobile bottom sheet */
   border-top: 1px solid var(--color-border);
   flex-shrink: 0;
+}
+
+/* When modal is centered (not bottom sheet), safe-area padding isn't needed */
+@media (min-width: 500px) {
+  .feedback-footer {
+    padding-bottom: var(--spacing-sm);
+  }
 }
 
 .feedback-textarea {
@@ -425,6 +445,21 @@ async function submit() {
 }
 
 .form-required { color: var(--color-error); margin-left: 2px; }
+
+.field-invalid {
+  border-color: var(--color-error) !important;
+  background: color-mix(in srgb, var(--color-error) 5%, var(--color-bg-secondary));
+}
+.field-invalid:focus {
+  border-color: var(--color-error) !important;
+  outline-color: var(--color-error);
+}
+
+.field-error {
+  color: var(--color-error);
+  font-size: 0.75rem;
+  margin: 2px 0 0;
+}
 
 .feedback-error {
   color: var(--color-error);

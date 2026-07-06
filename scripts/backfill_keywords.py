@@ -92,7 +92,7 @@ def backfill(db_path: Path, batch_size: int = 5000) -> None:
             fixed += len(updates)
 
         offset += batch_size
-        done = offset + len(rows) - (batch_size - len(rows))
+        _done = offset + len(rows) - (batch_size - len(rows))  # noqa: F841
         pct = min(100, int((offset / total) * 100))
         print(f"  {pct:>3}%  processed {offset:,}  fixed {fixed:,}  skipped {skipped:,}", end="\r")
 

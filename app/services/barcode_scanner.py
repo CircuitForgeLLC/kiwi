@@ -6,13 +6,13 @@ from images (UPC, EAN, QR codes, etc.).
 """
 
 import io
+import logging
+from pathlib import Path
+from typing import Any, Dict, List
 
 import cv2
 import numpy as np
 from pyzbar import pyzbar
-from pathlib import Path
-from typing import List, Dict, Any, Optional
-import logging
 
 try:
     from PIL import Image as _PILImage

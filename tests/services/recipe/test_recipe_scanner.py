@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -16,10 +16,9 @@ from app.services.recipe.recipe_scanner import (
     ScannedIngredient,
     ScannedRecipeResult,
     _cross_reference_pantry,
-    _parse_scanner_json,
     _normalize_ingredient_name,
+    _parse_scanner_json,
 )
-
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 

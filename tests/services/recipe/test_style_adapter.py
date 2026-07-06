@@ -1,6 +1,5 @@
 from app.services.recipe.style_adapter import StyleAdapter
 
-
 # --- Spec-required tests ---
 
 def test_italian_style_biases_aromatics():

@@ -28,7 +28,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from app.services.recipe.tag_inferrer import infer_tags
 
-
 # ---------------------------------------------------------------------------
 # Substitution constraint label mapping
 # Keys are what we store in substitution_pairs.constraint_label.

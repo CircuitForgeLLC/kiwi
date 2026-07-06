@@ -1,6 +1,4 @@
-import pytest, json
-from tests.services.recipe.test_element_classifier import store_with_profiles
-from tests.db.test_store_recipes import store_with_recipes
+import pytest
 
 
 def test_level1_returns_ranked_suggestions(store_with_recipes):
@@ -84,7 +82,11 @@ def test_grocery_list_max_missing(store_with_recipes):
 
 
 def test_hard_day_mode_filters_complex_methods(store_with_recipes):
-    from app.services.recipe.recipe_engine import RecipeEngine, RecipeRequest, _classify_method_complexity
+    from app.services.recipe.recipe_engine import (
+        RecipeEngine,
+        RecipeRequest,
+        _classify_method_complexity,
+    )
     # Test the classifier directly
     assert _classify_method_complexity(["mix all ingredients", "stir to combine"]) == "easy"
     assert _classify_method_complexity(["sauté onions", "braise for 2 hours"]) == "involved"
@@ -123,8 +125,8 @@ def test_grocery_links_free_tier(store_with_recipes):
 
 def test_suggest_returns_no_assembly_results(store_with_recipes):
     """Assembly templates (negative IDs) must no longer appear in suggest() output."""
-    from app.services.recipe.recipe_engine import RecipeEngine
     from app.models.schemas.recipe import RecipeRequest
+    from app.services.recipe.recipe_engine import RecipeEngine
     engine = RecipeEngine(store_with_recipes)
     req = RecipeRequest(
         pantry_items=["flour tortilla", "chicken", "salsa", "rice"],
@@ -183,8 +185,8 @@ def test_paid_tier_suggest_populates_rerank_score(store_with_recipes, monkeypatc
     except ImportError:
         pytest.skip("cf-core reranker not installed")
 
-    from app.services.recipe.recipe_engine import RecipeEngine
     from app.models.schemas.recipe import RecipeRequest
+    from app.services.recipe.recipe_engine import RecipeEngine
     engine = RecipeEngine(store_with_recipes)
     req = RecipeRequest(pantry_items=["butter", "parmesan", "pasta"], level=1, tier="paid")
     result = engine.suggest(req)
@@ -198,8 +200,8 @@ def test_paid_tier_suggest_populates_rerank_score(store_with_recipes, monkeypatc
 
 def test_free_tier_suggest_has_no_rerank_score(store_with_recipes):
     """Free tier: rerank_score must be None on all suggestions."""
-    from app.services.recipe.recipe_engine import RecipeEngine
     from app.models.schemas.recipe import RecipeRequest
+    from app.services.recipe.recipe_engine import RecipeEngine
     engine = RecipeEngine(store_with_recipes)
     req = RecipeRequest(pantry_items=["butter", "parmesan"], level=1, tier="free")
     result = engine.suggest(req)

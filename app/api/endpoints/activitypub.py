@@ -22,7 +22,6 @@ import logging
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, Request, Response
-from fastapi.responses import JSONResponse
 
 from app.core.config import settings
 from app.services.ap.keys import get_actor
@@ -92,7 +91,6 @@ async def _on_follow(activity: dict, headers: dict) -> None:
     if not actor_url:
         return
 
-    from app.db.store import Store
     from app.core.config import settings as _settings
     db_path = _settings.DB_PATH
 
@@ -284,6 +282,7 @@ async def get_following():
 
 def _post_to_ap_note(post, actor, base_url: str) -> dict:
     from circuitforge_core.activitypub import make_note
+
     from app.services.community.ap_compat import _build_content
 
     diet_tags: list[str] = list(getattr(post, "dietary_tags", []) or [])

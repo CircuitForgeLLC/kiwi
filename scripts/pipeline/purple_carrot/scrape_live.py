@@ -13,14 +13,14 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import re
 import time
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
-from playwright.sync_api import sync_playwright, Page, TimeoutError as PWTimeout
+from playwright.sync_api import Page, sync_playwright
+from playwright.sync_api import TimeoutError as PWTimeout
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 

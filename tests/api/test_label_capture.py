@@ -5,15 +5,14 @@ Tests for the visual label capture API endpoints (kiwi#79):
   GET  /api/v1/inventory/scan/text   — cache hit + needs_visual_capture flag
 """
 import io
-import os
-import pytest
-from fastapi.testclient import TestClient
 from unittest.mock import MagicMock, patch
 
-from app.main import app
+import pytest
+from fastapi.testclient import TestClient
+
 from app.cloud_session import get_session
 from app.db.session import get_store
-
+from app.main import app
 
 client = TestClient(app)
 
@@ -213,7 +212,7 @@ class TestScanTextWithCaptureGating:
 
     def _off_patch(self, result):
         """Patch OpenFoodFactsService.lookup_product at the class level."""
-        from unittest.mock import AsyncMock, patch
+        from unittest.mock import AsyncMock
         return patch(
             "app.services.openfoodfacts.OpenFoodFactsService.lookup_product",
             new=AsyncMock(return_value=result),

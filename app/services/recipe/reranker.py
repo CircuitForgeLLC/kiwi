@@ -13,7 +13,7 @@ Environment:
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from app.models.schemas.recipe import RecipeRequest, RecipeSuggestion
 

@@ -4,27 +4,27 @@ This file is kept for historical reference only. Nothing imports it.
 """
 # fmt: off  # noqa — dead file, not linted
 
+import uuid
+from datetime import datetime
+
 from sqlalchemy import (
-    Column,
-    String,
-    Text,
     Boolean,
-    Numeric,
-    DateTime,
-    Date,
-    ForeignKey,
     CheckConstraint,
+    Column,
+    Date,
+    DateTime,
+    ForeignKey,
     Index,
+    Numeric,
+    String,
     Table,
+    Text,
 )
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
-from datetime import datetime
-import uuid
 
 from app.db.base import Base
-
 
 # Association table for many-to-many relationship between products and tags
 product_tags = Table(

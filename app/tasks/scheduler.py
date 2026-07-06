@@ -11,7 +11,11 @@ from pathlib import Path
 
 from circuitforge_core.tasks.scheduler import (
     TaskScheduler,
+)
+from circuitforge_core.tasks.scheduler import (
     get_scheduler as _base_get_scheduler,
+)
+from circuitforge_core.tasks.scheduler import (
     reset_scheduler as _reset_local,  # re-export for tests
 )
 

@@ -2,7 +2,6 @@
 """Integration tests for /api/v1/meal-plans/ endpoints."""
 from __future__ import annotations
 
-import json
 from unittest.mock import MagicMock
 
 import pytest

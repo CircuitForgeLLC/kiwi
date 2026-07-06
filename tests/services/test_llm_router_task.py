@@ -3,8 +3,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import pytest
-
 
 def _make_task_ctx(url: str = "http://node:8080") -> MagicMock:
     """Mock context manager returned by task_allocate()."""
@@ -44,7 +42,7 @@ def test_task_path_returns_orch_router_on_success(monkeypatch):
     # Patch the name as it exists in llm_router's own namespace (module-level import).
     with um.patch("app.services.meal_plan.llm_router.task_allocate",
                   return_value=_make_task_ctx(url="http://node:9001")):
-        from app.services.meal_plan.llm_router import get_meal_plan_router, _OrchTextRouter
+        from app.services.meal_plan.llm_router import _OrchTextRouter, get_meal_plan_router
         router, ctx = get_meal_plan_router()
 
     assert isinstance(router, _OrchTextRouter)
@@ -62,7 +60,7 @@ def test_task_not_registered_falls_back_to_direct_allocate(monkeypatch):
                   return_value=_make_task_ctx_not_registered()), \
          um.patch("app.services.meal_plan.llm_router.CFOrchClient") as MockClient:
         MockClient.return_value.allocate.return_value = direct_ctx
-        from app.services.meal_plan.llm_router import get_meal_plan_router, _OrchTextRouter
+        from app.services.meal_plan.llm_router import _OrchTextRouter, get_meal_plan_router
         router, ctx = get_meal_plan_router()
 
     assert isinstance(router, _OrchTextRouter)
@@ -96,7 +94,7 @@ def test_tier1_general_exception_falls_back_to_direct_allocate(monkeypatch):
                   return_value=failing_ctx), \
          um.patch("app.services.meal_plan.llm_router.CFOrchClient") as MockClient:
         MockClient.return_value.allocate.return_value = direct_ctx
-        from app.services.meal_plan.llm_router import get_meal_plan_router, _OrchTextRouter
+        from app.services.meal_plan.llm_router import _OrchTextRouter, get_meal_plan_router
         router, ctx = get_meal_plan_router()
 
     assert isinstance(router, _OrchTextRouter)

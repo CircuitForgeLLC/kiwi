@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import RedirectResponse
@@ -42,6 +41,7 @@ async def connect_mastodon(body: dict, session: CloudUser = Depends(get_session)
     Returns: {"authorize_url": "..."}
     """
     import secrets
+
     from app.services.ap.mastodon import build_authorize_url, register_app
 
     instance_url = (body.get("instance_url") or "").strip().rstrip("/")

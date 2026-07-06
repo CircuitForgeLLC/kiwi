@@ -8,8 +8,7 @@ from unittest.mock import MagicMock, patch
 import httpx
 import pytest
 
-from app.services.ocr.docuvision_client import DocuvisionClient, DocuvisionResult
-
+from app.services.ocr.docuvision_client import DocuvisionClient
 
 # ---------------------------------------------------------------------------
 # DocuvisionClient unit tests
@@ -147,6 +146,7 @@ def test_extract_receipt_data_falls_through_when_docuvision_yields_empty_parse(
 
         # Also stub the model inference bits so we don't need a real GPU
         from unittest.mock import MagicMock
+
         import torch
 
         vlm._model_loaded = True

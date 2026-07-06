@@ -12,7 +12,6 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
 from app.cloud_session import CloudUser, get_session
-from app.core.config import settings
 from app.db.store import Store
 from app.services.community.feed import posts_to_rss
 
@@ -36,6 +35,7 @@ def init_community_store(community_db_url: str | None) -> None:
         )
         return
     from circuitforge_core.community import CommunityDB
+
     from app.services.community.community_store import KiwiCommunityStore
     db = CommunityDB(dsn=community_db_url)
     db.run_migrations()
@@ -307,9 +307,10 @@ async def publish_post(body: dict, session: CloudUser = Depends(get_session)):
     # AP delivery + Mastodon post (Paid tier, AP_ENABLED, opted-in)
     from app.core.config import settings as _settings
     if _settings.AP_ENABLED and session.tier in ("paid", "premium", "ultra"):
-        from circuitforge_core.activitypub import make_create, make_note, PUBLIC
-        from app.services.ap.keys import get_actor
+        from circuitforge_core.activitypub import make_create
+
         from app.services.ap.delivery import deliver_to_followers
+        from app.services.ap.keys import get_actor
         _ap_actor = get_actor()
         if _ap_actor is not None:
             base = f"https://{_settings.AP_HOST}"

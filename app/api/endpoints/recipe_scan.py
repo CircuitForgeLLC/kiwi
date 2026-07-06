@@ -222,7 +222,7 @@ async def _scan_recipe_sse(saved_paths: list[Path], pantry_names: list[str]):
             loop.call_soon_threadsafe(queue.put_nowait, {"status": "error", "message": str(exc)})
         except RuntimeError as exc:
             loop.call_soon_threadsafe(queue.put_nowait, {"status": "error", "message": str(exc)})
-        except Exception as exc:
+        except Exception:
             logger.exception("Unexpected error in recipe scan thread")
             loop.call_soon_threadsafe(queue.put_nowait, {"status": "error", "message": "Scan failed unexpectedly."})
 

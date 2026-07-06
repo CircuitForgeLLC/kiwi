@@ -109,11 +109,11 @@ def main() -> None:
     for s in slugs:
         print(f"  {s}")
     print(f"\nSaved {len(df_new)} total slugs (accumulated) to {args.out}")
-    print(f"\nTo scrape full recipes:")
-    print(f"  conda run -n cf python3 scripts/pipeline/purple_carrot/scrape_live.py \\")
+    print("\nTo scrape full recipes:")
+    print("  conda run -n cf python3 scripts/pipeline/purple_carrot/scrape_live.py \\")
     print(f"    --slugs-from {args.out} \\")
-    print(f"    --out /Library/Assets/kiwi/pipeline/recipes_purplecarrot_live.parquet \\")
-    print(f"    --resume")
+    print("    --out /Library/Assets/kiwi/pipeline/recipes_purplecarrot_live.parquet \\")
+    print("    --resume")
 
 
 if __name__ == "__main__":

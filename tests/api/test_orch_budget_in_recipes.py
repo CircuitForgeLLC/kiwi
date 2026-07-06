@@ -2,7 +2,6 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 from fastapi.testclient import TestClient
 
 from app.cloud_session import CloudUser, get_session

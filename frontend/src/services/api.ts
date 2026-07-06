@@ -382,6 +382,7 @@ export const inventoryAPI = {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
+      timeout: 90000, // OFF lookup + LLM expiry prediction can take 30-60s on cold start
     })
     return response.data
   },

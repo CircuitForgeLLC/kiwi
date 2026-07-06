@@ -3,10 +3,11 @@
 Pydantic schemas for OCR data models.
 """
 
-from datetime import datetime, date, time
-from typing import Optional, List, Dict, Any
+from datetime import date, datetime, time
+from typing import Any, Dict, List, Optional
 from uuid import UUID
-from pydantic import BaseModel, Field, validator
+
+from pydantic import BaseModel, Field
 
 
 class MerchantInfo(BaseModel):

@@ -51,8 +51,9 @@ def _build_router():
     cf_orch_url = os.environ.get("CF_ORCH_URL")
     if cf_orch_url:
         try:
-            from app.services.meal_plan.llm_router import _OrchTextRouter  # reuse adapter
             from circuitforge_orch.client import CFOrchClient
+
+            from app.services.meal_plan.llm_router import _OrchTextRouter  # reuse adapter
             client = CFOrchClient(cf_orch_url)
             ctx = client.allocate(service=_SERVICE_TYPE, ttl_s=_TTL_S, caller=_CALLER)
             alloc = ctx.__enter__()

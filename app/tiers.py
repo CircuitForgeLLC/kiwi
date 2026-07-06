@@ -8,7 +8,7 @@ Uses circuitforge-core can_use() with Kiwi's feature map.
 """
 from __future__ import annotations
 
-from circuitforge_core.tiers.tiers import can_use as _can_use, BYOK_UNLOCKABLE
+from circuitforge_core.tiers.tiers import can_use as _can_use
 
 # Features that unlock when the user supplies their own LLM backend.
 KIWI_BYOK_UNLOCKABLE: frozenset[str] = frozenset({
@@ -49,20 +49,18 @@ KIWI_FEATURES: dict[str, str] = {
     "recipe_suggestions":    "paid",   # BYOK-unlockable
     "expiry_llm_matching":   "paid",   # BYOK-unlockable
     "meal_planning":         "free",
-    "meal_plan_config":       "paid",    # configurable meal types (breakfast/lunch/snack)
-    "meal_plan_llm":          "paid",    # LLM-assisted full-week plan generation; BYOK-unlockable
-    "meal_plan_llm_timing":   "paid",    # LLM time fill-in for recipes missing corpus times; BYOK-unlockable
+    "meal_plan_config":      "paid",   # configurable meal types (breakfast/lunch/snack)
     "dietary_profiles":      "paid",
     "style_picker":          "paid",
     "recipe_collections":    "paid",
-    "style_classifier":      "paid",   # LLM auto-tag for saved recipe style tags; BYOK-unlockable
-    "community_publish":     "paid",    # Publish plans/outcomes to community feed
-    "community_fork_adapt":  "paid",    # Fork with LLM pantry adaptation (BYOK-unlockable)
+    "community_publish":     "paid",   # Publish plans/outcomes to community feed
 
-    # Paid tier (continued)
-    "recipe_scan":           "paid",   # BYOK-unlockable: photo -> structured recipe
-
-    # Premium tier
+    # Premium tier — heavy LLM features (model call per request)
+    "meal_plan_llm":         "premium",  # LLM-assisted full-week plan generation; BYOK-unlockable
+    "meal_plan_llm_timing":  "premium",  # LLM time fill-in for recipes missing corpus times; BYOK-unlockable
+    "style_classifier":      "premium",  # LLM auto-tag for saved recipe style tags; BYOK-unlockable
+    "community_fork_adapt":  "premium",  # Fork with LLM pantry adaptation; BYOK-unlockable
+    "recipe_scan":           "premium",  # BYOK-unlockable: photo -> structured recipe
     "multi_household":       "premium",
     "background_monitoring": "premium",
 }

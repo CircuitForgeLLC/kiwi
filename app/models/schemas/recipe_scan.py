@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
-
 # ── Ingredient in a scanned recipe ────────────────────────────────────────────
 
 class ScannedIngredientSchema(BaseModel):

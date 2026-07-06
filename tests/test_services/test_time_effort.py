@@ -1,11 +1,9 @@
 """Tests for app.services.recipe.time_effort — run RED before implementing."""
 import pytest
+
 from app.services.recipe.time_effort import (
-    TimeEffortProfile,
-    StepAnalysis,
     parse_time_effort,
 )
-
 
 # ── Step classification ────────────────────────────────────────────────────
 

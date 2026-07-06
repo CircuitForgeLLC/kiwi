@@ -10,17 +10,13 @@ import json
 import logging
 import os
 import re
-from pathlib import Path
-from typing import Dict, Any, Optional, List
 from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict
 
-from PIL import Image
 import torch
-from transformers import (
-    Qwen2VLForConditionalGeneration,
-    AutoProcessor,
-    BitsAndBytesConfig
-)
+from PIL import Image
+from transformers import AutoProcessor, BitsAndBytesConfig, Qwen2VLForConditionalGeneration
 
 from app.core.config import settings
 
@@ -35,8 +31,8 @@ def _try_docuvision(image_path: str | Path) -> str | None:
 
     # Tier 1: task-based routing — coordinator owns model selection.
     try:
-        from app.services.task_inference import task_allocate, TaskNotRegistered
         from app.services.ocr.docuvision_client import DocuvisionClient
+        from app.services.task_inference import TaskNotRegistered, task_allocate
         try:
             with task_allocate(
                 "kiwi", "ocr",
@@ -57,6 +53,7 @@ def _try_docuvision(image_path: str | Path) -> str | None:
     # Tier 2: direct allocation — hardcoded service type.
     try:
         from circuitforge_orch.client import CFOrchClient
+
         from app.services.ocr.docuvision_client import DocuvisionClient
 
         client = CFOrchClient(cf_orch_url)

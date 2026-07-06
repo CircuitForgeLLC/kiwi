@@ -2,23 +2,24 @@
 from __future__ import annotations
 
 import asyncio
+import json as _json_mod
 import logging
 from pathlib import Path
 from typing import Annotated
 
-import json as _json_mod
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
 from app.cloud_session import CloudUser, _auth_label, get_session
 
 log = logging.getLogger(__name__)
+from app.api.endpoints.imitate import _build_recipe_prompt
 from app.db.session import get_store
 from app.db.store import Store
 from app.models.schemas.recipe import (
+    AskRecipeHit,
     AskRequest,
     AskResponse,
-    AskRecipeHit,
     AssemblyTemplateOut,
     BuildRequest,
     LeftoversResponse,
@@ -31,7 +32,7 @@ from app.models.schemas.recipe import (
     StreamTokenResponse,
 )
 from app.services.coordinator_proxy import CoordinatorError, coordinator_authorize
-from app.api.endpoints.imitate import _build_recipe_prompt
+from app.services.heimdall_orch import check_orch_budget
 from app.services.recipe.assembly_recipes import (
     build_from_selection,
     get_role_candidates,
@@ -47,9 +48,8 @@ from app.services.recipe.browser_domains import (
     get_subcategory_names,
 )
 from app.services.recipe.recipe_engine import RecipeEngine
-from app.services.recipe.time_effort import parse_time_effort
 from app.services.recipe.sensory import build_sensory_exclude
-from app.services.heimdall_orch import check_orch_budget
+from app.services.recipe.time_effort import parse_time_effort
 from app.tiers import can_use
 
 router = APIRouter()
@@ -149,7 +149,9 @@ async def _enqueue_recipe_job(session: CloudUser, req: RecipeRequest):
     """
     import json
     import uuid
+
     from fastapi.responses import JSONResponse
+
     from app.cloud_session import CLOUD_MODE
     from app.tasks.runner import insert_task
 
@@ -495,7 +497,7 @@ async def browse_recipes(
                                 "community_tagged": True,
                             }
                 except Exception as exc:
-                    logger.warning("community tag fallback failed: %s", exc)
+                    log.warning("community tag fallback failed: %s", exc)
 
             store.log_browser_telemetry(
                 domain=domain,
@@ -576,7 +578,8 @@ async def build_recipe(
                 return None
             # Persist to recipes table so the result can be saved/bookmarked.
             # external_id encodes template + selections for stable dedup.
-            import hashlib as _hl, json as _js
+            import hashlib as _hl
+            import json as _js
             sel_hash = _hl.md5(
                 _js.dumps(req.role_overrides, sort_keys=True).encode()
             ).hexdigest()[:8]

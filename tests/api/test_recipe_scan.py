@@ -4,16 +4,14 @@ VLM calls are mocked at the service level -- no GPU or API key needed.
 """
 from __future__ import annotations
 
-import io
-import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app
 from app.cloud_session import get_session
 from app.db.session import get_store
+from app.main import app
 
 client = TestClient(app)
 

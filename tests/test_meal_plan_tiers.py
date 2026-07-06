@@ -13,15 +13,19 @@ def test_meal_plan_config_requires_paid():
     assert can_use("meal_plan_config", "paid") is True
 
 
-def test_meal_plan_llm_byok_unlockable():
-    """LLM plan generation is Paid but BYOK-unlockable on Free."""
+def test_meal_plan_llm_requires_premium():
+    """LLM plan generation requires Premium; BYOK unlocks it on Free/Paid too."""
     assert can_use("meal_plan_llm", "free", has_byok=False) is False
     assert can_use("meal_plan_llm", "free", has_byok=True) is True
-    assert can_use("meal_plan_llm", "paid") is True
+    assert can_use("meal_plan_llm", "paid", has_byok=False) is False
+    assert can_use("meal_plan_llm", "paid", has_byok=True) is True
+    assert can_use("meal_plan_llm", "premium") is True
 
 
-def test_meal_plan_llm_timing_byok_unlockable():
-    """LLM time estimation is Paid but BYOK-unlockable on Free."""
+def test_meal_plan_llm_timing_requires_premium():
+    """LLM time estimation requires Premium; BYOK unlocks it on Free/Paid too."""
     assert can_use("meal_plan_llm_timing", "free", has_byok=False) is False
     assert can_use("meal_plan_llm_timing", "free", has_byok=True) is True
-    assert can_use("meal_plan_llm_timing", "paid") is True
+    assert can_use("meal_plan_llm_timing", "paid", has_byok=False) is False
+    assert can_use("meal_plan_llm_timing", "paid", has_byok=True) is True
+    assert can_use("meal_plan_llm_timing", "premium") is True

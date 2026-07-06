@@ -20,13 +20,21 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from app.db.store import Store
 
-from app.models.schemas.recipe import GroceryLink, NutritionPanel, RecipeRequest, RecipeResult, RecipeSuggestion, StepAnalysis, TimeEffortProfile, SwapCandidate
+from app.models.schemas.recipe import (
+    NutritionPanel,
+    RecipeRequest,
+    RecipeResult,
+    RecipeSuggestion,
+    StepAnalysis,
+    SwapCandidate,
+    TimeEffortProfile,
+)
 from app.services.recipe.element_classifier import ElementClassifier
 from app.services.recipe.grocery_links import GroceryLinkBuilder
-from app.services.recipe.substitution_engine import SubstitutionEngine
-from app.services.recipe.sensory import SensoryExclude, build_sensory_exclude, passes_sensory_filter
-from app.services.recipe.time_effort import parse_time_effort
 from app.services.recipe.reranker import rerank_suggestions
+from app.services.recipe.sensory import build_sensory_exclude, passes_sensory_filter
+from app.services.recipe.substitution_engine import SubstitutionEngine
+from app.services.recipe.time_effort import parse_time_effort
 
 _LEFTOVER_DAILY_MAX_FREE = 5
 
@@ -398,9 +406,19 @@ def _expand_pantry_set(
         # Extract individual ingredient tokens from multi-word product names.
         # "Organic Extra Firm Tofu" → adds "tofu"; "Brown Basmati Rice" → adds "rice".
         # This catches plain ingredients that _PANTRY_LABEL_SYNONYMS doesn't translate.
+        # Threshold is 3 chars (not 4) so short-but-meaningful ingredients like "egg",
+        # "oil", and "soy" are captured from packaged product names.
         for token in lower.split():
-            if len(token) >= 4 and token not in _PRODUCT_TOKEN_STOPWORDS:
+            if len(token) >= 3 and token not in _PRODUCT_TOKEN_STOPWORDS:
                 expanded.add(token)
+                # Also add singular/plural variant so corpus "egg" matches pantry "eggs"
+                # and vice versa. Simple heuristic: strip/add trailing 's'.
+                if token.endswith("es") and len(token) > 4:
+                    expanded.add(token[:-2])  # "tomatoes" → "tomato"
+                elif token.endswith("s") and len(token) > 3:
+                    expanded.add(token[:-1])  # "eggs" → "egg", "florets" → "floret"
+                else:
+                    expanded.add(token + "s")  # "egg" → "eggs", "floret" → "florets"
 
         # Secondary state expansion — adds terms like "stale bread", "day-old rice"
         if secondary_pantry_items and item in secondary_pantry_items:
@@ -432,11 +450,30 @@ def _ingredient_in_pantry(ingredient: str, pantry_set: set[str]) -> bool:
         if pattern in clean and canonical in pantry_set:
             return True
 
-    # Single-token ingredient whose token appears in pantry (e.g. "ketchup" in "c. ketchup")
+    # Single-token or multi-token ingredient whose tokens appear in pantry.
+    # (e.g. "ketchup" in "c. ketchup", "diced onions" when "onion" is in pantry)
+    # Also accepts singular/plural variants so "egg" matches "eggs" and vice versa.
     tokens = [t for t in clean.split() if t not in _SWAP_STOPWORDS and len(t) > 2]
-    if tokens and all(t in pantry_set for t in tokens):
+    if tokens and all(_token_in_pantry(t, pantry_set) for t in tokens):
         return True
 
+    return False
+
+
+def _token_in_pantry(token: str, pantry_set: set[str]) -> bool:
+    """Return True if `token` or a simple plural/singular variant is in pantry_set."""
+    if token in pantry_set:
+        return True
+    # Try adding/removing trailing 's' / 'es' for plural normalization
+    if token.endswith("es") and len(token) > 4:
+        if token[:-2] in pantry_set:
+            return True
+    elif token.endswith("s") and len(token) > 3:
+        if token[:-1] in pantry_set:
+            return True
+    else:
+        if (token + "s") in pantry_set:
+            return True
     return False
 
 

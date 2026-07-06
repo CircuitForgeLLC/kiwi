@@ -6,7 +6,7 @@ import asyncio
 import logging
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import List, Optional
 
 import aiofiles
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
@@ -114,7 +114,6 @@ async def get_product(product_id: int, store: Store = Depends(get_store)):
 
 @router.get("/products/barcode/{barcode}", response_model=ProductResponse)
 async def get_product_by_barcode(barcode: str, store: Store = Depends(get_store)):
-    from app.db import store as store_module  # avoid circular
     product = await asyncio.to_thread(
         store._fetch_one, "SELECT * FROM products WHERE barcode = ?", (barcode,)
     )
@@ -383,8 +382,8 @@ async def scan_barcode_text(
 ):
     """Scan a barcode from a text string (e.g. from a hardware scanner or manual entry)."""
     log.info("scan auth=%s tier=%s barcode=%r", _auth_label(session.user_id), session.tier, body.barcode)
-    from app.services.openfoodfacts import OpenFoodFactsService
     from app.services.expiration_predictor import ExpirationPredictor
+    from app.services.openfoodfacts import OpenFoodFactsService
     from app.tiers import can_use
 
     predictor = ExpirationPredictor()
@@ -475,8 +474,8 @@ async def scan_barcode_image(
         async with aiofiles.open(temp_file, "wb") as f:
             await f.write(await file.read())
         from app.services.barcode_scanner import BarcodeScanner
-        from app.services.openfoodfacts import OpenFoodFactsService
         from app.services.expiration_predictor import ExpirationPredictor
+        from app.services.openfoodfacts import OpenFoodFactsService
 
         image_bytes = temp_file.read_bytes()
         barcodes = await asyncio.to_thread(BarcodeScanner().scan_from_bytes, image_bytes)
@@ -568,9 +567,10 @@ async def capture_nutrition_label(
     for user review.  Fields extracted with confidence < 0.7 should be
     highlighted in amber in the UI.
     """
-    from app.tiers import can_use
     from app.models.schemas.label_capture import LabelCaptureResponse
-    from app.services.label_capture import extract_label, needs_review as _needs_review
+    from app.services.label_capture import extract_label
+    from app.services.label_capture import needs_review as _needs_review
+    from app.tiers import can_use
 
     if not can_use("visual_label_capture", session.tier, session.has_byok):
         raise HTTPException(status_code=403, detail="Visual label capture requires a Paid tier or higher.")
@@ -611,9 +611,9 @@ async def confirm_nutrition_label(
     resolve instantly without another capture.  Optionally adds the item to
     the user's inventory.
     """
-    from app.tiers import can_use
     from app.models.schemas.label_capture import LabelConfirmResponse
     from app.services.expiration_predictor import ExpirationPredictor
+    from app.tiers import can_use
 
     if not can_use("visual_label_capture", session.tier, session.has_byok):
         raise HTTPException(status_code=403, detail="Visual label capture requires a Paid tier or higher.")
@@ -700,7 +700,8 @@ async def create_tag(body: TagCreate, store: Store = Depends(get_store)):
         (body.name, body.slug, body.description, body.color, body.category),
     )
     store.conn.commit()
-    import sqlite3; store.conn.row_factory = sqlite3.Row
+    import sqlite3
+    store.conn.row_factory = sqlite3.Row
     return TagResponse.model_validate(store._row_to_dict(cur.fetchone()))
 
 

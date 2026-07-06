@@ -10,6 +10,7 @@ Usage:
         --flavorgraph-dir /tmp/flavorgraph/input
 """
 from __future__ import annotations
+
 import argparse
 import json
 import sqlite3

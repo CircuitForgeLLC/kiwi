@@ -43,7 +43,7 @@ def _enrich(item: dict, builder: GroceryLinkBuilder) -> ShoppingItemResponse:
     links = builder.build_links(item["name"])
     return ShoppingItemResponse(
         **{**item, "checked": bool(item.get("checked", 0))},
-        grocery_links=[{"ingredient": l.ingredient, "retailer": l.retailer, "url": l.url} for l in links],
+        grocery_links=[{"ingredient": lnk.ingredient, "retailer": lnk.retailer, "url": lnk.url} for lnk in links],
     )
 
 

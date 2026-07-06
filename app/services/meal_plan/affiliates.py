@@ -12,7 +12,6 @@ from urllib.parse import quote_plus
 
 from circuitforge_core.affiliates import AffiliateProgram, register_program, wrap_url
 
-
 # ── URL builders ──────────────────────────────────────────────────────────────
 
 def _walmart_search(url: str, affiliate_id: str) -> str:

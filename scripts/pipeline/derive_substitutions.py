@@ -9,6 +9,7 @@ Usage:
         --recipepairs-recipes data/pipeline/recipepairs_recipes.parquet
 """
 from __future__ import annotations
+
 import argparse
 import json
 import re
