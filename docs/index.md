@@ -2,9 +2,10 @@
 
 **Stop throwing food away. Cook what you already have.**
 
-Kiwi tracks your pantry, watches for expiry dates, and suggests recipes based on what's about to go bad. Scan barcodes, photograph receipts, and let Kiwi tell you what to make for dinner — without needing an AI backend to do it.
+Kiwi tracks your pantry, watches for expiry dates, and suggests recipes based on what's about to go bad. Scan barcodes, photograph receipts, and let Kiwi tell you what to make for dinner — no LLM required.
 
-![Kiwi pantry view](screenshots/01-pantry.png)
+![Kiwi pantry view](screenshots/01-pantry.png){ .only-light }
+![Kiwi pantry view](screenshots/01-pantry-dark.png){ .only-dark }
 
 ---
 

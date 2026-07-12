@@ -1,6 +1,7 @@
 # Leftover Mode
 
-![Kiwi recipe results with pantry match](../screenshots/03-recipe-results.png)
+![Kiwi recipe results with pantry match](../screenshots/03-recipe-results.png){ .only-light }
+![Kiwi recipe results with pantry match](../screenshots/03-recipe-results-dark.png){ .only-dark }
 
 Leftover mode re-ranks recipe suggestions to surface dishes that use your nearly-expired items first. It's the fastest way to answer "what should I cook before this goes bad?"
 

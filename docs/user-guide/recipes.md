@@ -1,6 +1,7 @@
 # Recipe Browser
 
-![Kiwi recipe finder](../screenshots/02-recipes.png)
+![Kiwi recipe finder](../screenshots/02-recipes.png){ .only-light }
+![Kiwi recipe finder](../screenshots/02-recipes-dark.png){ .only-dark }
 
 The recipe browser lets you explore the full recipe corpus filtered by cuisine, meal type, dietary preference, and main ingredient. Your **pantry match percentage** is shown on every recipe card so you can see at a glance what you can cook tonight.
 

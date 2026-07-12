@@ -1,6 +1,7 @@
 # Receipt OCR
 
-![Kiwi receipt upload](../screenshots/04-receipts.png)
+![Kiwi receipt upload](../screenshots/04-receipts.png){ .only-light }
+![Kiwi receipt upload](../screenshots/04-receipts-dark.png){ .only-dark }
 
 Receipt OCR automatically extracts grocery line items from a photo of your receipt and adds them to your pantry after you approve. It's available on the Paid tier and BYOK-unlockable on Free.
 

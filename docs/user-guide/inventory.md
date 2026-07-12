@@ -1,6 +1,7 @@
 # Inventory
 
-![Kiwi pantry view](../screenshots/01-pantry.png)
+![Kiwi pantry view](../screenshots/01-pantry.png){ .only-light }
+![Kiwi pantry view](../screenshots/01-pantry-dark.png){ .only-dark }
 
 The inventory is your pantry. Every item you add gives Kiwi the data it needs to show pantry match percentages, flag expiry, and rank recipe suggestions.
 
